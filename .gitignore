@@ -1,0 +1,6 @@
+venv
+package
+dist
+.idea
+
+*.zip

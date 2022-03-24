@@ -1,0 +1,1 @@
+awslocal lambda update-function-code --function-name te-lambda --zip-file fileb://dist/lambda.zip

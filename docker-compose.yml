@@ -1,0 +1,14 @@
+version: "3.8"
+
+services:
+  localstack:
+    image: localstack/localstack
+    network_mode: bridge
+    environment:
+      SERVICES: lambda,sns
+      DEBUG: 1
+    ports:
+      - 4566:4566
+    volumes:
+      - "${TMPDIR:-/tmp}/localstack:/tmp/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"

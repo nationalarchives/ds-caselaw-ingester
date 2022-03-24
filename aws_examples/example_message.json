@@ -1,0 +1,6 @@
+{
+  "consignment-reference": "TDR-2022-C67H",
+  "s3-folder-url": "https://te-editorial-out-int.s3.eu-west-2.amazonaws.com/TDR-2022-C67H.tar.gz?X-Amz-Security-Token=IQoJb3JpZ2luX2VjEJf%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCWV1LXdlc3QtMiJIMEYCIQDLTmaISu2r83kDSVlR%2F1uF1CgUv5rzy4iCG8jsG9%2F5wgIhAIyi2R%2F7XSdm6h7KLPBB6J0RVUCFO%2FWTgBL%2F1vtzKA3YKqQCCPD%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEQAhoMMjI5NTU0Nzc4Njc1Igye71PDmIudFYcsh5cq%2BAET%2F7sg5ecibhtmTRT7wpgPySuAet%2FABHE%2B49m53K7v4%2F3NTtTf9grvosoN9iO0DbvoaKaMccLJRlvCeLJ0Alsmh2NQf6w91t75AYKiMQ6oLIXmwc05Ewj2kND3L8uwBsjRoFNReNrWXFW1D7jiqiQpAw6BA05UW9K8%2Fwip55WrYyzBt84btm0Zy2ryVwseFEaOsEHHjglt%2Bl83r1GkGt7iLcJ7ZpvSAp6WjI3zRxqzyXc%2B%2Bs0IsJukZ9P3NQZIbeUADegqDhOq6BHoLTYryajRrSUX3WiGFf%2B7%2FVI55muASwtUYCkR20wQutty2xKMXGVwlZSgpw%2BkiTDsuPOQBjqZAQafrMvrVG5FO5mPvY8rwVfag9z%2FhiOP7juMJ7GEwaNoMouZJvbslIGk6mfOWxfZ1qE99oRlKt9YuF1u53bPynC17N1vfIr9kW2bEsDLxndz35ZRR2yEjwhgwulbZdykVxjc%2BM%2BiDiGrtj53%2BlAOy8xSFZl1AMkBuAtNjAsTqGNyHzLQSJfeb83%2BoOIPe4O4%2B7wM7hStr28rAQ%3D%3D&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20220228T143015Z&X-Amz-SignedHeaders=host&X-Amz-Expires=60&X-Amz-Credential=ASIATK4UH6IZTWHYAHCS%2F20220228%2Feu-west-2%2Fs3%2Faws4_request&X-Amz-Signature=c39106d6f8b2e23ab4c896825bdc4489f4fb4bb41d93f4b9ec70e52aa0ad8399",
+  "consignment-type": "judgment",
+  "number-of-retries": 0
+}

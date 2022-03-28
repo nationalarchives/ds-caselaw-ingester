@@ -4,3 +4,4 @@ dist
 .idea
 
 *.zip
+.DS_Store

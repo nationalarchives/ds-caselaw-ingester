@@ -21,4 +21,4 @@ awslocal sns subscribe \
 awslocal s3api create-bucket \
   --bucket te-editorial-out-int
 
-awslocal s3 cp aws_examples/s3/te-editorial-out-int/te-metadata.json s3://te-editorial-out-int
+awslocal s3 cp aws_examples/s3/te-editorial-out-int/TRE-TDR-2022-DNWR.tar.gz s3://te-editorial-out-int

@@ -1,6 +1,6 @@
 {
   "consignment-reference": "TDR-2022-DNWR",
-  "s3-folder-url": "http://172.17.0.2:4566/te-editorial-out-int/te-metadata.json",
+  "s3-folder-url": "http://172.17.0.2:4566/te-editorial-out-int/TRE-TDR-2022-DNWR.tar.gz",
   "consignment-type": "judgment",
   "number-of-retries": 0
 }

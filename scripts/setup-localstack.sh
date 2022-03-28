@@ -19,6 +19,6 @@ awslocal sns subscribe \
   --notification-endpoint arn:aws:lambda:us-east-1:000000000000:function:te-lambda
 
 awslocal s3api create-bucket \
-  --bucket parsed-judgment
+  --bucket te-editorial-out-int
 
-awslocal s3 cp aws_examples/s3/parsed-judgment/* s3://parsed-judgment
+awslocal s3 cp aws_examples/s3/te-editorial-out-int/te-metadata.json s3://te-editorial-out-int

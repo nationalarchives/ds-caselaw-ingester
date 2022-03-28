@@ -15,6 +15,4 @@ update:
 	@sh scripts/update-lambda.sh
 
 send-message:
-	@awslocal sns publish --topic-arn arn:aws:sns:us-east-1:000000000000:judgments --message file://aws_examples/example_message.json
-
-
+	@awslocal sns publish --topic-arn arn:aws:sns:us-east-1:000000000000:judgments --message file://aws_examples/sns/example_message.json

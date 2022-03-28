@@ -17,3 +17,8 @@ awslocal sns subscribe \
   --topic-arn arn:aws:sns:us-east-1:000000000000:judgments \
   --protocol lambda \
   --notification-endpoint arn:aws:lambda:us-east-1:000000000000:function:te-lambda
+
+awslocal s3api create-bucket \
+  --bucket parsed-judgment
+
+awslocal s3 cp aws_examples/s3/parsed-judgment/* s3://parsed-judgment

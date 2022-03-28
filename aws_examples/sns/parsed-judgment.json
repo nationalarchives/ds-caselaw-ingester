@@ -1,0 +1,6 @@
+{
+  "consignment-reference": "TDR-2022-TEST",
+  "s3-folder-url": "https://localhost:4566/parsed-judgment/metadata.json",
+  "consignment-type": "judgment",
+  "number-of-retries": 0
+}

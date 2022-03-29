@@ -1,0 +1,30 @@
+{
+    "int-tre-version": "0.0.0",
+    "lambda-functions-version": [
+        {
+            "int-tre-bagit-checksum-validation": "0.0.0"
+        },
+        {
+            "int-tre-files-checksum-validation": "0.0.0"
+        },
+        {
+            "int-text-parser-version": "v0.0"
+        }
+    ],
+    "text-parser-version": "v0.0",
+    "uploader-email": "x@nationalarchives.gov.uk",
+    "bagit-info": {
+        "Consignment-Type": "judgment",
+        "Bag-Creator": "TDRExportv0.0.37",
+        "Consignment-Start-Datetime": "2022-03-25T09:58:39Z",
+        "Consignment-Series": "",
+        "Source-Organization": "Ministry of Justice",
+        "Contact-Name": "X",
+        "Internal-Sender-Identifier": "TDR-2022-DNWR",
+        "Consignment-Completed-Datetime": "2022-03-25T10:01:10Z",
+        "Consignment-Export-Datetime": "2022-03-25T10:15:08Z",
+        "Contact-Email": "x@nationalarchives.gov.uk",
+        "Payload-Oxum": "45956.1",
+        "Bagging-Date": "2022-03-25"
+    }
+}

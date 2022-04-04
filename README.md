@@ -20,7 +20,9 @@ python3 -m pip install -r requirements/local.txt
 
 ### Setup Localstack
 
-First, start Localstack using:
+First, copy `.env.example` to `.env` and fill in the missing variables. If you are using Localstack via Docker, leave `MARKLOGIC_HOST` as `host.docker.internal`.
+
+Then, start Localstack using:
 
 ```bash
 docker-compose up -d

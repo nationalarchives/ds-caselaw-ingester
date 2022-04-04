@@ -9,7 +9,7 @@ awslocal lambda create-function \
   --zip-file fileb://dist/lambda.zip \
   --handler lambda_function.handler \
   --runtime python3.9 \
-  --environment "Variables={MARKLOGIC_HOST=$MARKLOGIC_HOST,MARKLOGIC_USER=$MARKLOGIC_USER,MARKLOGIC_PASSWORD=$MARKLOGIC_PASSWORD}" \
+  --environment "Variables={MARKLOGIC_HOST=$MARKLOGIC_HOST,MARKLOGIC_USER=$MARKLOGIC_USER,MARKLOGIC_PASSWORD=$MARKLOGIC_PASSWORD,AWS_BUCKET_NAME=$AWS_BUCKET_NAME,AWS_SECRET_KEY=$AWS_SECRET_KEY,AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID,AWS_ENDPOINT_URL=$AWS_ENDPOINT_URL}" \
   --role arn:aws:iam::000000000000:role/lambda-role \
 
 awslocal sns create-topic \
@@ -23,5 +23,8 @@ awslocal sns subscribe \
 
 awslocal s3api create-bucket \
   --bucket te-editorial-out-int
+
+awslocal s3api create-bucket \
+  --bucket judgments-original-versions
 
 awslocal s3 cp aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz s3://te-editorial-out-int

@@ -1,12 +1,15 @@
 import os
 import json
+
 from typing import Union, Dict, List, Tuple
 
+import boto3 as boto3
 import urllib3
 import tarfile
 import xml.etree.ElementTree as ET
 
 from caselawclient.Client import api_client, MarklogicCommunicationError
+from botocore.exceptions import NoCredentialsError
 
 
 def extract_uri(contents: str) -> str:
@@ -38,6 +41,22 @@ def store_metadata(uri: str, metadata: Dict[str, Union[str, dict, List[dict]]]) 
     api_client.set_property(uri, name="contact-email", value=metadata["bagit-info"]["Contact-Email"])
 
 
+def store_original_document(original_document, uri):
+    session = boto3.session.Session(aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+                                    aws_secret_access_key=os.getenv('AWS_SECRET_KEY'))
+    s3 = session.client('s3', endpoint_url=os.getenv('AWS_ENDPOINT_URL'))
+    filename = f'{uri}.docx'
+
+    try:
+        s3.upload_fileobj(original_document, os.getenv('AWS_BUCKET_NAME'), filename)
+
+        print(f'Upload Successful {filename}')
+    except FileNotFoundError:
+        print(f'The file {filename} was not found')
+    except NoCredentialsError:
+        print('Credentials not available')
+
+
 def handler(event, context):
     decoder = json.decoder.JSONDecoder()
     message = decoder.decode(event['Records'][0]['Sns']['Message'])
@@ -51,6 +70,7 @@ def handler(event, context):
     filename = os.path.join("/tmp", f'{consignment_reference}.tar.gz')
     with open(filename, 'wb') as out:
         out.write(file.data)
+        out.close()
 
     # Extract the judgment XML
     tar = tarfile.open(filename, mode='r')
@@ -77,5 +97,9 @@ def handler(event, context):
 
         # Store metadata
         store_metadata(uri, metadata)
+
+    original_document = tar.extractfile(f'{consignment_reference}/{consignment_reference}.docx')
+    if original_document:
+        store_original_document(original_document, uri)
 
     return message

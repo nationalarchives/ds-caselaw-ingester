@@ -1,3 +1,5 @@
+source .env
+
 awslocal iam create-role \
   --role-name lambda-role \
   --assume-role-policy-document file://aws_examples/example_trust_policy.json
@@ -7,7 +9,8 @@ awslocal lambda create-function \
   --zip-file fileb://dist/lambda.zip \
   --handler lambda_function.handler \
   --runtime python3.9 \
-  --role arn:aws:iam::000000000000:role/lambda-role
+  --environment "Variables={MARKLOGIC_HOST=$MARKLOGIC_HOST,MARKLOGIC_USER=$MARKLOGIC_USER,MARKLOGIC_PASSWORD=$MARKLOGIC_PASSWORD}" \
+  --role arn:aws:iam::000000000000:role/lambda-role \
 
 awslocal sns create-topic \
   --name judgments \
@@ -21,4 +24,4 @@ awslocal sns subscribe \
 awslocal s3api create-bucket \
   --bucket te-editorial-out-int
 
-awslocal s3 cp aws_examples/s3/te-editorial-out-int/TRE-TDR-2022-DNWR.tar.gz s3://te-editorial-out-int
+awslocal s3 cp aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz s3://te-editorial-out-int

@@ -1,9 +1,9 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  ds-caselaw-aws-lambda
+  ds-caselaw-ingester
 
-  TNA Caselaw lambda
+  TNA Caselaw ingester lambda
 
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
@@ -11,10 +11,10 @@ Globals:
     Timeout: 3
 
 Resources:
-  TNACaselawFunction:
+  TNACaselawIngesterFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
-      CodeUri: ds-caselaw-aws-lambda/
+      CodeUri: ds-caselaw-ingester/
       Handler: app.lambda_handler
       Runtime: python3.9
       Architectures:
@@ -24,9 +24,9 @@ Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
   # Find out more about other implicit resources you can reference within SAM
   # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
-  TNACaselawFunction:
-    Description: "TNA Caselaw Lambda Function ARN"
-    Value: !GetAtt TNACaselawFunction.Arn
-  TNACaselawFunctionIamRole:
-    Description: "Implicit IAM Role created for TNA Caselaw function"
-    Value: !GetAtt TNACaselawFunctionRole.Arn
+  TNACaselawIngesterFunction:
+    Description: "TNA Caselaw Ingester Lambda Function ARN"
+    Value: !GetAtt TNACaselawIngesterFunction.Arn
+  TNACaselawIngesterFunctionIamRole:
+    Description: "Implicit IAM Role created for TNA Caselaw Ingester function"
+    Value: !GetAtt TNACaselawIngesterFunctionRole.Arn

@@ -19,6 +19,13 @@ Resources:
       Runtime: python3.9
       Architectures:
         - x86_64
+    Events:
+      SNSEvent:
+        Type: SNS
+        Properties:
+          Topic: arn:aws:sns:eu-west-2:882876621099:int-te-editorial-out
+          SqsSubscription: true
+
 
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function

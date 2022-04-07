@@ -21,6 +21,10 @@ class XmlFileNotFoundException(Exception):
     pass
 
 
+class DocxNotFoundException(Exception):
+    pass
+
+
 def extract_uri(contents: str) -> str:
     decoder = json.decoder.JSONDecoder()
     metadata = decoder.decode(contents)
@@ -139,6 +143,8 @@ def handler(event, context):
         original_document = tar.extractfile(f'{consignment_reference}/{consignment_reference}.docx')
         if original_document:
             store_original_document(original_document, uri, s3_client)
+        else:
+            raise DocxNotFoundException(f'No .docx file was found. Consignment Ref: {consignment_reference}')
 
     except BaseException:
         # Send retry message to sqs

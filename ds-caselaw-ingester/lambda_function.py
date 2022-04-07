@@ -76,6 +76,8 @@ def send_retry_message(original_message: Dict[str, Union[str, int]], sqs_client:
             QueueUrl=os.getenv('SQS_QUEUE_URL'),
             MessageBody=json.dumps(retry_message)
         )
+    else:
+        print(f'Maximum number of retries reached for {original_message["consignment-reference"]}')
 
 
 def handler(event, context):

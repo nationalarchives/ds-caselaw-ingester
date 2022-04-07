@@ -7,7 +7,7 @@ awslocal iam create-role \
 awslocal lambda create-function \
   --function-name te-lambda \
   --zip-file fileb://dist/lambda.zip \
-  --handler lambda_function.handler \
+  --handler ds-caselaw-ingester/lambda_function.handler \
   --runtime python3.9 \
   --environment "Variables={MARKLOGIC_HOST=$MARKLOGIC_HOST,MARKLOGIC_USER=$MARKLOGIC_USER,MARKLOGIC_PASSWORD=$MARKLOGIC_PASSWORD,AWS_BUCKET_NAME=$AWS_BUCKET_NAME,AWS_SECRET_KEY=$AWS_SECRET_KEY,AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID,AWS_ENDPOINT_URL=$AWS_ENDPOINT_URL,SQS_QUEUE_URL=$SQS_QUEUE_URL}" \
   --role arn:aws:iam::000000000000:role/lambda-role \

@@ -64,16 +64,18 @@ def store_original_document(original_document, uri, s3_client: Session.client):
 
 
 def send_retry_message(original_message: Dict[str, Union[str, int]], sqs_client: Session.client) -> None:
-    retry_message = {
-        "consignment-reference": original_message["consignment-reference"],
-        "s3-folder-url": "",
-        "consignment-type": original_message["consignment-type"],
-        "number-of-retries": int(original_message["number-of-retries"]) + 1
-    }
-    sqs_client.send_message(
-        QueueUrl=os.getenv('SQS_QUEUE_URL'),
-        MessageBody=json.dumps(retry_message)
-    )
+    number_of_retries = int(original_message["number-of-retries"])
+    if number_of_retries <= 3:
+        retry_message = {
+            "consignment-reference": original_message["consignment-reference"],
+            "s3-folder-url": "",
+            "consignment-type": original_message["consignment-type"],
+            "number-of-retries": number_of_retries + 1
+        }
+        sqs_client.send_message(
+            QueueUrl=os.getenv('SQS_QUEUE_URL'),
+            MessageBody=json.dumps(retry_message)
+        )
 
 
 def handler(event, context):

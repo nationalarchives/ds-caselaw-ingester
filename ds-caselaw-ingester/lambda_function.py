@@ -125,7 +125,7 @@ def handler(event, context):
 
     except BaseException:
         # Send retry message to sqs
-        send_retry_message(message, sqs_client)
+        # send_retry_message(message, sqs_client)
         # Raise error up to ensure it's logged
         raise
 

@@ -1,16 +1,37 @@
 import os
 import json
+import datetime
 
 from typing import Union, Dict, List, Tuple
 
 import boto3
 from boto3.session import Session
+from requests_toolbelt.multipart.decoder import MultipartDecoder
 import urllib3
 import tarfile
 import xml.etree.ElementTree as ET
 
 from caselawclient.Client import api_client, MarklogicCommunicationError
 from botocore.exceptions import NoCredentialsError
+
+COURT_TO_URI = {
+    "UKSC": "uksc",
+    "UKPC": "ukpc",
+    "EWCA ": "ewca",
+    "EWHC": "ewhc",
+    "EWCOP": "ewcop",
+    "EWFC": "ewfc",
+    "EWCA-Civil": "ewca/civ",
+    "EWCA-Criminal": "ewca/crim",
+    "EWHC-QBD": "ewhc/qb",
+    "EWHC-Chancery": "ewhc/ch",
+    "EWHC-Family": "ewhc/fam",
+    "EWHC-QBD-General": "ewhc/qb",
+    "EWHC-QBD-Admin": "ewhc/qb",
+    "EWHC-QBD-Plannig": "ewhc/qb",
+    "EWHC-QBD-BusinessAndProperty": "ewhc/qb",
+    "EWHC-QBD-Commercial": "ewhc/qb"
+}
 
 
 def extract_uri(contents: str) -> str:
@@ -36,7 +57,8 @@ def store_metadata(uri: str, metadata: Dict[str, Union[str, dict, List[dict]]]) 
 
     api_client.set_property(uri, name="source-organisation", value=metadata["bagit-info"]["Source-Organization"])
     api_client.set_property(uri, name="contact-name", value=metadata["bagit-info"]["Contact-Name"])
-    api_client.set_property(uri, name="consignment-reference", value=metadata["bagit-info"]["Internal-Sender-Identifier"])
+    api_client.set_property(uri, name="consignment-reference",
+                            value=metadata["bagit-info"]["Internal-Sender-Identifier"])
     api_client.set_property(uri, name="publish-datetime",
                             value=metadata["bagit-info"]["Consignment-Completed-Datetime"])
     api_client.set_property(uri, name="contact-email", value=metadata["bagit-info"]["Contact-Email"])
@@ -100,7 +122,6 @@ def handler(event, context):
 
         if xml_file and uri:
             contents = xml_file.read()
-
             xml = ET.XML(contents)
 
             try:
@@ -117,6 +138,32 @@ def handler(event, context):
             original_document = tar.extractfile(f'{consignment_reference}/{consignment_reference}.docx')
             if original_document:
                 store_original_document(original_document, uri, session)
+
+        elif xml_file and not uri:
+            # There is no URI set, so we must assign an ordinal ID and create a new URI
+            date = datetime.datetime.strptime(
+                metadata["bagit-info"]["Consignment-Completed-Datetime"],
+                "%Y-%m-%dT%H:%M:%SZ"
+            ).strftime("%Y-%m-%d")
+
+            response = api_client.advanced_search(date_from=date, date_to=date, show_unpublished=True)
+            results = MultipartDecoder.from_response(response).parts[0].text
+
+            xml = ET.fromstring(results)
+            ns = {
+                "search": "http://marklogic.com/appservices/search",
+                "akn": "http://docs.oasis-open.org/legaldocml/ns/akn/3.0",
+                "uk": "https://caselaw.nationalarchives.gov.uk/akn",
+            }
+            total = int(xml.find(".//search:response/@total", namespaces=ns).text)
+            court = xml.find(".//akn:proprietary/uk:court", namespaces=ns).text
+
+            court_uri = COURT_TO_URI[court]
+            # Get all documents published on the same day
+            ordinal_id = total + 1
+            # Create a new URI for the document in the format:
+            # <court>/<?subdivision>/<year>/<date>/num/ordinal_id
+
 
     except BaseException:
         # Send retry message to sqs

@@ -42,12 +42,11 @@ def store_metadata(uri: str, metadata: Dict[str, Union[str, dict, List[dict]]]) 
     api_client.set_property(uri, name="contact-email", value=metadata["bagit-info"]["Contact-Email"])
 
 
-def store_original_document(original_document, uri, session: Session):
-    s3 = session.client('s3', endpoint_url=os.getenv('AWS_ENDPOINT_URL'))
+def store_original_document(original_document, uri, s3_client: Session.client):
     filename = f'{uri}.docx'
 
     try:
-        s3.upload_fileobj(original_document, os.getenv('AWS_BUCKET_NAME'), filename)
+        s3_client.upload_fileobj(original_document, os.getenv('AWS_BUCKET_NAME'), filename)
 
         print(f'Upload Successful {filename}')
     except FileNotFoundError:
@@ -56,15 +55,14 @@ def store_original_document(original_document, uri, session: Session):
         print('Credentials not available')
 
 
-def send_retry_message(original_message: Dict[str, Union[str, int]], session: Session) -> None:
-    sqs = session.client('sqs', endpoint_url=os.getenv('AWS_ENDPOINT_URL'))
+def send_retry_message(original_message: Dict[str, Union[str, int]], sqs_client: Session.client) -> None:
     retry_message = {
         "consignment-reference": original_message["consignment-reference"],
         "s3-folder-url": "",
         "consignment-type": original_message["consignment-type"],
         "number-of-retries": int(original_message["number-of-retries"]) + 1
     }
-    sqs.send_message(
+    sqs_client.send_message(
         QueueUrl=os.getenv('SQS_QUEUE_URL'),
         MessageBody=json.dumps(retry_message)
     )
@@ -75,8 +73,15 @@ def handler(event, context):
     message = decoder.decode(event['Records'][0]['Sns']['Message'])
     consignment_reference = message["consignment-reference"]
 
-    session = boto3.session.Session(aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
-                                    aws_secret_access_key=os.getenv('AWS_SECRET_KEY'))
+    if os.getenv('AWS_ACCESS_KEY_ID') and os.getenv('AWS_SECRET_KEY') and os.getenv('AWS_ENDPOINT_URL'):
+        session = boto3.session.Session(aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+                                        aws_secret_access_key=os.getenv('AWS_SECRET_KEY'))
+        sqs_client = session.client('sqs', endpoint_url=os.getenv('AWS_ENDPOINT_URL'))
+        s3_client = session.client('s3', endpoint_url=os.getenv('AWS_ENDPOINT_URL'))
+    else:
+        session = boto3.session.Session()
+        sqs_client = session.client('sqs')
+        s3_client = session.client('s3')
     try:
         # Retrieve tar file from S3
         http = urllib3.PoolManager()
@@ -116,11 +121,11 @@ def handler(event, context):
 
             original_document = tar.extractfile(f'{consignment_reference}/{consignment_reference}.docx')
             if original_document:
-                store_original_document(original_document, uri, session)
+                store_original_document(original_document, uri, s3_client)
 
     except BaseException:
         # Send retry message to sqs
-        send_retry_message(message, session)
+        send_retry_message(message, sqs_client)
         # Raise error up to ensure it's logged
         raise
 

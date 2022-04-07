@@ -13,6 +13,14 @@ from caselawclient.Client import api_client, MarklogicCommunicationError
 from botocore.exceptions import NoCredentialsError
 
 
+class UriNotFoundException(Exception):
+    pass
+
+
+class XmlFileNotFoundException(Exception):
+    pass
+
+
 def extract_uri(contents: str) -> str:
     decoder = json.decoder.JSONDecoder()
     metadata = decoder.decode(contents)
@@ -103,25 +111,30 @@ def handler(event, context):
         te_metadata_file = tar.extractfile(f'{consignment_reference}/te-metadata.json')
         metadata = decoder.decode(te_metadata_file.read().decode('utf-8'))
 
-        if xml_file and uri:
-            contents = xml_file.read()
+        if not uri:
+            raise UriNotFoundException(f'URI not found. Consignment Ref: {consignment_reference}')
 
-            xml = ET.XML(contents)
+        if not xml_file:
+            raise XmlFileNotFoundException(f'No XML file was found. Consignment Ref: {consignment_reference}')
 
-            try:
-                api_client.get_judgment_xml(uri, show_unpublished=True)
-                api_client.save_judgment_xml(uri, xml)
-                print(f'Updated judgment {uri}')
-            except MarklogicCommunicationError:
-                api_client.insert_judgment_xml(uri, xml)
-                print(f'Inserted judgment {uri}')
+        contents = xml_file.read()
 
-            # Store metadata
-            store_metadata(uri, metadata)
+        xml = ET.XML(contents)
 
-            original_document = tar.extractfile(f'{consignment_reference}/{consignment_reference}.docx')
-            if original_document:
-                store_original_document(original_document, uri, s3_client)
+        try:
+            api_client.get_judgment_xml(uri, show_unpublished=True)
+            api_client.save_judgment_xml(uri, xml)
+            print(f'Updated judgment {uri}')
+        except MarklogicCommunicationError:
+            api_client.insert_judgment_xml(uri, xml)
+            print(f'Inserted judgment {uri}')
+
+        # Store metadata
+        store_metadata(uri, metadata)
+
+        original_document = tar.extractfile(f'{consignment_reference}/{consignment_reference}.docx')
+        if original_document:
+            store_original_document(original_document, uri, s3_client)
 
     except BaseException:
         # Send retry message to sqs

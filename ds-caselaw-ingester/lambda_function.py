@@ -130,7 +130,7 @@ def handler(event, context):
         te_meta = tar.extractfile(f'{consignment_reference}/te-meta.json')
         uri = extract_uri(te_meta.read().decode('utf-8'))
 
-        te_metadata_file = tar.extractfile(f'{consignment_reference}/te-metadata.json')
+        te_metadata_file = tar.extractfile(f'{consignment_reference}/TRE-{consignment_reference}-metadata.json')
         metadata = decoder.decode(te_metadata_file.read().decode('utf-8'))
 
         if not uri:

@@ -12,6 +12,9 @@ import xml.etree.ElementTree as ET
 from caselawclient.Client import api_client, MarklogicCommunicationError
 from botocore.exceptions import NoCredentialsError
 
+import rollbar
+rollbar.init(os.getenv('ROLLBAR_TOKEN'), environment=os.getenv('ROLLBAR_ENV'))
+
 
 class UriNotFoundException(Exception):
     pass
@@ -78,6 +81,7 @@ def send_retry_message(original_message: Dict[str, Union[str, int]], sqs_client:
         )
 
 
+@rollbar.lambda_function
 def handler(event, context):
     decoder = json.decoder.JSONDecoder()
     message = decoder.decode(event['Records'][0]['Sns']['Message'])

@@ -28,10 +28,20 @@ class DocxNotFoundException(Exception):
     pass
 
 
+class DocxFilenameNotFoundException(Exception):
+    pass
+
+
 def extract_uri(contents: str) -> str:
     decoder = json.decoder.JSONDecoder()
     metadata = decoder.decode(contents)
     return metadata["uri"].replace('https://caselaw.nationalarchives.gov.uk/id/', '')
+
+
+def extract_docx_filename(contents: str) -> str:
+    decoder = json.decoder.JSONDecoder()
+    metadata = decoder.decode(contents)
+    return metadata["filename"]
 
 
 def extract_lambda_versions(versions: List[Dict[str, str]]) -> List[Tuple[str, str]]:
@@ -144,11 +154,15 @@ def handler(event, context):
         # Store metadata
         store_metadata(uri, metadata)
 
-        original_document = tar.extractfile(f'{consignment_reference}/{consignment_reference}.docx')
+        docx_filename = extract_docx_filename(te_meta.read().decode('utf-8'))
+        if not filename:
+            raise DocxFilenameNotFoundException(f'No .docx filename was found in meta. Consignment Ref: {consignment_reference}')
+
+        original_document = tar.extractfile(f'{consignment_reference}/{docx_filename}.docx')
         if original_document:
             store_original_document(original_document, uri, s3_client)
         else:
-            raise DocxNotFoundException(f'No .docx file was found. Consignment Ref: {consignment_reference}')
+            raise DocxNotFoundException(f'No .docx file was found. Consignment Ref: {consignment_reference}, expected file: {docx_filename}')
 
     except BaseException:
         # Send retry message to sqs

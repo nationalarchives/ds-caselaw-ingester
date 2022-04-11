@@ -39,19 +39,19 @@ def extract_lambda_versions(versions: List[Dict[str, str]]) -> List[Tuple[str, s
 
 
 def store_metadata(uri: str, metadata: Dict[str, Union[str, dict, List[dict]]]) -> None:
-    api_client.set_property(uri, name="tre-version", value=metadata["int-tre-version"])
-    api_client.set_property(uri, name="text-parser-version", value=metadata["text-parser-version"])
-
+    # Store Transformation Engine metadata
+    api_client.set_property(uri, name="transform-version", value=metadata["int-tre-version"])
     for key, version in extract_lambda_versions(metadata["lambda-functions-version"]):
-        api_client.set_property(uri, name=f'lambda-{key}', value=version)
-
+        # int-te-bagit-checksum-validation, int-te-files-checksum-validation, and int-text-parser-version
+        api_client.set_property(uri, name=f'transform-{key}', value=version)
+    # Store source information
     api_client.set_property(uri, name="source-organisation", value=metadata["bagit-info"]["Source-Organization"])
-    api_client.set_property(uri, name="contact-name", value=metadata["bagit-info"]["Contact-Name"])
-    api_client.set_property(uri, name="consignment-reference", value=metadata["bagit-info"]["Internal-Sender-Identifier"])
-    api_client.set_property(uri, name="publish-datetime",
+    api_client.set_property(uri, name="source-name", value=metadata["bagit-info"]["Contact-Name"])
+    api_client.set_property(uri, name="source-email", value=metadata["bagit-info"]["Contact-Email"])
+    # Store TDR data
+    api_client.set_property(uri, name="transfer-consignment-reference", value=metadata["bagit-info"]["Internal-Sender-Identifier"])
+    api_client.set_property(uri, name="transfer-received-at",
                             value=metadata["bagit-info"]["Consignment-Completed-Datetime"])
-    api_client.set_property(uri, name="contact-email", value=metadata["bagit-info"]["Contact-Email"])
-
 
 def store_original_document(original_document, uri, s3_client: Session.client):
     filename = f'{uri}.docx'

@@ -34,6 +34,10 @@ class DocxFilenameNotFoundException(Exception):
     pass
 
 
+class MaximumRetriesExceededException(Exception):
+    pass
+
+
 def extract_uri(metadata: dict) -> str:
     return metadata["parameters"]["PARSER"]["uri"].replace('https://caselaw.nationalarchives.gov.uk/id/', '')
 
@@ -90,7 +94,7 @@ def send_retry_message(original_message: Dict[str, Union[str, int]], sqs_client:
             MessageBody=json.dumps(retry_message)
         )
     else:
-        print(f'Maximum number of retries reached for {original_message["consignment-reference"]}')
+        raise MaximumRetriesExceededException(f'Maximum number of retries reached for {original_message["consignment-reference"]}')
 
 
 @rollbar.lambda_function

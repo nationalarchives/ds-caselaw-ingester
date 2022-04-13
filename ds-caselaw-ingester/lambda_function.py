@@ -13,6 +13,8 @@ from caselawclient.Client import api_client, MarklogicCommunicationError
 from botocore.exceptions import NoCredentialsError
 
 import rollbar
+
+
 rollbar.init(os.getenv('ROLLBAR_TOKEN'), environment=os.getenv('ROLLBAR_ENV'))
 
 
@@ -24,10 +26,24 @@ class XmlFileNotFoundException(Exception):
     pass
 
 
-def extract_uri(contents: str) -> str:
-    decoder = json.decoder.JSONDecoder()
-    metadata = decoder.decode(contents)
-    return metadata["uri"].replace('https://caselaw.nationalarchives.gov.uk/id/', '')
+class DocxNotFoundException(Exception):
+    pass
+
+
+class DocxFilenameNotFoundException(Exception):
+    pass
+
+
+class MaximumRetriesExceededException(Exception):
+    pass
+
+
+def extract_uri(metadata: dict) -> str:
+    return metadata["parameters"]["PARSER"]["uri"].replace('https://caselaw.nationalarchives.gov.uk/id/', '')
+
+
+def extract_docx_filename(metadata: dict) -> str:
+    return metadata["parameters"]["TRE"]["payload"]["filename"]
 
 
 def extract_lambda_versions(versions: List[Dict[str, str]]) -> List[Tuple[str, str]]:
@@ -38,23 +54,21 @@ def extract_lambda_versions(versions: List[Dict[str, str]]) -> List[Tuple[str, s
     return version_tuples
 
 
-def store_metadata(uri: str, metadata: Dict[str, Union[str, dict, List[dict]]]) -> None:
-    # Store Transformation Engine metadata
-    api_client.set_property(uri, name="transform-version", value=metadata["int-tre-version"])
-    for key, version in extract_lambda_versions(metadata["lambda-functions-version"]):
-        # int-te-bagit-checksum-validation, int-te-files-checksum-validation, and int-text-parser-version
-        api_client.set_property(uri, name=f'transform-{key}', value=version)
+def store_metadata(uri: str, metadata: dict) -> None:
+    tdr_metadata = metadata["parameters"]["TDR"]
+
     # Store source information
-    api_client.set_property(uri, name="source-organisation", value=metadata["bagit-info"]["Source-Organization"])
-    api_client.set_property(uri, name="source-name", value=metadata["bagit-info"]["Contact-Name"])
-    api_client.set_property(uri, name="source-email", value=metadata["bagit-info"]["Contact-Email"])
+    api_client.set_property(uri, name="source-organisation", value=tdr_metadata["Source-Organization"])
+    api_client.set_property(uri, name="source-name", value=tdr_metadata["Source-Organization"])
+    api_client.set_property(uri, name="source-email", value=tdr_metadata["Contact-Email"])
     # Store TDR data
-    api_client.set_property(uri, name="transfer-consignment-reference", value=metadata["bagit-info"]["Internal-Sender-Identifier"])
+    api_client.set_property(uri, name="transfer-consignment-reference", value=tdr_metadata["Internal-Sender-Identifier"])
     api_client.set_property(uri, name="transfer-received-at",
-                            value=metadata["bagit-info"]["Consignment-Completed-Datetime"])
+                            value=tdr_metadata["Consignment-Completed-Datetime"])
+
 
 def store_original_document(original_document, uri, s3_client: Session.client):
-    filename = f'{uri}.docx'
+    filename = f'{uri}/{uri.replace("/", "_")}.docx'
 
     try:
         s3_client.upload_fileobj(original_document, os.getenv('AWS_BUCKET_NAME'), filename)
@@ -79,6 +93,8 @@ def send_retry_message(original_message: Dict[str, Union[str, int]], sqs_client:
             QueueUrl=os.getenv('SQS_QUEUE_URL'),
             MessageBody=json.dumps(retry_message)
         )
+    else:
+        raise MaximumRetriesExceededException(f'Maximum number of retries reached for {original_message["consignment-reference"]}')
 
 
 @rollbar.lambda_function
@@ -109,13 +125,13 @@ def handler(event, context):
 
         # Extract the judgment XML
         tar = tarfile.open(filename, mode='r')
-        xml_file = tar.extractfile(f'{consignment_reference}/{consignment_reference}.xml')
-
-        te_meta = tar.extractfile(f'{consignment_reference}/te-meta.json')
-        uri = extract_uri(te_meta.read().decode('utf-8'))
-
-        te_metadata_file = tar.extractfile(f'{consignment_reference}/te-metadata.json')
+        te_metadata_file = tar.extractfile(f'{consignment_reference}/TRE-{consignment_reference}-metadata.json')
         metadata = decoder.decode(te_metadata_file.read().decode('utf-8'))
+
+        xml_file_name = metadata["parameters"]["TRE"]["payload"]["xml"]
+        xml_file = tar.extractfile(f'{consignment_reference}/{xml_file_name}')
+
+        uri = extract_uri(metadata)
 
         if not uri:
             raise UriNotFoundException(f'URI not found. Consignment Ref: {consignment_reference}')
@@ -138,9 +154,15 @@ def handler(event, context):
         # Store metadata
         store_metadata(uri, metadata)
 
-        original_document = tar.extractfile(f'{consignment_reference}/{consignment_reference}.docx')
+        docx_filename = extract_docx_filename(metadata)
+        if not filename:
+            raise DocxFilenameNotFoundException(f'No .docx filename was found in meta. Consignment Ref: {consignment_reference}')
+
+        original_document = tar.extractfile(f'{consignment_reference}/{docx_filename}')
         if original_document:
             store_original_document(original_document, uri, s3_client)
+        else:
+            raise DocxNotFoundException(f'No .docx file was found. Consignment Ref: {consignment_reference}, expected file: {docx_filename}')
 
     except BaseException:
         # Send retry message to sqs

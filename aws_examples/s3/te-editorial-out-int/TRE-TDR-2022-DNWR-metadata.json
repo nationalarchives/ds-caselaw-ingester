@@ -1,0 +1,44 @@
+{
+    "producer": {
+        "name": "TRE",
+        "process": "transform",
+        "type": "judgment"
+    },
+    "parameters": {
+        "TRE": {
+            "reference": "TRE-TDR-2022-DNWR",
+            "payload": {
+                "filename": "test.docx",
+                "xml": "TDR-2022-DNWR.xml",
+                "metadata": "TRE-TDR-2022-DNWR-metadata.json",
+                "images": [
+                    "image1.png"
+                ],
+                "log": "parser.log"
+            }
+        },
+        "PARSER": {
+          "uri": "https://caselaw.nationalarchives.gov.uk/id/ewca/civ/2022/111",
+          "court": "EWCA-Civil",
+          "cite": "[2022] EWCA Civ 111",
+          "date": "2022-01-01",
+          "name": "X v Y",
+          "attachments": [],
+          "error-messages": []
+        },
+        "TDR": {
+            "Consignment-Type": "judgment",
+            "Bag-Creator": "TDRExportv0.0.29",
+            "Consignment-Start-Datetime": "2021-12-16T14:51:49Z",
+            "Consignment-Series": "",
+            "Source-Organization": "Ministry of Justice",
+            "Contact-Name": "Tom King",
+            "Internal-Sender-Identifier": "TDR-2021-CF6L",
+            "Consignment-Completed-Datetime": "2021-12-16T14:54:06Z",
+            "Consignment-Export-Datetime": "2021-12-16T14:54:55Z",
+            "Contact-Email": "someone@example.com",
+            "Payload-Oxum": "45956.1",
+            "Bagging-Date": "2021-12-16"
+        }
+    }
+}

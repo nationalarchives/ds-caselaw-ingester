@@ -68,15 +68,13 @@ def store_metadata(uri: str, metadata: dict) -> None:
                             value=tdr_metadata["Consignment-Completed-Datetime"])
 
 
-def store_original_document(original_document, uri, s3_client: Session.client):
-    filename = f'{uri}/{uri.replace("/", "_")}.docx'
-
+def store_file(file, folder, filename, s3_client: Session.client):
+    pathname = f'{folder}/{filename}'
     try:
-        s3_client.upload_fileobj(original_document, os.getenv('AWS_BUCKET_NAME'), filename)
-
-        print(f'Upload Successful {filename}')
+        s3_client.upload_fileobj(file, os.getenv('AWS_BUCKET_NAME'), pathname)
+        print(f'Upload Successful {pathname}')
     except FileNotFoundError:
-        print(f'The file {filename} was not found')
+        print(f'The file {pathname} was not found')
     except NoCredentialsError:
         print('Credentials not available')
 
@@ -94,6 +92,10 @@ def send_new_judgment_notification(uri: str, metadata: dict):
         }
     )
     print(f'Sent notification to {os.getenv("NOTIFY_EDITORIAL_ADDRESS")} (Message ID: {response["id"]})')
+
+def store_original_document(original_document, uri, s3_client: Session.client):
+    docx_filename = f'{uri.replace("/", "_")}.docx'
+    store_file(original_document, uri, docx_filename, s3_client)
 
 def send_retry_message(original_message: Dict[str, Union[str, int]], sqs_client: Session.client) -> None:
     number_of_retries = int(original_message["number-of-retries"])

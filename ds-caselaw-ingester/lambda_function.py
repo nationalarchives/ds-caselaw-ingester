@@ -187,8 +187,12 @@ def handler(event, context):
         for image_filename in metadata["parameters"]["TRE"]["payload"]["images"]:
             copy_file(tar, f'{consignment_reference}/{image_filename}', image_filename, s3_client)
 
+        # Copy original tarfile
+        store_file(tar, consignment_reference, filename, s3_client)
+
         # Notify editors that a new document is ready
         send_new_judgment_notification(uri, metadata)
+
 
     except BaseException:
         # Send retry message to sqs

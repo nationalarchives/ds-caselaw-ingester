@@ -174,10 +174,18 @@ def handler(event, context):
         # Store metadata
         store_metadata(uri, metadata)
 
+        # Store docx and rename
         docx_filename = extract_docx_filename(metadata)
         if not filename:
             raise DocxFilenameNotFoundException(f'No .docx filename was found in meta. Consignment Ref: {consignment_reference}')
         copy_file(tar, f'{consignment_reference}/{docx_filename}', f'{uri.replace("/", "_")}.docx', s3_client)
+
+        # Store parser log
+        copy_file(tar, f'{consignment_reference}/parser.log', 'parser.log', s3_client)
+
+        # Store images
+        for image_filename in metadata["parameters"]["TRE"]["payload"]["images"]:
+            copy_file(tar, f'{consignment_reference}/{image_filename}', image_filename, s3_client)
 
         # Notify editors that a new document is ready
         send_new_judgment_notification(uri, metadata)

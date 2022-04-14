@@ -27,7 +27,7 @@ class XmlFileNotFoundException(Exception):
     pass
 
 
-class DocxNotFoundException(Exception):
+class FileNotFoundException(Exception):
     pass
 
 
@@ -93,9 +93,12 @@ def send_new_judgment_notification(uri: str, metadata: dict):
     )
     print(f'Sent notification to {os.getenv("NOTIFY_EDITORIAL_ADDRESS")} (Message ID: {response["id"]})')
 
-def store_original_document(original_document, uri, s3_client: Session.client):
-    docx_filename = f'{uri.replace("/", "_")}.docx'
-    store_file(original_document, uri, docx_filename, s3_client)
+def copy_file(tarfile, input_filename, output_filename, uri, s3_client: Session.client):
+    file = tarfile.extractfile(input_filename)
+    if file:
+        store_file(file, uri, output_filename, s3_client)
+    else:
+        raise FileNotFoundException(f'File was not found: {input_filename}')
 
 def send_retry_message(original_message: Dict[str, Union[str, int]], sqs_client: Session.client) -> None:
     number_of_retries = int(original_message["number-of-retries"])
@@ -174,12 +177,7 @@ def handler(event, context):
         docx_filename = extract_docx_filename(metadata)
         if not filename:
             raise DocxFilenameNotFoundException(f'No .docx filename was found in meta. Consignment Ref: {consignment_reference}')
-
-        original_document = tar.extractfile(f'{consignment_reference}/{docx_filename}')
-        if original_document:
-            store_original_document(original_document, uri, s3_client)
-        else:
-            raise DocxNotFoundException(f'No .docx file was found. Consignment Ref: {consignment_reference}, expected file: {docx_filename}')
+        copy_file(tar, f'{consignment_reference}/{docx_filename}', f'{uri.replace("/", "_")}.docx', s3_client)
 
         # Notify editors that a new document is ready
         send_new_judgment_notification(uri, metadata)

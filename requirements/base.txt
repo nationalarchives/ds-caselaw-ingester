@@ -4,4 +4,4 @@ requests-toolbelt==0.9.1
 urllib3==1.26.9
 boto3
 rollbar
-
+notifications-python-client~=6.3

@@ -11,6 +11,7 @@ import xml.etree.ElementTree as ET
 
 from caselawclient.Client import api_client, MarklogicCommunicationError
 from botocore.exceptions import NoCredentialsError
+from notifications_python_client.notifications import NotificationsAPIClient
 
 import rollbar
 

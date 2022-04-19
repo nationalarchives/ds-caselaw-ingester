@@ -93,8 +93,7 @@ def send_new_judgment_notification(uri: str, metadata: dict):
             'submitted_at': tdr_metadata["Consignment-Completed-Datetime"]
         }
     )
-
-
+    print(f'Sent notification to {os.getenv("NOTIFY_EDITORIAL_ADDRESS")} (Message ID: {response["id"]})')
 
 def send_retry_message(original_message: Dict[str, Union[str, int]], sqs_client: Session.client) -> None:
     number_of_retries = int(original_message["number-of-retries"])

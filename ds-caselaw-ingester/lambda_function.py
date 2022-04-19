@@ -80,6 +80,21 @@ def store_original_document(original_document, uri, s3_client: Session.client):
     except NoCredentialsError:
         print('Credentials not available')
 
+def send_new_judgment_notification(uri: str, metadata: dict):
+    tdr_metadata = metadata["parameters"]["TDR"]
+    notifications_client = NotificationsAPIClient(os.getenv('NOTIFY_API_KEY'))
+    response = notifications_client.send_email_notification(
+        email_address=os.getenv('NOTIFY_EDITORIAL_ADDRESS'),
+        template_id=os.getenv('NOTIFY_NEW_JUDGMENT_TEMPLATE_ID'),
+        personalisation={
+            'url': os.getenv('EDITORIAL_UI_BASE_URL')+uri,
+            'consignment': tdr_metadata["Internal-Sender-Identifier"],
+            'submitter': f'{tdr_metadata["Contact-Name"]}, {tdr_metadata["Source-Organization"]} <{tdr_metadata["Contact-Email"]}>',
+            'submitted_at': tdr_metadata["Consignment-Completed-Datetime"]
+        }
+    )
+
+
 
 def send_retry_message(original_message: Dict[str, Union[str, int]], sqs_client: Session.client) -> None:
     number_of_retries = int(original_message["number-of-retries"])
@@ -164,6 +179,9 @@ def handler(event, context):
             store_original_document(original_document, uri, s3_client)
         else:
             raise DocxNotFoundException(f'No .docx file was found. Consignment Ref: {consignment_reference}, expected file: {docx_filename}')
+
+        # Notify editors that a new document is ready
+        send_new_judgment_notification(uri, metadata)
 
     except BaseException:
         # Send retry message to sqs

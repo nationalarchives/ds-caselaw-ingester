@@ -161,6 +161,8 @@ def handler(event, context):
 
         contents = xml_file.read()
 
+        ET.register_namespace("", "http://docs.oasis-open.org/legaldocml/ns/akn/3.0")
+        ET.register_namespace("uk", "https://caselaw.nationalarchives.gov.uk/akn")
         xml = ET.XML(contents)
 
         try:

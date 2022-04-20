@@ -27,7 +27,7 @@ class XmlFileNotFoundException(Exception):
     pass
 
 
-class DocxNotFoundException(Exception):
+class FileNotFoundException(Exception):
     pass
 
 
@@ -68,15 +68,13 @@ def store_metadata(uri: str, metadata: dict) -> None:
                             value=tdr_metadata["Consignment-Completed-Datetime"])
 
 
-def store_original_document(original_document, uri, s3_client: Session.client):
-    filename = f'{uri}/{uri.replace("/", "_")}.docx'
-
+def store_file(file, folder, filename, s3_client: Session.client):
+    pathname = f'{folder}/{filename}'
     try:
-        s3_client.upload_fileobj(original_document, os.getenv('AWS_BUCKET_NAME'), filename)
-
-        print(f'Upload Successful {filename}')
+        s3_client.upload_fileobj(file, os.getenv('AWS_BUCKET_NAME'), pathname)
+        print(f'Upload Successful {pathname}')
     except FileNotFoundError:
-        print(f'The file {filename} was not found')
+        print(f'The file {pathname} was not found')
     except NoCredentialsError:
         print('Credentials not available')
 
@@ -94,6 +92,13 @@ def send_new_judgment_notification(uri: str, metadata: dict):
         }
     )
     print(f'Sent notification to {os.getenv("NOTIFY_EDITORIAL_ADDRESS")} (Message ID: {response["id"]})')
+
+def copy_file(tarfile, input_filename, output_filename, uri, s3_client: Session.client):
+    file = tarfile.extractfile(input_filename)
+    if file:
+        store_file(file, uri, output_filename, s3_client)
+    else:
+        raise FileNotFoundException(f'File was not found: {input_filename}')
 
 def send_retry_message(original_message: Dict[str, Union[str, int]], sqs_client: Session.client) -> None:
     number_of_retries = int(original_message["number-of-retries"])
@@ -169,18 +174,25 @@ def handler(event, context):
         # Store metadata
         store_metadata(uri, metadata)
 
+        # Store docx and rename
         docx_filename = extract_docx_filename(metadata)
         if not filename:
             raise DocxFilenameNotFoundException(f'No .docx filename was found in meta. Consignment Ref: {consignment_reference}')
+        copy_file(tar, f'{consignment_reference}/{docx_filename}', f'{uri.replace("/", "_")}.docx', uri, s3_client)
 
-        original_document = tar.extractfile(f'{consignment_reference}/{docx_filename}')
-        if original_document:
-            store_original_document(original_document, uri, s3_client)
-        else:
-            raise DocxNotFoundException(f'No .docx file was found. Consignment Ref: {consignment_reference}, expected file: {docx_filename}')
+        # Store parser log
+        copy_file(tar, f'{consignment_reference}/parser.log', 'parser.log', uri, s3_client)
+
+        # Store images
+        for image_filename in metadata["parameters"]["TRE"]["payload"]["images"]:
+            copy_file(tar, f'{consignment_reference}/{image_filename}', image_filename, uri, s3_client)
+
+        # Copy original tarfile
+        store_file(open(filename, mode='rb'), uri, os.path.basename(filename), s3_client)
 
         # Notify editors that a new document is ready
         send_new_judgment_notification(uri, metadata)
+
 
     except BaseException:
         # Send retry message to sqs

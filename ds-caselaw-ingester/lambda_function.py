@@ -87,7 +87,7 @@ def send_new_judgment_notification(uri: str, metadata: dict):
         email_address=os.getenv('NOTIFY_EDITORIAL_ADDRESS'),
         template_id=os.getenv('NOTIFY_NEW_JUDGMENT_TEMPLATE_ID'),
         personalisation={
-            'url': os.getenv('EDITORIAL_UI_BASE_URL')+uri,
+            'url': f'{os.getenv("EDITORIAL_UI_BASE_URL")}detail?judgment_uri={uri}',
             'consignment': tdr_metadata["Internal-Sender-Identifier"],
             'submitter': f'{tdr_metadata["Contact-Name"]}, {tdr_metadata["Source-Organization"]} <{tdr_metadata["Contact-Email"]}>',
             'submitted_at': tdr_metadata["Consignment-Completed-Datetime"]

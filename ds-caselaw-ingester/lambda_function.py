@@ -60,7 +60,7 @@ def store_metadata(uri: str, metadata: dict) -> None:
 
     # Store source information
     api_client.set_property(uri, name="source-organisation", value=tdr_metadata["Source-Organization"])
-    api_client.set_property(uri, name="source-name", value=tdr_metadata["Source-Organization"])
+    api_client.set_property(uri, name="source-name", value=tdr_metadata["Contact-Name"])
     api_client.set_property(uri, name="source-email", value=tdr_metadata["Contact-Email"])
     # Store TDR data
     api_client.set_property(uri, name="transfer-consignment-reference", value=tdr_metadata["Internal-Sender-Identifier"])

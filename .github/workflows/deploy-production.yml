@@ -2,8 +2,8 @@ name: Deploy lambda to AWS (production)
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - 'latest'
 
 jobs:
   build-deploy:

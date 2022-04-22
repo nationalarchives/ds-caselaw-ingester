@@ -93,6 +93,21 @@ def send_new_judgment_notification(uri: str, metadata: dict):
     )
     print(f'Sent notification to {os.getenv("NOTIFY_EDITORIAL_ADDRESS")} (Message ID: {response["id"]})')
 
+def send_updated_judgment_notification(uri: str, metadata: dict):
+    tdr_metadata = metadata["parameters"]["TDR"]
+    notifications_client = NotificationsAPIClient(os.getenv('NOTIFY_API_KEY'))
+    response = notifications_client.send_email_notification(
+        email_address=os.getenv('NOTIFY_EDITORIAL_ADDRESS'),
+        template_id=os.getenv('NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID'),
+        personalisation={
+            'url': f'{os.getenv("EDITORIAL_UI_BASE_URL")}detail?judgment_uri={uri}',
+            'consignment': tdr_metadata["Internal-Sender-Identifier"],
+            'submitter': f'{tdr_metadata["Contact-Name"]}, {tdr_metadata["Source-Organization"]} <{tdr_metadata["Contact-Email"]}>',
+            'submitted_at': tdr_metadata["Consignment-Completed-Datetime"]
+        }
+    )
+    print(f'Sent notification to {os.getenv("NOTIFY_EDITORIAL_ADDRESS")} (Message ID: {response["id"]})')
+
 def copy_file(tarfile, input_filename, output_filename, uri, s3_client: Session.client):
     file = tarfile.extractfile(input_filename)
     if file:
@@ -168,9 +183,13 @@ def handler(event, context):
         try:
             api_client.get_judgment_xml(uri, show_unpublished=True)
             api_client.save_judgment_xml(uri, xml)
+            # Notify editors that a document has been updated
+            send_updated_judgment_notification(uri, metadata)
             print(f'Updated judgment {uri}')
         except MarklogicCommunicationError:
             api_client.insert_judgment_xml(uri, xml)
+            # Notify editors that a new document is ready
+            send_new_judgment_notification(uri, metadata)
             print(f'Inserted judgment {uri}')
 
         # Store metadata
@@ -191,10 +210,6 @@ def handler(event, context):
 
         # Copy original tarfile
         store_file(open(filename, mode='rb'), uri, os.path.basename(filename), s3_client)
-
-        # Notify editors that a new document is ready
-        send_new_judgment_notification(uri, metadata)
-
 
     except BaseException:
         # Send retry message to sqs

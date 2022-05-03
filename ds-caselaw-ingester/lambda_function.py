@@ -39,8 +39,12 @@ class MaximumRetriesExceededException(Exception):
     pass
 
 
-def extract_uri(metadata: dict) -> str:
-    return metadata["parameters"]["PARSER"]["uri"].replace('https://caselaw.nationalarchives.gov.uk/id/', '')
+def extract_uri(metadata: dict, consignment_reference: str) -> str:
+    uri = metadata["parameters"]["PARSER"]["uri"]
+    if not uri:
+        raise UriNotFoundException(f'URI not found. Consignment Ref: {consignment_reference}')
+
+    return uri.replace('https://caselaw.nationalarchives.gov.uk/id/', '')
 
 
 def extract_docx_filename(metadata: dict) -> str:
@@ -166,7 +170,7 @@ def handler(event, context):
         xml_file_name = metadata["parameters"]["TRE"]["payload"]["xml"]
         xml_file = tar.extractfile(f'{consignment_reference}/{xml_file_name}')
 
-        uri = extract_uri(metadata)
+        uri = extract_uri(metadata, consignment_reference)
 
         if not uri:
             raise UriNotFoundException(f'URI not found. Consignment Ref: {consignment_reference}')

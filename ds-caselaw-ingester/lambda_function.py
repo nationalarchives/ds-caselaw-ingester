@@ -8,6 +8,7 @@ from boto3.session import Session
 import urllib3
 import tarfile
 import xml.etree.ElementTree as ET
+from xml.sax.saxutils import escape
 
 from caselawclient.Client import api_client, MarklogicCommunicationError, MarklogicResourceNotFoundError
 from botocore.exceptions import NoCredentialsError
@@ -135,7 +136,7 @@ def send_retry_message(original_message: Dict[str, Union[str, int]], sqs_client:
 
 def create_error_xml_contents(tar, consignment_reference: str):
     parser_log = tar.extractfile(f'{consignment_reference}/parser.log')
-    parser_log_contents = parser_log.read().decode('utf-8')
+    parser_log_contents = escape(parser_log.read().decode('utf-8'))
     return f'<error>{parser_log_contents}</error>'
 
 

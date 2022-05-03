@@ -133,6 +133,12 @@ def send_retry_message(original_message: Dict[str, Union[str, int]], sqs_client:
         raise MaximumRetriesExceededException(f'Maximum number of retries reached for {original_message["consignment-reference"]}')
 
 
+def create_error_xml_contents(tar, consignment_reference: str):
+    parser_log = tar.extractfile(f'{consignment_reference}/parser.log')
+    parser_log_contents = parser_log.read().decode('utf-8')
+    return f'<error>{parser_log_contents}</error>'
+
+
 @rollbar.lambda_function
 def handler(event, context):
     decoder = json.decoder.JSONDecoder()
@@ -165,14 +171,19 @@ def handler(event, context):
         metadata = decoder.decode(te_metadata_file.read().decode('utf-8'))
 
         xml_file_name = metadata["parameters"]["TRE"]["payload"]["xml"]
-        xml_file = tar.extractfile(f'{consignment_reference}/{xml_file_name}')
+        try:
+            xml_file = tar.extractfile(f'{consignment_reference}/{xml_file_name}')
+        except KeyError:
+            xml_file = None
 
         uri = extract_uri(metadata, consignment_reference)
 
-        if not xml_file:
+        if xml_file:
+            contents = xml_file.read()
+        elif 'failures' in uri:
+            contents = create_error_xml_contents(tar, consignment_reference)
+        else:
             raise XmlFileNotFoundException(f'No XML file was found. Consignment Ref: {consignment_reference}')
-
-        contents = xml_file.read()
 
         ET.register_namespace("", "http://docs.oasis-open.org/legaldocml/ns/akn/3.0")
         ET.register_namespace("uk", "https://caselaw.nationalarchives.gov.uk/akn")

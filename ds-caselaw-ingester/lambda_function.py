@@ -9,7 +9,7 @@ import urllib3
 import tarfile
 import xml.etree.ElementTree as ET
 
-from caselawclient.Client import api_client, MarklogicCommunicationError
+from caselawclient.Client import api_client, MarklogicCommunicationError, MarklogicResourceNotFoundError
 from botocore.exceptions import NoCredentialsError
 from notifications_python_client.notifications import NotificationsAPIClient
 
@@ -17,10 +17,6 @@ import rollbar
 
 
 rollbar.init(os.getenv('ROLLBAR_TOKEN'), environment=os.getenv('ROLLBAR_ENV'))
-
-
-class UriNotFoundException(Exception):
-    pass
 
 
 class XmlFileNotFoundException(Exception):
@@ -40,11 +36,12 @@ class MaximumRetriesExceededException(Exception):
 
 
 def extract_uri(metadata: dict, consignment_reference: str) -> str:
-    uri = metadata["parameters"]["PARSER"]["uri"]
-    if not uri:
-        raise UriNotFoundException(f'URI not found. Consignment Ref: {consignment_reference}')
+    uri = metadata["parameters"]["PARSER"].get("uri", "").replace('https://caselaw.nationalarchives.gov.uk/id/', '')
 
-    return uri.replace('https://caselaw.nationalarchives.gov.uk/id/', '')
+    if not uri:
+        uri = f'failures/{consignment_reference}'
+
+    return uri
 
 
 def extract_docx_filename(metadata: dict) -> str:
@@ -172,9 +169,6 @@ def handler(event, context):
 
         uri = extract_uri(metadata, consignment_reference)
 
-        if not uri:
-            raise UriNotFoundException(f'URI not found. Consignment Ref: {consignment_reference}')
-
         if not xml_file:
             raise XmlFileNotFoundException(f'No XML file was found. Consignment Ref: {consignment_reference}')
 
@@ -190,7 +184,7 @@ def handler(event, context):
             # Notify editors that a document has been updated
             send_updated_judgment_notification(uri, metadata)
             print(f'Updated judgment {uri}')
-        except MarklogicCommunicationError:
+        except MarklogicResourceNotFoundError:
             api_client.insert_judgment_xml(uri, xml)
             # Notify editors that a new document is ready
             send_new_judgment_notification(uri, metadata)

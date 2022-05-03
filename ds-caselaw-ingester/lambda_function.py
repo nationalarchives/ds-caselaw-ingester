@@ -215,10 +215,12 @@ def handler(event, context):
         # Copy original tarfile
         store_file(open(filename, mode='rb'), uri, os.path.basename(filename), s3_client)
 
-    except BaseException:
+    except urllib3.exceptions.ProtocolError:
         # Send retry message to sqs
         send_retry_message(message, sqs_client)
         # Raise error up to ensure it's logged
+        raise
+    except BaseException:
         raise
 
     return message

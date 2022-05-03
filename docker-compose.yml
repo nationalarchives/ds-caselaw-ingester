@@ -5,10 +5,15 @@ services:
     image: localstack/localstack
     network_mode: bridge
     environment:
-      SERVICES: lambda,sns,s3,sqs
+      SERVICES: lambda,sns,s3,sqs,iam
       DEBUG: 1
     ports:
       - 4566:4566
     volumes:
       - "${TMPDIR:-/tmp}/localstack:/tmp/localstack"
       - "/var/run/docker.sock:/var/run/docker.sock"
+
+networks:
+  default:
+    external:
+      name: caselaw

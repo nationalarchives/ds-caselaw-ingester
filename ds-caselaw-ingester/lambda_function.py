@@ -8,8 +8,9 @@ from boto3.session import Session
 import urllib3
 import tarfile
 import xml.etree.ElementTree as ET
+from xml.sax.saxutils import escape
 
-from caselawclient.Client import api_client, MarklogicCommunicationError
+from caselawclient.Client import api_client, MarklogicCommunicationError, MarklogicResourceNotFoundError
 from botocore.exceptions import NoCredentialsError
 from notifications_python_client.notifications import NotificationsAPIClient
 
@@ -17,10 +18,6 @@ import rollbar
 
 
 rollbar.init(os.getenv('ROLLBAR_TOKEN'), environment=os.getenv('ROLLBAR_ENV'))
-
-
-class UriNotFoundException(Exception):
-    pass
 
 
 class XmlFileNotFoundException(Exception):
@@ -40,11 +37,12 @@ class MaximumRetriesExceededException(Exception):
 
 
 def extract_uri(metadata: dict, consignment_reference: str) -> str:
-    uri = metadata["parameters"]["PARSER"]["uri"]
-    if not uri:
-        raise UriNotFoundException(f'URI not found. Consignment Ref: {consignment_reference}')
+    uri = metadata["parameters"]["PARSER"].get("uri", "").replace('https://caselaw.nationalarchives.gov.uk/id/', '')
 
-    return uri.replace('https://caselaw.nationalarchives.gov.uk/id/', '')
+    if not uri:
+        uri = f'failures/{consignment_reference}'
+
+    return uri
 
 
 def extract_docx_filename(metadata: dict) -> str:
@@ -136,6 +134,12 @@ def send_retry_message(original_message: Dict[str, Union[str, int]], sqs_client:
         raise MaximumRetriesExceededException(f'Maximum number of retries reached for {original_message["consignment-reference"]}')
 
 
+def create_error_xml_contents(tar, consignment_reference: str):
+    parser_log = tar.extractfile(f'{consignment_reference}/parser.log')
+    parser_log_contents = escape(parser_log.read().decode('utf-8'))
+    return f'<error>{parser_log_contents}</error>'
+
+
 @rollbar.lambda_function
 def handler(event, context):
     decoder = json.decoder.JSONDecoder()
@@ -168,17 +172,19 @@ def handler(event, context):
         metadata = decoder.decode(te_metadata_file.read().decode('utf-8'))
 
         xml_file_name = metadata["parameters"]["TRE"]["payload"]["xml"]
-        xml_file = tar.extractfile(f'{consignment_reference}/{xml_file_name}')
+        try:
+            xml_file = tar.extractfile(f'{consignment_reference}/{xml_file_name}')
+        except KeyError:
+            xml_file = None
 
         uri = extract_uri(metadata, consignment_reference)
 
-        if not uri:
-            raise UriNotFoundException(f'URI not found. Consignment Ref: {consignment_reference}')
-
-        if not xml_file:
+        if xml_file:
+            contents = xml_file.read()
+        elif 'failures' in uri:
+            contents = create_error_xml_contents(tar, consignment_reference)
+        else:
             raise XmlFileNotFoundException(f'No XML file was found. Consignment Ref: {consignment_reference}')
-
-        contents = xml_file.read()
 
         ET.register_namespace("", "http://docs.oasis-open.org/legaldocml/ns/akn/3.0")
         ET.register_namespace("uk", "https://caselaw.nationalarchives.gov.uk/akn")
@@ -190,7 +196,7 @@ def handler(event, context):
             # Notify editors that a document has been updated
             send_updated_judgment_notification(uri, metadata)
             print(f'Updated judgment {uri}')
-        except MarklogicCommunicationError:
+        except MarklogicResourceNotFoundError:
             api_client.insert_judgment_xml(uri, xml)
             # Notify editors that a new document is ready
             send_new_judgment_notification(uri, metadata)

@@ -118,13 +118,13 @@ def copy_file(tarfile, input_filename, output_filename, uri, s3_client: Session.
         raise FileNotFoundException(f'File was not found: {input_filename}')
 
 def send_retry_message(original_message: Dict[str, Union[str, int]], sqs_client: Session.client) -> None:
-    number_of_retries = int(original_message["number-of-retries"])
-    if number_of_retries <= 3:
+    retry_number = int(original_message["number-of-retries"]) + 1
+    if retry_number <= int(os.getenv("MAX_RETRIES")):
         retry_message = {
             "consignment-reference": original_message["consignment-reference"],
             "s3-folder-url": "",
             "consignment-type": original_message["consignment-type"],
-            "number-of-retries": number_of_retries + 1
+            "number-of-retries": retry_number
         }
         sqs_client.send_message(
             QueueUrl=os.getenv('SQS_QUEUE_URL'),

@@ -119,7 +119,7 @@ def copy_file(tarfile, input_filename, output_filename, uri, s3_client: Session.
 
 def send_retry_message(original_message: Dict[str, Union[str, int]], sqs_client: Session.client) -> None:
     retry_number = int(original_message["number-of-retries"]) + 1
-    if retry_number <= int(os.getenv("MAX_RETRIES")):
+    if retry_number <= int(os.getenv("MAX_RETRIES", "5")):
         retry_message = {
             "consignment-reference": original_message["consignment-reference"],
             "s3-folder-url": "",

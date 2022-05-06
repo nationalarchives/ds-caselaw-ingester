@@ -39,10 +39,13 @@ class MaximumRetriesExceededException(Exception):
 def extract_uri(metadata: dict, consignment_reference: str) -> str:
     uri = metadata["parameters"]["PARSER"].get("uri", "")
 
+    if uri:
+        uri = uri.replace("https://caselaw.nationalarchives.gov.uk/id/", "")
+
     if not uri:
         uri = f'failures/{consignment_reference}'
 
-    return uri.replace('https://caselaw.nationalarchives.gov.uk/id/', '')
+    return uri
 
 
 def extract_docx_filename(metadata: dict) -> str:

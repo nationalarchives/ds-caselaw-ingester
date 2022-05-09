@@ -72,3 +72,9 @@ And then send a message:
 ```bash
 make send-message
 ```
+
+## Deployment
+
+Every change to the `main` branch is automatically deployed to the staging environment via GitHub actions.
+
+Only releases are deployed to production. To trigger a deploy, [create a new release](https://github.com/nationalarchives/ds-caselaw-ingester/releases/new) named and tagged `vX.Y.Z` following semantic versioning. Autogenerate release notes, and publish; the release will then be tagged `latest` automatically and deployed to production.

@@ -146,6 +146,21 @@ def create_error_xml_contents(tar, consignment_reference: str):
         return "<error>parser.log not found</error>"
 
 
+def update_published_documents(uri, s3_client):
+    public_bucket = os.getenv("PUBLIC_ASSET_BUCKET")
+    private_bucket = os.getenv("AWS_BUCKET_NAME")
+
+    response = s3_client.list_objects(Bucket=private_bucket, Prefix=uri)
+
+    for result in response.get("Contents", []):
+        key = result["Key"]
+
+        if "parser.log" not in key and not str(key).endswith(".tar.gz"):
+            source = {"Bucket": private_bucket, "Key": key}
+            extra_args = {"ACL": "public-read"}
+            s3_client.copy(source, public_bucket, key, extra_args)
+
+
 @rollbar.lambda_function
 def handler(event, context):
     decoder = json.decoder.JSONDecoder()
@@ -199,6 +214,7 @@ def handler(event, context):
         try:
             api_client.get_judgment_xml(uri, show_unpublished=True)
             api_client.save_judgment_xml(uri, xml)
+
             # Notify editors that a document has been updated
             send_updated_judgment_notification(uri, metadata)
             print(f'Updated judgment {uri}')
@@ -226,6 +242,9 @@ def handler(event, context):
 
         # Copy original tarfile
         store_file(open(filename, mode='rb'), uri, os.path.basename(filename), s3_client)
+
+        if api_client.get_published(uri):
+            update_published_documents(uri, s3_client)
 
     except (urllib3.exceptions.ProtocolError, tarfile.ReadError):
         # Send retry message to sqs

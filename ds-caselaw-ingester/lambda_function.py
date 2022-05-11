@@ -249,8 +249,6 @@ def handler(event, context):
     except (urllib3.exceptions.ProtocolError, tarfile.ReadError):
         # Send retry message to sqs
         send_retry_message(message, sqs_client)
-        # Raise error up to ensure it's logged
-        raise
     except BaseException:
         raise
 

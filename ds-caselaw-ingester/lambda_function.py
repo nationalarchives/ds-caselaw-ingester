@@ -238,7 +238,10 @@ def handler(event, context):
     copy_file(tar, f'{consignment_reference}/{docx_filename}', f'{uri.replace("/", "_")}.docx', uri, s3_client)
 
     # Store parser log
-    copy_file(tar, f'{consignment_reference}/parser.log', 'parser.log', uri, s3_client)
+    try:
+        copy_file(tar, f'{consignment_reference}/parser.log', 'parser.log', uri, s3_client)
+    except KeyError:
+        pass
 
     # Store images
     for image_filename in metadata["parameters"]["TRE"]["payload"]["images"]:

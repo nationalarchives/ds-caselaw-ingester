@@ -239,18 +239,12 @@ def handler(event, context):
         out.write(file.data)
         out.close()
 
-    # Extract the judgment XML
     tar = tarfile.open(filename, mode="r")
-    te_metadata_file = tar.extractfile(
-        f"{consignment_reference}/TRE-{consignment_reference}-metadata.json"
-    )
-    metadata = decoder.decode(te_metadata_file.read().decode("utf-8"))
+    metadata = extract_metadata(tar, consignment_reference)
 
+    # Extract the judgment XML
     xml_file_name = metadata["parameters"]["TRE"]["payload"]["xml"]
-    try:
-        xml_file = tar.extractfile(f"{consignment_reference}/{xml_file_name}")
-    except KeyError:
-        xml_file = None
+    xml_file = extract_xml_file(tar, xml_file_name, consignment_reference)
 
     uri = extract_uri(metadata, consignment_reference)
 

@@ -6,7 +6,9 @@ from unittest.mock import MagicMock, call, patch
 
 import boto3
 from botocore.exceptions import NoCredentialsError
+from callee import Contains
 from caselawclient.Client import api_client
+from notifications_python_client.notifications import NotificationsAPIClient
 
 from . import lambda_function
 
@@ -148,3 +150,83 @@ class LambdaTest(unittest.TestCase):
         lambda_function.store_file(None, "folder", "filename.ext", session)
         mock_print.assert_called_with("Credentials not available")
         session.upload_fileobj.assert_called_with(None, None, "folder/filename.ext")
+
+    @patch.dict(
+        os.environ,
+        {
+            "NOTIFY_API_KEY": "ingester-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+            "EDITORIAL_UI_BASE_URL": "http://editor.url/",
+            "NOTIFY_EDITORIAL_ADDRESS": "test@notifications.service.gov.uk",
+            "NOTIFY_NEW_JUDGMENT_TEMPLATE_ID": "template-id",
+        },
+        clear=True,
+    )
+    @patch("builtins.print")
+    def test_send_new_judgment_notification(self, mock_print):
+        metadata = {
+            "parameters": {
+                "TDR": {
+                    "Source-Organization": "Ministry of Justice",
+                    "Contact-Name": "Tom King",
+                    "Internal-Sender-Identifier": "TDR-2021-CF6L",
+                    "Consignment-Completed-Datetime": "2021-12-16T14:54:06Z",
+                    "Contact-Email": "someone@example.com",
+                }
+            }
+        }
+        expected_personalisation = {
+            "url": "http://editor.url/detail?judgment_uri=uri",
+            "consignment": "TDR-2021-CF6L",
+            "submitter": "Tom King, Ministry of Justice <someone@example.com>",
+            "submitted_at": "2021-12-16T14:54:06Z",
+        }
+        NotificationsAPIClient.send_email_notification = MagicMock()
+        lambda_function.send_new_judgment_notification("uri", metadata)
+        NotificationsAPIClient.send_email_notification.assert_called_with(
+            email_address="test@notifications.service.gov.uk",
+            template_id="template-id",
+            personalisation=expected_personalisation,
+        )
+        mock_print.assert_called_with(
+            Contains("Sent notification to test@notifications.service.gov.uk")
+        )
+
+    @patch.dict(
+        os.environ,
+        {
+            "NOTIFY_API_KEY": "ingester-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+            "EDITORIAL_UI_BASE_URL": "http://editor.url/",
+            "NOTIFY_EDITORIAL_ADDRESS": "test@notifications.service.gov.uk",
+            "NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID": "template-id",
+        },
+        clear=True,
+    )
+    @patch("builtins.print")
+    def test_send_updated_judgment_notification(self, mock_print):
+        metadata = {
+            "parameters": {
+                "TDR": {
+                    "Source-Organization": "Ministry of Justice",
+                    "Contact-Name": "Tom King",
+                    "Internal-Sender-Identifier": "TDR-2021-CF6L",
+                    "Consignment-Completed-Datetime": "2021-12-16T14:54:06Z",
+                    "Contact-Email": "someone@example.com",
+                }
+            }
+        }
+        expected_personalisation = {
+            "url": "http://editor.url/detail?judgment_uri=uri",
+            "consignment": "TDR-2021-CF6L",
+            "submitter": "Tom King, Ministry of Justice <someone@example.com>",
+            "submitted_at": "2021-12-16T14:54:06Z",
+        }
+        NotificationsAPIClient.send_email_notification = MagicMock()
+        lambda_function.send_updated_judgment_notification("uri", metadata)
+        NotificationsAPIClient.send_email_notification.assert_called_with(
+            email_address="test@notifications.service.gov.uk",
+            template_id="template-id",
+            personalisation=expected_personalisation,
+        )
+        mock_print.assert_called_with(
+            Contains("Sent notification to test@notifications.service.gov.uk")
+        )

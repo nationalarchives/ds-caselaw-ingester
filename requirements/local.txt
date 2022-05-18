@@ -4,3 +4,4 @@ awscli==1.22.80
 awscli-local==0.20
 
 pytest==7.1.1  # https://github.com/pytest-dev/pytest
+callee==0.3.1

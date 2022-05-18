@@ -19,4 +19,3 @@ send-message:
 
 delete-document:
 	@curl --anyauth --user admin:admin -X DELETE -i http://localhost:8000/v1/documents\?database\=Judgments\&uri\=/ewca/civ/2022/111.xml
-

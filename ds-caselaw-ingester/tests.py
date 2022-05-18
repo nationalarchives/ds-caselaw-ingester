@@ -57,3 +57,29 @@ class LambdaTest(unittest.TestCase):
         )
         with self.assertRaises(lambda_function.FileNotFoundException):
             lambda_function.extract_metadata(tar, consignment_reference)
+
+    def test_extract_uri_success(self):
+        metadata = {
+            "parameters": {
+                "PARSER": {
+                    "uri": "https://caselaw.nationalarchives.gov.uk/id/ewca/civ/2022/111"
+                }
+            }
+        }
+        assert lambda_function.extract_uri(metadata, "anything") == "ewca/civ/2022/111"
+
+    def test_extract_uri_incompete(self):
+        metadata = {
+            "parameters": {
+                "PARSER": {"uri": "https://caselaw.nationalarchives.gov.uk/id/"}
+            }
+        }
+        assert lambda_function.extract_uri(metadata, "anything") == "failures/anything"
+
+    def test_extract_uri_missing_key(self):
+        metadata = {"parameters": {"PARSER": {}}}
+        assert lambda_function.extract_uri(metadata, "anything") == "failures/anything"
+
+    def test_extract_uri_none(self):
+        metadata = {"parameters": {"PARSER": {"uri": None}}}
+        assert lambda_function.extract_uri(metadata, "anything") == "failures/anything"

@@ -2,6 +2,9 @@ import os
 import tarfile
 import unittest
 import xml.etree.ElementTree as ET
+from unittest.mock import MagicMock, call
+
+from caselawclient.Client import api_client
 
 from . import lambda_function
 
@@ -95,3 +98,27 @@ class LambdaTest(unittest.TestCase):
         metadata = {"parameters": {"TRE": {"payload": {}}}}
         with self.assertRaises(lambda_function.DocxFilenameNotFoundException):
             lambda_function.extract_docx_filename(metadata, "anything")
+
+    def test_store_metadata(self):
+        metadata = {
+            "parameters": {
+                "TDR": {
+                    "Source-Organization": "Ministry of Justice",
+                    "Contact-Name": "Tom King",
+                    "Internal-Sender-Identifier": "TDR-2021-CF6L",
+                    "Consignment-Completed-Datetime": "2021-12-16T14:54:06Z",
+                    "Contact-Email": "someone@example.com",
+                }
+            }
+        }
+
+        api_client.set_property = MagicMock()
+        lambda_function.store_metadata("uri", metadata)
+        calls = [
+            call("uri", name="source-organisation", value="Ministry of Justice"),
+            call("uri", name="source-name", value="Tom King"),
+            call("uri", name="source-email", value="someone@example.com"),
+            call("uri", name="transfer-consignment-reference", value="TDR-2021-CF6L"),
+            call("uri", name="transfer-received-at", value="2021-12-16T14:54:06Z"),
+        ]
+        api_client.set_property.assert_has_calls(calls)

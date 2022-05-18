@@ -66,8 +66,13 @@ def extract_uri(metadata: dict, consignment_reference: str) -> str:
     return uri
 
 
-def extract_docx_filename(metadata: dict) -> str:
-    return metadata["parameters"]["TRE"]["payload"]["filename"]
+def extract_docx_filename(metadata: dict, consignment_reference: str) -> str:
+    try:
+        return metadata["parameters"]["TRE"]["payload"]["filename"]
+    except KeyError:
+        raise DocxFilenameNotFoundException(
+            f"No .docx filename was found in metadata. Consignment Ref: {consignment_reference}"
+        )
 
 
 def extract_lambda_versions(versions: List[Dict[str, str]]) -> List[Tuple[str, str]]:
@@ -278,11 +283,7 @@ def handler(event, context):
     store_metadata(uri, metadata)
 
     # Store docx and rename
-    docx_filename = extract_docx_filename(metadata)
-    if not filename:
-        raise DocxFilenameNotFoundException(
-            f"No .docx filename was found in meta. Consignment Ref: {consignment_reference}"
-        )
+    docx_filename = extract_docx_filename(metadata, consignment_reference)
     copy_file(
         tar,
         f"{consignment_reference}/{docx_filename}",

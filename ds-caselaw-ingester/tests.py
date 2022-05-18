@@ -83,3 +83,15 @@ class LambdaTest(unittest.TestCase):
     def test_extract_uri_none(self):
         metadata = {"parameters": {"PARSER": {"uri": None}}}
         assert lambda_function.extract_uri(metadata, "anything") == "failures/anything"
+
+    def test_extract_docx_filename_success(self):
+        metadata = {"parameters": {"TRE": {"payload": {"filename": "judgment.docx"}}}}
+        assert (
+            lambda_function.extract_docx_filename(metadata, "anything")
+            == "judgment.docx"
+        )
+
+    def test_extract_docx_filename_failure(self):
+        metadata = {"parameters": {"TRE": {"payload": {}}}}
+        with self.assertRaises(lambda_function.DocxFilenameNotFoundException):
+            lambda_function.extract_docx_filename(metadata, "anything")

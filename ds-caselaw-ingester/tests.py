@@ -299,3 +299,27 @@ class LambdaTest(unittest.TestCase):
         sqs_client = boto3.Session
         with self.assertRaises(lambda_function.MaximumRetriesExceededException):
             lambda_function.send_retry_message(message, sqs_client)
+
+    def test_create_error_xml_contents_success(self):
+        tar = tarfile.open(
+            os.path.join(
+                os.path.dirname(__file__),
+                "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
+            ),
+            mode="r",
+        )
+        result = lambda_function.create_error_xml_contents(tar, "TDR-2022-DNWR")
+        assert result == "<error>This is the parser error log.</error>"
+
+    @patch.object(tarfile, "open")
+    def test_create_error_xml_contents_failure(self, mock_open_tarfile):
+        tar = tarfile.open(
+            os.path.join(
+                os.path.dirname(__file__),
+                "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
+            ),
+            mode="r",
+        )
+        tar.extractfile = MagicMock(side_effect=KeyError)
+        result = lambda_function.create_error_xml_contents(tar, "TDR-2022-DNWR")
+        assert result == "<error>parser.log not found</error>"

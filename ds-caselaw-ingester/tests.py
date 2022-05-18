@@ -258,3 +258,44 @@ class LambdaTest(unittest.TestCase):
         session = boto3.Session
         with self.assertRaises(lambda_function.FileNotFoundException):
             lambda_function.copy_file(tar, filename, "new_filename", "uri", session)
+
+    @patch.dict(
+        os.environ,
+        {
+            "MAX_RETRIES": "1",
+            "SQS_QUEUE_URL": "http://172.17.0.2:4566/000000000000/retry-queue",
+        },
+    )
+    def test_send_retry_message_success(self):
+        message = {
+            "consignment-reference": "TDR-2022-DNWR",
+            "s3-folder-url": "http://172.17.0.2:4566/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
+            "consignment-type": "judgment",
+            "number-of-retries": 0,
+        }
+        sqs_client = boto3.Session
+        sqs_client.send_message = MagicMock()
+        lambda_function.send_retry_message(message, sqs_client)
+        expected_message = (
+            '{"consignment-reference": "TDR-2022-DNWR", "s3-folder-url": "", '
+            '"consignment-type": "judgment", "number-of-retries": 1}'
+        )
+        sqs_client.send_message.assert_called_with(
+            QueueUrl="http://172.17.0.2:4566/000000000000/retry-queue",
+            MessageBody=expected_message,
+        )
+
+    @patch.dict(
+        os.environ,
+        {"MAX_RETRIES": "1"},
+    )
+    def test_send_retry_message_failure(self):
+        message = {
+            "consignment-reference": "TDR-2022-DNWR",
+            "s3-folder-url": "http://172.17.0.2:4566/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
+            "consignment-type": "judgment",
+            "number-of-retries": 1,
+        }
+        sqs_client = boto3.Session
+        with self.assertRaises(lambda_function.MaximumRetriesExceededException):
+            lambda_function.send_retry_message(message, sqs_client)

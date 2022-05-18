@@ -2,8 +2,10 @@ import os
 import tarfile
 import unittest
 import xml.etree.ElementTree as ET
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock, call, patch
 
+import boto3
+from botocore.exceptions import NoCredentialsError
 from caselawclient.Client import api_client
 
 from . import lambda_function
@@ -122,3 +124,27 @@ class LambdaTest(unittest.TestCase):
             call("uri", name="transfer-received-at", value="2021-12-16T14:54:06Z"),
         ]
         api_client.set_property.assert_has_calls(calls)
+
+    @patch("builtins.print")
+    def test_store_file_success(self, mock_print):
+        session = boto3.Session
+        session.upload_fileobj = MagicMock()
+        lambda_function.store_file(None, "folder", "filename.ext", session)
+        mock_print.assert_called_with("Upload Successful folder/filename.ext")
+        session.upload_fileobj.assert_called_with(None, None, "folder/filename.ext")
+
+    @patch("builtins.print")
+    def test_store_file_file_not_found(self, mock_print):
+        session = boto3.Session
+        session.upload_fileobj = MagicMock(side_effect=FileNotFoundError)
+        lambda_function.store_file(None, "folder", "filename.ext", session)
+        mock_print.assert_called_with("The file folder/filename.ext was not found")
+        session.upload_fileobj.assert_called_with(None, None, "folder/filename.ext")
+
+    @patch("builtins.print")
+    def test_store_file_file_no_credentials(self, mock_print):
+        session = boto3.Session
+        session.upload_fileobj = MagicMock(side_effect=NoCredentialsError)
+        lambda_function.store_file(None, "folder", "filename.ext", session)
+        mock_print.assert_called_with("Credentials not available")
+        session.upload_fileobj.assert_called_with(None, None, "folder/filename.ext")

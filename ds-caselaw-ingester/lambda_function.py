@@ -157,10 +157,10 @@ def send_updated_judgment_notification(uri: str, metadata: dict):
 
 
 def copy_file(tarfile, input_filename, output_filename, uri, s3_client: Session.client):
-    file = tarfile.extractfile(input_filename)
-    if file:
+    try:
+        file = tarfile.extractfile(input_filename)
         store_file(file, uri, output_filename, s3_client)
-    else:
+    except KeyError:
         raise FileNotFoundException(f"File was not found: {input_filename}")
 
 

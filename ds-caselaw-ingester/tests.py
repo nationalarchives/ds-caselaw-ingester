@@ -2,7 +2,7 @@ import os
 import tarfile
 import unittest
 import xml.etree.ElementTree as ET
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import ANY, MagicMock, call, patch
 
 import boto3
 from botocore.exceptions import NoCredentialsError
@@ -230,3 +230,31 @@ class LambdaTest(unittest.TestCase):
         mock_print.assert_called_with(
             Contains("Sent notification to test@notifications.service.gov.uk")
         )
+
+    @patch.object(lambda_function, "store_file")
+    def test_copy_file_success(self, mock_store_file):
+        tar = tarfile.open(
+            os.path.join(
+                os.path.dirname(__file__),
+                "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
+            ),
+            mode="r",
+        )
+        filename = "TDR-2022-DNWR/TDR-2022-DNWR.xml"
+        session = boto3.Session
+        lambda_function.store_file = MagicMock()
+        lambda_function.copy_file(tar, filename, "new_filename", "uri", session)
+        lambda_function.store_file.assert_called_with(ANY, ANY, ANY, ANY)
+
+    def test_copy_file_not_found(self):
+        tar = tarfile.open(
+            os.path.join(
+                os.path.dirname(__file__),
+                "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
+            ),
+            mode="r",
+        )
+        filename = "does_not_exist.txt"
+        session = boto3.Session
+        with self.assertRaises(lambda_function.FileNotFoundException):
+            lambda_function.copy_file(tar, filename, "new_filename", "uri", session)

@@ -32,6 +32,14 @@ class MaximumRetriesExceededException(Exception):
     pass
 
 
+def extract_xml_file(tar: tarfile, xml_file_name: str, consignment_reference: str):
+    try:
+        xml_file = tar.extractfile(f"{consignment_reference}/{xml_file_name}")
+    except KeyError:
+        xml_file = None
+
+    return xml_file
+
 def extract_uri(metadata: dict, consignment_reference: str) -> str:
     uri = metadata["parameters"]["PARSER"].get("uri", "")
 

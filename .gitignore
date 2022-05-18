@@ -7,3 +7,4 @@ dist
 *.zip
 .DS_Store
 .aws-sam
+*/__pycache__

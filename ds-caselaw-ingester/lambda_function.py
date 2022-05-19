@@ -32,6 +32,10 @@ class MaximumRetriesExceededException(Exception):
     pass
 
 
+class InvalidXMLException(Exception):
+    pass
+
+
 def extract_xml_file(tar: tarfile, xml_file_name: str):
     xml_file = None
     for member in tar.getmembers():
@@ -274,9 +278,9 @@ def handler(event, context):
 
     ET.register_namespace("", "http://docs.oasis-open.org/legaldocml/ns/akn/3.0")
     ET.register_namespace("uk", "https://caselaw.nationalarchives.gov.uk/akn")
-    xml = ET.XML(contents)
 
     try:
+        xml = ET.XML(contents)
         api_client.get_judgment_xml(uri, show_unpublished=True)
         api_client.save_judgment_xml(uri, xml)
 
@@ -284,10 +288,15 @@ def handler(event, context):
         send_updated_judgment_notification(uri, metadata)
         print(f"Updated judgment {uri}")
     except MarklogicResourceNotFoundError:
+        xml = ET.XML(contents)
         api_client.insert_judgment_xml(uri, xml)
         # Notify editors that a new document is ready
         send_new_judgment_notification(uri, metadata)
         print(f"Inserted judgment {uri}")
+    except ET.ParseError:
+        raise InvalidXMLException(
+            f"Invalid XML in tarfile. URI: {uri}, tarfile: {tar.name}"
+        )
 
     # Store metadata
     store_metadata(uri, metadata)

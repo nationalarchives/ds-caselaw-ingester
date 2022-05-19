@@ -58,6 +58,13 @@ localstack.services.awslambda.lambda_executors: Lambda arn:aws:lambda:us-east-1:
 
 The logs will show the response from the lambda directly below this line. Any values sent to stdout (e.g. `print` statements), will be output beneath.
 
+### Unit tests
+
+To run the tests:
+
+```bash
+python -m unittest
+```
 
 ### Updating the lambda
 

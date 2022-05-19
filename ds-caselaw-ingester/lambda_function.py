@@ -32,6 +32,28 @@ class MaximumRetriesExceededException(Exception):
     pass
 
 
+def extract_xml_file(tar: tarfile, xml_file_name: str, consignment_reference: str):
+    try:
+        xml_file = tar.extractfile(f"{consignment_reference}/{xml_file_name}")
+    except KeyError:
+        xml_file = None
+
+    return xml_file
+
+
+def extract_metadata(tar: tarfile, consignment_reference: str):
+    try:
+        decoder = json.decoder.JSONDecoder()
+        te_metadata_file = tar.extractfile(
+            f"{consignment_reference}/TRE-{consignment_reference}-metadata.json"
+        )
+        return decoder.decode(te_metadata_file.read().decode("utf-8"))
+    except KeyError:
+        raise FileNotFoundException(
+            f"Metadata file not found. Consignment Ref: {consignment_reference}"
+        )
+
+
 def extract_uri(metadata: dict, consignment_reference: str) -> str:
     uri = metadata["parameters"]["PARSER"].get("uri", "")
 
@@ -44,8 +66,13 @@ def extract_uri(metadata: dict, consignment_reference: str) -> str:
     return uri
 
 
-def extract_docx_filename(metadata: dict) -> str:
-    return metadata["parameters"]["TRE"]["payload"]["filename"]
+def extract_docx_filename(metadata: dict, consignment_reference: str) -> str:
+    try:
+        return metadata["parameters"]["TRE"]["payload"]["filename"]
+    except KeyError:
+        raise DocxFilenameNotFoundException(
+            f"No .docx filename was found in metadata. Consignment Ref: {consignment_reference}"
+        )
 
 
 def extract_lambda_versions(versions: List[Dict[str, str]]) -> List[Tuple[str, str]]:
@@ -130,10 +157,10 @@ def send_updated_judgment_notification(uri: str, metadata: dict):
 
 
 def copy_file(tarfile, input_filename, output_filename, uri, s3_client: Session.client):
-    file = tarfile.extractfile(input_filename)
-    if file:
+    try:
+        file = tarfile.extractfile(input_filename)
         store_file(file, uri, output_filename, s3_client)
-    else:
+    except KeyError:
         raise FileNotFoundException(f"File was not found: {input_filename}")
 
 
@@ -217,18 +244,12 @@ def handler(event, context):
         out.write(file.data)
         out.close()
 
-    # Extract the judgment XML
     tar = tarfile.open(filename, mode="r")
-    te_metadata_file = tar.extractfile(
-        f"{consignment_reference}/TRE-{consignment_reference}-metadata.json"
-    )
-    metadata = decoder.decode(te_metadata_file.read().decode("utf-8"))
+    metadata = extract_metadata(tar, consignment_reference)
 
+    # Extract the judgment XML
     xml_file_name = metadata["parameters"]["TRE"]["payload"]["xml"]
-    try:
-        xml_file = tar.extractfile(f"{consignment_reference}/{xml_file_name}")
-    except KeyError:
-        xml_file = None
+    xml_file = extract_xml_file(tar, xml_file_name, consignment_reference)
 
     uri = extract_uri(metadata, consignment_reference)
 
@@ -262,11 +283,7 @@ def handler(event, context):
     store_metadata(uri, metadata)
 
     # Store docx and rename
-    docx_filename = extract_docx_filename(metadata)
-    if not filename:
-        raise DocxFilenameNotFoundException(
-            f"No .docx filename was found in meta. Consignment Ref: {consignment_reference}"
-        )
+    docx_filename = extract_docx_filename(metadata, consignment_reference)
     copy_file(
         tar,
         f"{consignment_reference}/{docx_filename}",

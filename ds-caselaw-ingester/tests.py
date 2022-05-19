@@ -14,14 +14,17 @@ from . import lambda_function
 
 
 class LambdaTest(unittest.TestCase):
+
+    TDR_TARBALL_PATH = os.path.join(
+        os.path.dirname(__file__),
+        "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
+    )
+
     def test_extract_xml_file_success(self):
         consignment_reference = "TDR-2022-DNWR"
         filename = "TDR-2022-DNWR.xml"
         tar = tarfile.open(
-            os.path.join(
-                os.path.dirname(__file__),
-                "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
-            ),
+            self.TDR_TARBALL_PATH,
             mode="r",
         )
         result = lambda_function.extract_xml_file(tar, filename, consignment_reference)
@@ -32,10 +35,7 @@ class LambdaTest(unittest.TestCase):
         consignment_reference = "TDR-2022-DNWR"
         filename = "unknown.xml"
         tar = tarfile.open(
-            os.path.join(
-                os.path.dirname(__file__),
-                "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
-            ),
+            self.TDR_TARBALL_PATH,
             mode="r",
         )
         result = lambda_function.extract_xml_file(tar, filename, consignment_reference)
@@ -44,10 +44,7 @@ class LambdaTest(unittest.TestCase):
     def test_extract_metadata_success(self):
         consignment_reference = "TDR-2022-DNWR"
         tar = tarfile.open(
-            os.path.join(
-                os.path.dirname(__file__),
-                "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
-            ),
+            self.TDR_TARBALL_PATH,
             mode="r",
         )
         result = lambda_function.extract_metadata(tar, consignment_reference)
@@ -56,10 +53,7 @@ class LambdaTest(unittest.TestCase):
     def test_extract_metadata_not_found(self):
         consignment_reference = "unknown_consignment_reference"
         tar = tarfile.open(
-            os.path.join(
-                os.path.dirname(__file__),
-                "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
-            ),
+            self.TDR_TARBALL_PATH,
             mode="r",
         )
         with self.assertRaises(lambda_function.FileNotFoundException):
@@ -234,10 +228,7 @@ class LambdaTest(unittest.TestCase):
     @patch.object(lambda_function, "store_file")
     def test_copy_file_success(self, mock_store_file):
         tar = tarfile.open(
-            os.path.join(
-                os.path.dirname(__file__),
-                "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
-            ),
+            self.TDR_TARBALL_PATH,
             mode="r",
         )
         filename = "TDR-2022-DNWR/TDR-2022-DNWR.xml"
@@ -248,10 +239,7 @@ class LambdaTest(unittest.TestCase):
 
     def test_copy_file_not_found(self):
         tar = tarfile.open(
-            os.path.join(
-                os.path.dirname(__file__),
-                "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
-            ),
+            self.TDR_TARBALL_PATH,
             mode="r",
         )
         filename = "does_not_exist.txt"
@@ -302,10 +290,7 @@ class LambdaTest(unittest.TestCase):
 
     def test_create_error_xml_contents_success(self):
         tar = tarfile.open(
-            os.path.join(
-                os.path.dirname(__file__),
-                "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
-            ),
+            self.TDR_TARBALL_PATH,
             mode="r",
         )
         result = lambda_function.create_error_xml_contents(tar, "TDR-2022-DNWR")
@@ -314,10 +299,7 @@ class LambdaTest(unittest.TestCase):
     @patch.object(tarfile, "open")
     def test_create_error_xml_contents_failure(self, mock_open_tarfile):
         tar = tarfile.open(
-            os.path.join(
-                os.path.dirname(__file__),
-                "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
-            ),
+            self.TDR_TARBALL_PATH,
             mode="r",
         )
         tar.extractfile = MagicMock(side_effect=KeyError)

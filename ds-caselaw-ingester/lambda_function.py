@@ -50,7 +50,7 @@ def extract_xml_file(tar: tarfile, xml_file_name: str):
     return xml_file
 
 
-def extract_metadata(tar: tarfile, consignment_reference=None):
+def extract_metadata(tar: tarfile, consignment_reference: str):
     te_metadata_file = None
     decoder = json.decoder.JSONDecoder()
     for member in tar.getmembers():
@@ -59,13 +59,9 @@ def extract_metadata(tar: tarfile, consignment_reference=None):
 
     if te_metadata_file is None:
         tar.close()
-        if consignment_reference is None:
-            error_message = f"Metadata file not found. No consignment reference found, file: {tar.name}"
-        else:
-            error_message = (
-                f"Metadata file not found. Consignment Ref: {consignment_reference}"
-            )
-        raise FileNotFoundException(error_message)
+        raise FileNotFoundException(
+            f"Metadata file not found. Consignment Ref: {consignment_reference}"
+        )
     return decoder.decode(te_metadata_file.read().decode("utf-8"))
 
 

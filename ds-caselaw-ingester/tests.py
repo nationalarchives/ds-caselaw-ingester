@@ -78,7 +78,7 @@ class LambdaTest(unittest.TestCase):
         assert result["parameters"]["TRE"]["payload"] is not None
 
     def test_extract_metadata_success_edge(self):
-        consignment_reference = None
+        consignment_reference = "name_of_tarfile"
         tar = tarfile.open(
             self.EDGE_TARBALL_PATH,
             mode="r",
@@ -94,17 +94,6 @@ class LambdaTest(unittest.TestCase):
         )
         with self.assertRaisesRegex(
             lambda_function.FileNotFoundException, "Consignment Ref:"
-        ):
-            lambda_function.extract_metadata(tar, consignment_reference)
-
-    def test_extract_metadata_not_found_edge(self):
-        consignment_reference = None
-        tar = tarfile.open(
-            self.TARBALL_MISSING_METADATA_PATH,
-            mode="r",
-        )
-        with self.assertRaisesRegex(
-            lambda_function.FileNotFoundException, "No consignment reference"
         ):
             lambda_function.extract_metadata(tar, consignment_reference)
 

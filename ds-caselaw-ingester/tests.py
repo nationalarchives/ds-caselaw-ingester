@@ -380,3 +380,31 @@ class LambdaTest(unittest.TestCase):
         ]
         lambda_function.update_published_documents("uri", s3_client)
         s3_client.copy.assert_has_calls(calls)
+
+    def test_get_consignment_reference_success(self):
+        message = {
+            "consignment-reference": "TDR-2022-DNWR",
+            "s3-folder-url": "http://172.17.0.2:4566/te-editorial-out-int/ewca_civ_2021_1881.tar.gz",
+        }
+        result = lambda_function.get_consignment_reference(message)
+        assert result == "TDR-2022-DNWR"
+
+    def test_get_consignment_reference_empty(self):
+        message = {
+            "consignment-reference": "",
+            "s3-folder-url": "http://172.17.0.2:4566/te-editorial-out-int/ewca_civ_2021_1881.tar.gz",
+        }
+        result = lambda_function.get_consignment_reference(message)
+        assert result == "ewca_civ_2021_1881"
+
+    def test_get_consignment_reference_missing(self):
+        message = {
+            "s3-folder-url": "http://172.17.0.2:4566/te-editorial-out-int/ewca_civ_2021_1881.tar.gz"
+        }
+        result = lambda_function.get_consignment_reference(message)
+        assert result == "ewca_civ_2021_1881"
+
+    def test_malformed_message(self):
+        message = {"something-unexpected": "???"}
+        with self.assertRaises(lambda_function.InvalidMessageException):
+            lambda_function.get_consignment_reference(message)

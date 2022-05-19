@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import tarfile
 import xml.etree.ElementTree as ET
 from typing import Dict, List, Tuple, Union
@@ -33,6 +34,10 @@ class MaximumRetriesExceededException(Exception):
 
 
 class InvalidXMLException(Exception):
+    pass
+
+
+class InvalidMessageException(Exception):
     pass
 
 
@@ -74,6 +79,22 @@ def extract_uri(metadata: dict, consignment_reference: str) -> str:
         uri = f"failures/{consignment_reference}"
 
     return uri
+
+
+def get_consignment_reference(message):
+    try:
+        result = message.get("consignment-reference", "")
+
+        if not result:
+            tarfile_location = message["s3-folder-url"]
+            tarfile_name = re.findall("([^/]+$)", tarfile_location)[0]
+            result = tarfile_name.partition(".tar.gz")[0]
+
+        return result
+    except KeyError:
+        raise InvalidMessageException(
+            "Malformed message, please supply a consignment-reference or s3-folder-url"
+        )
 
 
 def extract_docx_filename(metadata: dict, consignment_reference: str) -> str:
@@ -226,7 +247,7 @@ def update_published_documents(uri, s3_client):
 def handler(event, context):
     decoder = json.decoder.JSONDecoder()
     message = decoder.decode(event["Records"][0]["Sns"]["Message"])
-    consignment_reference = message["consignment-reference"]
+    consignment_reference = get_consignment_reference(message)
 
     if (
         os.getenv("AWS_ACCESS_KEY_ID")

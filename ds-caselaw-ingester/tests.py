@@ -25,6 +25,11 @@ class LambdaTest(unittest.TestCase):
         "../aws_examples/s3/te-editorial-out-int/ewca_civ_2021_1881.tar.gz",
     )
 
+    TARBALL_MISSING_METADATA_PATH = os.path.join(
+        os.path.dirname(__file__),
+        "../aws_examples/s3/te-editorial-out-int/TAR-MISSING-METADATA.tar.gz",
+    )
+
     def test_extract_xml_file_success_tdr(self):
         consignment_reference = "TDR-2022-DNWR"
         filename = "TDR-2022-DNWR.xml"
@@ -67,22 +72,44 @@ class LambdaTest(unittest.TestCase):
         result = lambda_function.extract_xml_file(tar, filename, consignment_reference)
         assert result is None
 
-    def test_extract_metadata_success(self):
+    def test_extract_metadata_success_tdr(self):
         consignment_reference = "TDR-2022-DNWR"
         tar = tarfile.open(
             self.TDR_TARBALL_PATH,
             mode="r",
         )
         result = lambda_function.extract_metadata(tar, consignment_reference)
-        assert result["producer"]["type"] == "judgment"
+        assert result["parameters"]["TRE"]["payload"] is not None
 
-    def test_extract_metadata_not_found(self):
-        consignment_reference = "unknown_consignment_reference"
+    def test_extract_metadata_success_edge(self):
+        consignment_reference = None
         tar = tarfile.open(
-            self.TDR_TARBALL_PATH,
+            self.EDGE_TARBALL_PATH,
             mode="r",
         )
-        with self.assertRaises(lambda_function.FileNotFoundException):
+        result = lambda_function.extract_metadata(tar, consignment_reference)
+        assert result["parameters"]["TRE"]["payload"] is not None
+
+    def test_extract_metadata_not_found_tdr(self):
+        consignment_reference = "unknown_consignment_reference"
+        tar = tarfile.open(
+            self.TARBALL_MISSING_METADATA_PATH,
+            mode="r",
+        )
+        with self.assertRaisesRegex(
+            lambda_function.FileNotFoundException, "Consignment Ref:"
+        ):
+            lambda_function.extract_metadata(tar, consignment_reference)
+
+    def test_extract_metadata_not_found_edge(self):
+        consignment_reference = None
+        tar = tarfile.open(
+            self.TARBALL_MISSING_METADATA_PATH,
+            mode="r",
+        )
+        with self.assertRaisesRegex(
+            lambda_function.FileNotFoundException, "No consignment reference"
+        ):
             lambda_function.extract_metadata(tar, consignment_reference)
 
     def test_extract_uri_success(self):

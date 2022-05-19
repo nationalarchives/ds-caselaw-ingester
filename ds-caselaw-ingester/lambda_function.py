@@ -47,17 +47,23 @@ def extract_xml_file(tar: tarfile, xml_file_name: str, consignment_reference=Non
     return xml_file
 
 
-def extract_metadata(tar: tarfile, consignment_reference: str):
-    try:
-        decoder = json.decoder.JSONDecoder()
-        te_metadata_file = tar.extractfile(
-            f"{consignment_reference}/TRE-{consignment_reference}-metadata.json"
-        )
-        return decoder.decode(te_metadata_file.read().decode("utf-8"))
-    except KeyError:
-        raise FileNotFoundException(
-            f"Metadata file not found. Consignment Ref: {consignment_reference}"
-        )
+def extract_metadata(tar: tarfile, consignment_reference=None):
+    te_metadata_file = None
+    decoder = json.decoder.JSONDecoder()
+    for member in tar.getmembers():
+        if "metadata.json" in member.name:
+            te_metadata_file = tar.extractfile(member)
+
+    if te_metadata_file is None:
+        tar.close()
+        if consignment_reference is None:
+            error_message = f"Metadata file not found. No consignment reference found, file: {tar.name}"
+        else:
+            error_message = (
+                f"Metadata file not found. Consignment Ref: {consignment_reference}"
+            )
+        raise FileNotFoundException(error_message)
+    return decoder.decode(te_metadata_file.read().decode("utf-8"))
 
 
 def extract_uri(metadata: dict, consignment_reference: str) -> str:

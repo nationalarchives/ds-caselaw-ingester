@@ -32,11 +32,17 @@ class MaximumRetriesExceededException(Exception):
     pass
 
 
-def extract_xml_file(tar: tarfile, xml_file_name: str, consignment_reference: str):
+def extract_xml_file(tar: tarfile, xml_file_name: str, consignment_reference=None):
+    xml_file = None
     try:
-        xml_file = tar.extractfile(f"{consignment_reference}/{xml_file_name}")
+        if consignment_reference is None:
+            for member in tar.getmembers():
+                if xml_file_name in member.name:
+                    xml_file = tar.extractfile(member)
+        else:
+            xml_file = tar.extractfile(f"{consignment_reference}/{xml_file_name}")
     except KeyError:
-        xml_file = None
+        pass
 
     return xml_file
 

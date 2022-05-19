@@ -20,7 +20,12 @@ class LambdaTest(unittest.TestCase):
         "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
     )
 
-    def test_extract_xml_file_success(self):
+    EDGE_TARBALL_PATH = os.path.join(
+        os.path.dirname(__file__),
+        "../aws_examples/s3/te-editorial-out-int/ewca_civ_2021_1881.tar.gz",
+    )
+
+    def test_extract_xml_file_success_tdr(self):
         consignment_reference = "TDR-2022-DNWR"
         filename = "TDR-2022-DNWR.xml"
         tar = tarfile.open(
@@ -31,8 +36,29 @@ class LambdaTest(unittest.TestCase):
         xml = ET.XML(result.read())
         assert xml.tag == "{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}akomaNtoso"
 
-    def test_extract_xml_file_not_found(self):
+    def test_extract_xml_file_success_edge(self):
+        consignment_reference = None
+        filename = "judgment.xml"
+        tar = tarfile.open(
+            self.EDGE_TARBALL_PATH,
+            mode="r",
+        )
+        result = lambda_function.extract_xml_file(tar, filename, consignment_reference)
+        # XML document may not be valid, so just check the file is there
+        assert result is not None
+
+    def test_extract_xml_file_not_found_tdr(self):
         consignment_reference = "TDR-2022-DNWR"
+        filename = "unknown.xml"
+        tar = tarfile.open(
+            self.TDR_TARBALL_PATH,
+            mode="r",
+        )
+        result = lambda_function.extract_xml_file(tar, filename, consignment_reference)
+        assert result is None
+
+    def test_extract_xml_file_not_found_edge(self):
+        consignment_reference = None
         filename = "unknown.xml"
         tar = tarfile.open(
             self.TDR_TARBALL_PATH,

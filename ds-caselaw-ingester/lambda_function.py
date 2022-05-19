@@ -196,13 +196,17 @@ def send_retry_message(
         )
 
 
-def create_error_xml_contents(tar, consignment_reference: str):
+def create_error_xml_contents(tar):
+    parser_log_value = "<error>parser.log not found</error>"
     try:
-        parser_log = tar.extractfile(f"{consignment_reference}/parser.log")
-        parser_log_contents = escape(parser_log.read().decode("utf-8"))
-        return f"<error>{parser_log_contents}</error>"
-    except KeyError:
-        return "<error>parser.log not found</error>"
+        for member in tar.getmembers():
+            if "parser.log" in member.name:
+                parser_log = tar.extractfile(member)
+                parser_log_contents = escape(parser_log.read().decode("utf-8"))
+                parser_log_value = f"<error>{parser_log_contents}</error>"
+    finally:
+        tar.close()
+    return parser_log_value
 
 
 def update_published_documents(uri, s3_client):

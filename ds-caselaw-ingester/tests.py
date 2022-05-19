@@ -346,7 +346,7 @@ class LambdaTest(unittest.TestCase):
             self.TDR_TARBALL_PATH,
             mode="r",
         )
-        result = lambda_function.create_error_xml_contents(tar, "TDR-2022-DNWR")
+        result = lambda_function.create_error_xml_contents(tar)
         assert result == "<error>This is the parser error log.</error>"
 
     @patch.object(tarfile, "open")
@@ -356,7 +356,7 @@ class LambdaTest(unittest.TestCase):
             mode="r",
         )
         tar.extractfile = MagicMock(side_effect=KeyError)
-        result = lambda_function.create_error_xml_contents(tar, "TDR-2022-DNWR")
+        result = lambda_function.create_error_xml_contents(tar)
         assert result == "<error>parser.log not found</error>"
 
     @patch.dict(

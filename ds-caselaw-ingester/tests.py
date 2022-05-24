@@ -14,55 +14,87 @@ from . import lambda_function
 
 
 class LambdaTest(unittest.TestCase):
-    def test_extract_xml_file_success(self):
-        consignment_reference = "TDR-2022-DNWR"
+
+    TDR_TARBALL_PATH = os.path.join(
+        os.path.dirname(__file__),
+        "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
+    )
+
+    EDGE_TARBALL_PATH = os.path.join(
+        os.path.dirname(__file__),
+        "../aws_examples/s3/te-editorial-out-int/ewca_civ_2021_1881.tar.gz",
+    )
+
+    TARBALL_MISSING_METADATA_PATH = os.path.join(
+        os.path.dirname(__file__),
+        "../aws_examples/s3/te-editorial-out-int/TAR-MISSING-METADATA.tar.gz",
+    )
+
+    def test_extract_xml_file_success_tdr(self):
         filename = "TDR-2022-DNWR.xml"
         tar = tarfile.open(
-            os.path.join(
-                os.path.dirname(__file__),
-                "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
-            ),
+            self.TDR_TARBALL_PATH,
             mode="r",
         )
-        result = lambda_function.extract_xml_file(tar, filename, consignment_reference)
+        result = lambda_function.extract_xml_file(tar, filename)
         xml = ET.XML(result.read())
         assert xml.tag == "{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}akomaNtoso"
 
-    def test_extract_xml_file_not_found(self):
-        consignment_reference = "TDR-2022-DNWR"
-        filename = "unknown.xml"
+    def test_extract_xml_file_success_edge(self):
+        filename = "judgment.xml"
         tar = tarfile.open(
-            os.path.join(
-                os.path.dirname(__file__),
-                "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
-            ),
+            self.EDGE_TARBALL_PATH,
             mode="r",
         )
-        result = lambda_function.extract_xml_file(tar, filename, consignment_reference)
+        result = lambda_function.extract_xml_file(tar, filename)
+        # XML document may not be valid in an "edge" tarball, so just check the file is there
+        assert result is not None
+
+    def test_extract_xml_file_not_found_tdr(self):
+        filename = "unknown.xml"
+        tar = tarfile.open(
+            self.TDR_TARBALL_PATH,
+            mode="r",
+        )
+        result = lambda_function.extract_xml_file(tar, filename)
         assert result is None
 
-    def test_extract_metadata_success(self):
+    def test_extract_xml_file_not_found_edge(self):
+        filename = "unknown.xml"
+        tar = tarfile.open(
+            self.TDR_TARBALL_PATH,
+            mode="r",
+        )
+        result = lambda_function.extract_xml_file(tar, filename)
+        assert result is None
+
+    def test_extract_metadata_success_tdr(self):
         consignment_reference = "TDR-2022-DNWR"
         tar = tarfile.open(
-            os.path.join(
-                os.path.dirname(__file__),
-                "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
-            ),
+            self.TDR_TARBALL_PATH,
             mode="r",
         )
         result = lambda_function.extract_metadata(tar, consignment_reference)
-        assert result["producer"]["type"] == "judgment"
+        assert result["parameters"]["TRE"]["payload"] is not None
 
-    def test_extract_metadata_not_found(self):
-        consignment_reference = "unknown_consignment_reference"
+    def test_extract_metadata_success_edge(self):
+        consignment_reference = "name_of_tarfile"
         tar = tarfile.open(
-            os.path.join(
-                os.path.dirname(__file__),
-                "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
-            ),
+            self.EDGE_TARBALL_PATH,
             mode="r",
         )
-        with self.assertRaises(lambda_function.FileNotFoundException):
+        result = lambda_function.extract_metadata(tar, consignment_reference)
+        assert result["parameters"]["TRE"]["payload"] is not None
+
+    def test_extract_metadata_not_found_tdr(self):
+        consignment_reference = "unknown_consignment_reference"
+        tar = tarfile.open(
+            self.TARBALL_MISSING_METADATA_PATH,
+            mode="r",
+        )
+        with self.assertRaisesRegex(
+            lambda_function.FileNotFoundException, "Consignment Ref:"
+        ):
             lambda_function.extract_metadata(tar, consignment_reference)
 
     def test_extract_uri_success(self):
@@ -234,10 +266,7 @@ class LambdaTest(unittest.TestCase):
     @patch.object(lambda_function, "store_file")
     def test_copy_file_success(self, mock_store_file):
         tar = tarfile.open(
-            os.path.join(
-                os.path.dirname(__file__),
-                "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
-            ),
+            self.TDR_TARBALL_PATH,
             mode="r",
         )
         filename = "TDR-2022-DNWR/TDR-2022-DNWR.xml"
@@ -248,10 +277,7 @@ class LambdaTest(unittest.TestCase):
 
     def test_copy_file_not_found(self):
         tar = tarfile.open(
-            os.path.join(
-                os.path.dirname(__file__),
-                "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
-            ),
+            self.TDR_TARBALL_PATH,
             mode="r",
         )
         filename = "does_not_exist.txt"
@@ -302,26 +328,20 @@ class LambdaTest(unittest.TestCase):
 
     def test_create_error_xml_contents_success(self):
         tar = tarfile.open(
-            os.path.join(
-                os.path.dirname(__file__),
-                "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
-            ),
+            self.TDR_TARBALL_PATH,
             mode="r",
         )
-        result = lambda_function.create_error_xml_contents(tar, "TDR-2022-DNWR")
+        result = lambda_function.create_error_xml_contents(tar)
         assert result == "<error>This is the parser error log.</error>"
 
     @patch.object(tarfile, "open")
     def test_create_error_xml_contents_failure(self, mock_open_tarfile):
         tar = tarfile.open(
-            os.path.join(
-                os.path.dirname(__file__),
-                "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
-            ),
+            self.TDR_TARBALL_PATH,
             mode="r",
         )
         tar.extractfile = MagicMock(side_effect=KeyError)
-        result = lambda_function.create_error_xml_contents(tar, "TDR-2022-DNWR")
+        result = lambda_function.create_error_xml_contents(tar)
         assert result == "<error>parser.log not found</error>"
 
     @patch.dict(
@@ -349,3 +369,31 @@ class LambdaTest(unittest.TestCase):
         ]
         lambda_function.update_published_documents("uri", s3_client)
         s3_client.copy.assert_has_calls(calls)
+
+    def test_get_consignment_reference_success(self):
+        message = {
+            "consignment-reference": "TDR-2022-DNWR",
+            "s3-folder-url": "http://172.17.0.2:4566/te-editorial-out-int/ewca_civ_2021_1881.tar.gz",
+        }
+        result = lambda_function.get_consignment_reference(message)
+        assert result == "TDR-2022-DNWR"
+
+    def test_get_consignment_reference_empty(self):
+        message = {
+            "consignment-reference": "",
+            "s3-folder-url": "http://172.17.0.2:4566/te-editorial-out-int/ewca_civ_2021_1881.tar.gz",
+        }
+        result = lambda_function.get_consignment_reference(message)
+        assert result == "ewca_civ_2021_1881"
+
+    def test_get_consignment_reference_missing(self):
+        message = {
+            "s3-folder-url": "http://172.17.0.2:4566/te-editorial-out-int/ewca_civ_2021_1881.tar.gz"
+        }
+        result = lambda_function.get_consignment_reference(message)
+        assert result == "ewca_civ_2021_1881"
+
+    def test_malformed_message(self):
+        message = {"something-unexpected": "???"}
+        with self.assertRaises(lambda_function.InvalidMessageException):
+            lambda_function.get_consignment_reference(message)

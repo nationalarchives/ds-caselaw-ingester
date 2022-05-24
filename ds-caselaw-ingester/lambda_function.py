@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import tarfile
 import xml.etree.ElementTree as ET
 from typing import Dict, List, Tuple, Union
@@ -32,26 +33,36 @@ class MaximumRetriesExceededException(Exception):
     pass
 
 
-def extract_xml_file(tar: tarfile, xml_file_name: str, consignment_reference: str):
-    try:
-        xml_file = tar.extractfile(f"{consignment_reference}/{xml_file_name}")
-    except KeyError:
-        xml_file = None
+class InvalidXMLException(Exception):
+    pass
+
+
+class InvalidMessageException(Exception):
+    pass
+
+
+def extract_xml_file(tar: tarfile, xml_file_name: str):
+    xml_file = None
+    for member in tar.getmembers():
+        if xml_file_name in member.name:
+            xml_file = tar.extractfile(member)
 
     return xml_file
 
 
 def extract_metadata(tar: tarfile, consignment_reference: str):
-    try:
-        decoder = json.decoder.JSONDecoder()
-        te_metadata_file = tar.extractfile(
-            f"{consignment_reference}/TRE-{consignment_reference}-metadata.json"
-        )
-        return decoder.decode(te_metadata_file.read().decode("utf-8"))
-    except KeyError:
+    te_metadata_file = None
+    decoder = json.decoder.JSONDecoder()
+    for member in tar.getmembers():
+        if "metadata.json" in member.name:
+            te_metadata_file = tar.extractfile(member)
+
+    if te_metadata_file is None:
+        tar.close()
         raise FileNotFoundException(
             f"Metadata file not found. Consignment Ref: {consignment_reference}"
         )
+    return decoder.decode(te_metadata_file.read().decode("utf-8"))
 
 
 def extract_uri(metadata: dict, consignment_reference: str) -> str:
@@ -64,6 +75,22 @@ def extract_uri(metadata: dict, consignment_reference: str) -> str:
         uri = f"failures/{consignment_reference}"
 
     return uri
+
+
+def get_consignment_reference(message):
+    try:
+        result = message.get("consignment-reference", "")
+
+        if not result:
+            tarfile_location = message["s3-folder-url"]
+            tarfile_name = re.findall("([^/]+$)", tarfile_location)[0]
+            result = tarfile_name.partition(".tar.gz")[0]
+
+        return result
+    except KeyError:
+        raise InvalidMessageException(
+            "Malformed message, please supply a consignment-reference or s3-folder-url"
+        )
 
 
 def extract_docx_filename(metadata: dict, consignment_reference: str) -> str:
@@ -184,13 +211,17 @@ def send_retry_message(
         )
 
 
-def create_error_xml_contents(tar, consignment_reference: str):
+def create_error_xml_contents(tar):
+    parser_log_value = "<error>parser.log not found</error>"
     try:
-        parser_log = tar.extractfile(f"{consignment_reference}/parser.log")
-        parser_log_contents = escape(parser_log.read().decode("utf-8"))
-        return f"<error>{parser_log_contents}</error>"
-    except KeyError:
-        return "<error>parser.log not found</error>"
+        for member in tar.getmembers():
+            if "parser.log" in member.name:
+                parser_log = tar.extractfile(member)
+                parser_log_contents = escape(parser_log.read().decode("utf-8"))
+                parser_log_value = f"<error>{parser_log_contents}</error>"
+    finally:
+        tar.close()
+    return parser_log_value
 
 
 def update_published_documents(uri, s3_client):
@@ -212,7 +243,7 @@ def update_published_documents(uri, s3_client):
 def handler(event, context):
     decoder = json.decoder.JSONDecoder()
     message = decoder.decode(event["Records"][0]["Sns"]["Message"])
-    consignment_reference = message["consignment-reference"]
+    consignment_reference = get_consignment_reference(message)
 
     if (
         os.getenv("AWS_ACCESS_KEY_ID")
@@ -249,7 +280,7 @@ def handler(event, context):
 
     # Extract the judgment XML
     xml_file_name = metadata["parameters"]["TRE"]["payload"]["xml"]
-    xml_file = extract_xml_file(tar, xml_file_name, consignment_reference)
+    xml_file = extract_xml_file(tar, xml_file_name)
 
     uri = extract_uri(metadata, consignment_reference)
 
@@ -264,9 +295,9 @@ def handler(event, context):
 
     ET.register_namespace("", "http://docs.oasis-open.org/legaldocml/ns/akn/3.0")
     ET.register_namespace("uk", "https://caselaw.nationalarchives.gov.uk/akn")
-    xml = ET.XML(contents)
 
     try:
+        xml = ET.XML(contents)
         api_client.get_judgment_xml(uri, show_unpublished=True)
         api_client.save_judgment_xml(uri, xml)
 
@@ -274,10 +305,15 @@ def handler(event, context):
         send_updated_judgment_notification(uri, metadata)
         print(f"Updated judgment {uri}")
     except MarklogicResourceNotFoundError:
+        xml = ET.XML(contents)
         api_client.insert_judgment_xml(uri, xml)
         # Notify editors that a new document is ready
         send_new_judgment_notification(uri, metadata)
         print(f"Inserted judgment {uri}")
+    except ET.ParseError:
+        raise InvalidXMLException(
+            f"Invalid XML in tarfile. URI: {uri}, tarfile: {tar.name}"
+        )
 
     # Store metadata
     store_metadata(uri, metadata)

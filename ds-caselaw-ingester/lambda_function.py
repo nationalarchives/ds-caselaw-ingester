@@ -11,8 +11,11 @@ import rollbar
 import urllib3
 from boto3.session import Session
 from botocore.exceptions import NoCredentialsError
-from caselawclient.Client import (MarklogicCommunicationError,
-                                  MarklogicResourceNotFoundError, api_client)
+from caselawclient.Client import (
+    MarklogicCommunicationError,
+    MarklogicResourceNotFoundError,
+    api_client,
+)
 from notifications_python_client.notifications import NotificationsAPIClient
 
 rollbar.init(os.getenv("ROLLBAR_TOKEN"), environment=os.getenv("ROLLBAR_ENV"))

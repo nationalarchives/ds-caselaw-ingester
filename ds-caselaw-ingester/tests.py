@@ -7,8 +7,11 @@ from unittest.mock import ANY, MagicMock, call, patch
 import boto3
 from botocore.exceptions import NoCredentialsError
 from callee import Contains
-from caselawclient.Client import (MarklogicCommunicationError,
-                                  MarklogicResourceNotFoundError, api_client)
+from caselawclient.Client import (
+    MarklogicCommunicationError,
+    MarklogicResourceNotFoundError,
+    api_client,
+)
 from notifications_python_client.notifications import NotificationsAPIClient
 
 from . import lambda_function

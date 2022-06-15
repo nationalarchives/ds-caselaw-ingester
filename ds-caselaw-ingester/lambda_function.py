@@ -320,7 +320,7 @@ def handler(event, context):
     if xml_file:
         contents = xml_file.read()
     elif "failures" in uri:
-        contents = create_error_xml_contents(tar, consignment_reference)
+        contents = create_error_xml_contents(tar)
     else:
         raise XmlFileNotFoundException(
             f"No XML file was found. Consignment Ref: {consignment_reference}"

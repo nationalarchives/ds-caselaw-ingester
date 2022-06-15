@@ -11,7 +11,11 @@ import rollbar
 import urllib3
 from boto3.session import Session
 from botocore.exceptions import NoCredentialsError
-from caselawclient.Client import MarklogicResourceNotFoundError, api_client
+from caselawclient.Client import (
+    MarklogicCommunicationError,
+    MarklogicResourceNotFoundError,
+    api_client,
+)
 from notifications_python_client.notifications import NotificationsAPIClient
 
 rollbar.init(os.getenv("ROLLBAR_TOKEN"), environment=os.getenv("ROLLBAR_ENV"))
@@ -38,6 +42,10 @@ class InvalidXMLException(Exception):
 
 
 class InvalidMessageException(Exception):
+    pass
+
+
+class DocumentInsertionError(Exception):
     pass
 
 
@@ -239,6 +247,34 @@ def update_published_documents(uri, s3_client):
             s3_client.copy(source, public_bucket, key, extra_args)
 
 
+def parse_xml_contents(contents, uri, tarfile_name) -> ET.Element:
+    try:
+        ET.register_namespace("", "http://docs.oasis-open.org/legaldocml/ns/akn/3.0")
+        ET.register_namespace("uk", "https://caselaw.nationalarchives.gov.uk/akn")
+        return ET.XML(contents)
+    except ET.ParseError:
+        raise InvalidXMLException(
+            f"Invalid XML in tarfile. URI: {uri}, tarfile: {tarfile_name}"
+        )
+
+
+def update_judgment_xml(uri, xml) -> bool:
+    try:
+        api_client.get_judgment_xml(uri, show_unpublished=True)
+        api_client.save_judgment_xml(uri, xml)
+        return True
+    except (MarklogicResourceNotFoundError, MarklogicCommunicationError):
+        return False
+
+
+def insert_judgment_xml(uri, xml) -> bool:
+    try:
+        api_client.insert_judgment_xml(uri, xml)
+        return True
+    except MarklogicCommunicationError:
+        return False
+
+
 @rollbar.lambda_function
 def handler(event, context):
     decoder = json.decoder.JSONDecoder()
@@ -287,32 +323,28 @@ def handler(event, context):
     if xml_file:
         contents = xml_file.read()
     elif "failures" in uri:
-        contents = create_error_xml_contents(tar, consignment_reference)
+        contents = create_error_xml_contents(tar)
     else:
         raise XmlFileNotFoundException(
             f"No XML file was found. Consignment Ref: {consignment_reference}"
         )
 
-    ET.register_namespace("", "http://docs.oasis-open.org/legaldocml/ns/akn/3.0")
-    ET.register_namespace("uk", "https://caselaw.nationalarchives.gov.uk/akn")
+    xml = parse_xml_contents(contents, uri, tar.name)
 
-    try:
-        xml = ET.XML(contents)
-        api_client.get_judgment_xml(uri, show_unpublished=True)
-        api_client.save_judgment_xml(uri, xml)
+    updated = update_judgment_xml(uri, xml)
+    inserted = False if updated else insert_judgment_xml(uri, xml)
 
+    if updated:
         # Notify editors that a document has been updated
         send_updated_judgment_notification(uri, metadata)
         print(f"Updated judgment {uri}")
-    except MarklogicResourceNotFoundError:
-        xml = ET.XML(contents)
-        api_client.insert_judgment_xml(uri, xml)
+    elif inserted:
         # Notify editors that a new document is ready
         send_new_judgment_notification(uri, metadata)
         print(f"Inserted judgment {uri}")
-    except ET.ParseError:
-        raise InvalidXMLException(
-            f"Invalid XML in tarfile. URI: {uri}, tarfile: {tar.name}"
+    else:
+        raise DocumentInsertionError(
+            f"Judgment {uri} failed to insert into Marklogic. Consignment Ref: {consignment_reference}"
         )
 
     # Store metadata

@@ -7,14 +7,14 @@ from unittest.mock import ANY, MagicMock, call, patch
 import boto3
 from botocore.exceptions import NoCredentialsError
 from callee import Contains
-from caselawclient.Client import api_client
+from caselawclient.Client import (MarklogicCommunicationError,
+                                  MarklogicResourceNotFoundError, api_client)
 from notifications_python_client.notifications import NotificationsAPIClient
 
 from . import lambda_function
 
 
 class LambdaTest(unittest.TestCase):
-
     TDR_TARBALL_PATH = os.path.join(
         os.path.dirname(__file__),
         "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
@@ -397,3 +397,52 @@ class LambdaTest(unittest.TestCase):
         message = {"something-unexpected": "???"}
         with self.assertRaises(lambda_function.InvalidMessageException):
             lambda_function.get_consignment_reference(message)
+
+    def text_parse_xml_contents_success(self):
+        xml = "<xml>Here's some xml</xml>"
+        result = lambda_function.parse_xml_contents(xml, "a/fake/uri", "tarfile_name")
+        assert result.__class__ == ET.Element
+
+    def test_parse_xml_contents_failure(self):
+        xml = "<xml>Here's some broken xml"
+        with self.assertRaises(lambda_function.InvalidXMLException):
+            lambda_function.parse_xml_contents(xml, "a/fake/uri", "tarfile_name")
+
+    def test_update_judgment_xml_success(self):
+        xml = ET.XML("<xml>Here's some xml</xml>")
+        api_client.get_judgment_xml = MagicMock(return_value=True)
+        api_client.save_judgment_xml = MagicMock(return_value=True)
+        result = lambda_function.update_judgment_xml("a/fake/uri", xml)
+        assert result is True
+
+    def test_update_judgment_xml_judgment_does_not_exist(self):
+        xml = ET.XML("<xml>Here's some xml</xml>")
+        api_client.get_judgment_xml = MagicMock(
+            side_effect=MarklogicResourceNotFoundError("error")
+        )
+        api_client.save_judgment_xml = MagicMock(return_value=True)
+        result = lambda_function.update_judgment_xml("a/fake/uri", xml)
+        assert result is False
+
+    def test_update_judgment_xml_judgment_does_not_save(self):
+        xml = ET.XML("<xml>Here's some xml</xml>")
+        api_client.get_judgment_xml = MagicMock(return_value=True)
+        api_client.save_judgment_xml = MagicMock(
+            side_effect=MarklogicCommunicationError("error")
+        )
+        result = lambda_function.update_judgment_xml("a/fake/uri", xml)
+        assert result is False
+
+    def test_insert_judgment_xml_success(self):
+        xml = ET.XML("<xml>Here's some xml</xml>")
+        api_client.insert_judgment_xml = MagicMock(return_value=True)
+        result = lambda_function.insert_judgment_xml("a/fake/uri", xml)
+        assert result is True
+
+    def test_insert_judgment_xml_failure(self):
+        xml = ET.XML("<xml>Here's some xml</xml>")
+        api_client.insert_judgment_xml = MagicMock(
+            side_effect=MarklogicCommunicationError("error")
+        )
+        result = lambda_function.insert_judgment_xml("a/fake/uri", xml)
+        assert result is False

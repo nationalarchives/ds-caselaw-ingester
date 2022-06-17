@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import re
 import tarfile
@@ -19,10 +20,6 @@ from caselawclient.Client import (
 from notifications_python_client.notifications import NotificationsAPIClient
 
 rollbar.init(os.getenv("ROLLBAR_TOKEN"), environment=os.getenv("ROLLBAR_ENV"))
-
-
-class XmlFileNotFoundException(Exception):
-    pass
 
 
 class FileNotFoundException(Exception):
@@ -219,7 +216,7 @@ def send_retry_message(
         )
 
 
-def create_error_xml_contents(tar):
+def create_parser_log_xml(tar):
     parser_log_value = "<error>parser.log not found</error>"
     try:
         for member in tar.getmembers():
@@ -247,15 +244,10 @@ def update_published_documents(uri, s3_client):
             s3_client.copy(source, public_bucket, key, extra_args)
 
 
-def parse_xml_contents(contents, uri, tarfile_name) -> ET.Element:
-    try:
-        ET.register_namespace("", "http://docs.oasis-open.org/legaldocml/ns/akn/3.0")
-        ET.register_namespace("uk", "https://caselaw.nationalarchives.gov.uk/akn")
-        return ET.XML(contents)
-    except ET.ParseError:
-        raise InvalidXMLException(
-            f"Invalid XML in tarfile. URI: {uri}, tarfile: {tarfile_name}"
-        )
+def parse_xml(xml) -> ET.Element:
+    ET.register_namespace("", "http://docs.oasis-open.org/legaldocml/ns/akn/3.0")
+    ET.register_namespace("uk", "https://caselaw.nationalarchives.gov.uk/akn")
+    return ET.XML(xml)
 
 
 def update_judgment_xml(uri, xml) -> bool:
@@ -273,6 +265,28 @@ def insert_judgment_xml(uri, xml) -> bool:
         return True
     except MarklogicCommunicationError:
         return False
+
+
+def get_best_xml(uri, tar, xml_file_name, consignment_reference):
+    xml_file = extract_xml_file(tar, xml_file_name)
+    if xml_file:
+        contents = xml_file.read()
+        try:
+            return parse_xml(contents)
+        except ET.ParseError:
+            logging.warning(
+                f"Invalid XML file for uri: {uri}, consignment reference: {consignment_reference}."
+                f" Falling back to parser.log contents."
+            )
+            contents = create_parser_log_xml(tar)
+            return parse_xml(contents)
+    else:
+        logging.warning(
+            f"No XML file found in tarfile for uri: {uri}, consignment reference: {consignment_reference}."
+            f" Falling back to parser.log contents."
+        )
+        contents = create_parser_log_xml(tar)
+        return parse_xml(contents)
 
 
 @rollbar.lambda_function
@@ -314,22 +328,10 @@ def handler(event, context):
     tar = tarfile.open(filename, mode="r")
     metadata = extract_metadata(tar, consignment_reference)
 
-    # Extract the judgment XML
+    # Extract and parse the judgment XML
     xml_file_name = metadata["parameters"]["TRE"]["payload"]["xml"]
-    xml_file = extract_xml_file(tar, xml_file_name)
-
     uri = extract_uri(metadata, consignment_reference)
-
-    if xml_file:
-        contents = xml_file.read()
-    elif "failures" in uri:
-        contents = create_error_xml_contents(tar)
-    else:
-        raise XmlFileNotFoundException(
-            f"No XML file was found. Consignment Ref: {consignment_reference}"
-        )
-
-    xml = parse_xml_contents(contents, uri, tar.name)
+    xml = get_best_xml(uri, tar, xml_file_name, consignment_reference)
 
     updated = update_judgment_xml(uri, xml)
     inserted = False if updated else insert_judgment_xml(uri, xml)

@@ -33,6 +33,11 @@ class LambdaTest(unittest.TestCase):
         "../aws_examples/s3/te-editorial-out-int/TAR-MISSING-METADATA.tar.gz",
     )
 
+    TARBALL_INVALID_XML_PATH = os.path.join(
+        os.path.dirname(__file__),
+        "../aws_examples/s3/te-editorial-out-int/TAR-INVALID-XML.tar.gz",
+    )
+
     def test_extract_xml_file_success_tdr(self):
         filename = "TDR-2022-DNWR.xml"
         tar = tarfile.open(
@@ -329,22 +334,22 @@ class LambdaTest(unittest.TestCase):
         with self.assertRaises(lambda_function.MaximumRetriesExceededException):
             lambda_function.send_retry_message(message, sqs_client)
 
-    def test_create_error_xml_contents_success(self):
+    def test_create_xml_contents_success(self):
         tar = tarfile.open(
             self.TDR_TARBALL_PATH,
             mode="r",
         )
-        result = lambda_function.create_error_xml_contents(tar)
+        result = lambda_function.create_parser_log_xml(tar)
         assert result == "<error>This is the parser error log.</error>"
 
     @patch.object(tarfile, "open")
-    def test_create_error_xml_contents_failure(self, mock_open_tarfile):
+    def test_create_xml_contents_failure(self, mock_open_tarfile):
         tar = tarfile.open(
             self.TDR_TARBALL_PATH,
             mode="r",
         )
         tar.extractfile = MagicMock(side_effect=KeyError)
-        result = lambda_function.create_error_xml_contents(tar)
+        result = lambda_function.create_parser_log_xml(tar)
         assert result == "<error>parser.log not found</error>"
 
     @patch.dict(
@@ -401,16 +406,6 @@ class LambdaTest(unittest.TestCase):
         with self.assertRaises(lambda_function.InvalidMessageException):
             lambda_function.get_consignment_reference(message)
 
-    def text_parse_xml_contents_success(self):
-        xml = "<xml>Here's some xml</xml>"
-        result = lambda_function.parse_xml_contents(xml, "a/fake/uri", "tarfile_name")
-        assert result.__class__ == ET.Element
-
-    def test_parse_xml_contents_failure(self):
-        xml = "<xml>Here's some broken xml"
-        with self.assertRaises(lambda_function.InvalidXMLException):
-            lambda_function.parse_xml_contents(xml, "a/fake/uri", "tarfile_name")
-
     def test_update_judgment_xml_success(self):
         xml = ET.XML("<xml>Here's some xml</xml>")
         api_client.get_judgment_xml = MagicMock(return_value=True)
@@ -449,3 +444,79 @@ class LambdaTest(unittest.TestCase):
         )
         result = lambda_function.insert_judgment_xml("a/fake/uri", xml)
         assert result is False
+
+    def test_get_best_xml_with_valid_xml_file(self):
+        filename = "TDR-2022-DNWR.xml"
+        with tarfile.open(
+            self.TDR_TARBALL_PATH,
+            mode="r",
+        ) as tar:
+
+            result = lambda_function.get_best_xml(
+                "a/valid/uri", tar, filename, "a_consignment_reference"
+            )
+            assert result.__class__ == ET.Element
+            assert (
+                result.tag
+                == "{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}akomaNtoso"
+            )
+
+    def test_get_best_xml_with_invalid_xml_file(self):
+        filename = "TDR-2022-DNWR.xml"
+        with tarfile.open(
+            self.TARBALL_INVALID_XML_PATH,
+            mode="r",
+        ) as tar:
+            result = lambda_function.get_best_xml(
+                "a/valid/uri", tar, filename, "a_consignment_reference"
+            )
+            assert result.__class__ == ET.Element
+            assert result.tag == "error"
+
+    def test_get_best_xml_with_failure_uri_but_valid_xml(self):
+        filename = "TDR-2022-DNWR.xml"
+        with tarfile.open(
+            self.TDR_TARBALL_PATH,
+            mode="r",
+        ) as tar:
+            result = lambda_function.get_best_xml(
+                "failures/consignment_reference",
+                tar,
+                filename,
+                "a_consignment_reference",
+            )
+            assert result.__class__ == ET.Element
+            assert (
+                result.tag
+                == "{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}akomaNtoso"
+            )
+
+    def test_get_best_xml_with_failure_uri_and_missing_xml(self):
+        filename = "missing_filename.xml"
+        with tarfile.open(
+            self.TDR_TARBALL_PATH,
+            mode="r",
+        ) as tar:
+            result = lambda_function.get_best_xml(
+                "failures/consignment_reference",
+                tar,
+                filename,
+                "a_consignment_reference",
+            )
+            assert result.__class__ == ET.Element
+            assert result.tag == "error"
+
+    def test_get_best_xml_with_no_xml_file(self):
+        filename = "missing_filename.xml"
+        with tarfile.open(
+            self.TDR_TARBALL_PATH,
+            mode="r",
+        ) as tar:
+            result = lambda_function.get_best_xml(
+                "failures/consignment_reference",
+                tar,
+                filename,
+                "a_consignment_reference",
+            )
+            assert result.__class__ == ET.Element
+            assert result.tag == "error"

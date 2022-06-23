@@ -15,6 +15,8 @@ from notifications_python_client.notifications import NotificationsAPIClient
 
 rollbar.init(os.getenv("ROLLBAR_TOKEN"), environment=os.getenv("ROLLBAR_ENV"))
 
+class HTTPError(Exception):
+    pass
 
 class XmlFileNotFoundException(Exception):
     pass
@@ -234,9 +236,14 @@ def handler(event, context):
     http = urllib3.PoolManager()
     try:
         file = http.request("GET", message["s3-folder-url"])
-    except:
+    except Exception as e:
         # Send retry message to sqs if the GET fails
         send_retry_message(message, sqs_client)
+        raise e
+
+    if file.status != 200:
+        send_retry_message(message, sqs_client)
+        raise HTTPError(f"{file.status} error when downloading {message['s3_folder_url']}")
 
     # Store it in the /tmp directory
     filename = os.path.join("/tmp", f"{consignment_reference}.tar.gz")

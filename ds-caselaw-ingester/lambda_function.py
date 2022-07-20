@@ -48,9 +48,10 @@ class DocumentInsertionError(Exception):
 
 def extract_xml_file(tar: tarfile, xml_file_name: str):
     xml_file = None
-    for member in tar.getmembers():
-        if xml_file_name in member.name:
-            xml_file = tar.extractfile(member)
+    if xml_file_name:
+        for member in tar.getmembers():
+            if xml_file_name in member.name:
+                xml_file = tar.extractfile(member)
 
     return xml_file
 
@@ -282,7 +283,8 @@ def get_best_xml(uri, tar, xml_file_name, consignment_reference):
             return parse_xml(contents)
     else:
         logging.warning(
-            f"No XML file found in tarfile for uri: {uri}, consignment reference: {consignment_reference}."
+            f"No XML file found in tarfile for uri: {uri}, filename: {xml_file_name},"
+            f"consignment reference: {consignment_reference}."
             f" Falling back to parser.log contents."
         )
         contents = create_parser_log_xml(tar)

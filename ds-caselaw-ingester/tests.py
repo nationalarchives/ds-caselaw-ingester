@@ -76,6 +76,15 @@ class LambdaTest(unittest.TestCase):
         result = lambda_function.extract_xml_file(tar, filename)
         assert result is None
 
+    def test_extract_xml_file_name_empty(self):
+        filename = ""
+        tar = tarfile.open(
+            self.TDR_TARBALL_PATH,
+            mode="r",
+        )
+        result = lambda_function.extract_xml_file(tar, filename)
+        assert result is None
+
     def test_extract_metadata_success_tdr(self):
         consignment_reference = "TDR-2022-DNWR"
         tar = tarfile.open(

@@ -64,7 +64,6 @@ def extract_metadata(tar: tarfile, consignment_reference: str):
             te_metadata_file = tar.extractfile(member)
 
     if te_metadata_file is None:
-        tar.close()
         raise FileNotFoundException(
             f"Metadata file not found. Consignment Ref: {consignment_reference}"
         )
@@ -219,14 +218,11 @@ def send_retry_message(
 
 def create_parser_log_xml(tar):
     parser_log_value = "<error>parser.log not found</error>"
-    try:
-        for member in tar.getmembers():
-            if "parser.log" in member.name:
-                parser_log = tar.extractfile(member)
-                parser_log_contents = escape(parser_log.read().decode("utf-8"))
-                parser_log_value = f"<error>{parser_log_contents}</error>"
-    finally:
-        tar.close()
+    for member in tar.getmembers():
+        if "parser.log" in member.name:
+            parser_log = tar.extractfile(member)
+            parser_log_contents = escape(parser_log.read().decode("utf-8"))
+            parser_log_value = f"<error>{parser_log_contents}</error>"
     return parser_log_value
 
 
@@ -387,5 +383,7 @@ def handler(event, context):
 
     if api_client.get_published(uri):
         update_published_documents(uri, s3_client)
+
+    tar.close()
 
     return message

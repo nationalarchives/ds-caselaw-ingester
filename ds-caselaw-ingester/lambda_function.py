@@ -369,14 +369,16 @@ def handler(event, context):
         pass
 
     # Store images
-    for image_filename in metadata["parameters"]["TRE"]["payload"]["images"]:
-        copy_file(
-            tar,
-            f"{consignment_reference}/{image_filename}",
-            image_filename,
-            uri,
-            s3_client,
-        )
+    image_list = metadata["parameters"]["TRE"]["payload"]["images"]
+    if image_list:
+        for image_filename in image_list:
+            copy_file(
+                tar,
+                f"{consignment_reference}/{image_filename}",
+                image_filename,
+                uri,
+                s3_client,
+            )
 
     # Copy original tarfile
     store_file(open(filename, mode="rb"), uri, os.path.basename(filename), s3_client)

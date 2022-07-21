@@ -365,7 +365,7 @@ def handler(event, context):
         copy_file(
             tar, f"{consignment_reference}/parser.log", "parser.log", uri, s3_client
         )
-    except KeyError:
+    except FileNotFoundException:
         pass
 
     # Store images

@@ -529,3 +529,44 @@ class LambdaTest(unittest.TestCase):
             )
             assert result.__class__ == ET.Element
             assert result.tag == "error"
+
+    def test_prep_metadata_tdr_metadata(self):
+        metadata = {
+            "parameters": {
+                "TDR": {
+                    "Consignment-Type": "judgment",
+                    "Bag-Creator": "TDRExportv0.0.29",
+                    "Consignment-Start-Datetime": "2021-12-16T14:51:49Z",
+                    "Consignment-Series": "",
+                    "Source-Organization": "Ministry of Justice",
+                    "Contact-Name": "Tom King",
+                    "Internal-Sender-Identifier": "TDR-2021-CF6L",
+                    "Consignment-Completed-Datetime": "2021-12-16T14:54:06Z",
+                    "Consignment-Export-Datetime": "2021-12-16T14:54:55Z",
+                    "Contact-Email": "someone@example.com",
+                    "Payload-Oxum": "45956.1",
+                    "Bagging-Date": "2021-12-16",
+                }
+            }
+        }
+        result = lambda_function.prep_metadata(metadata)
+        expected = {
+            "consignment": "TDR-2021-CF6L",
+            "contact-name": "Tom King",
+            "source-organisation": "Ministry of Justice",
+            "contact-email": "someone@example.com",
+            "submitted-at": "2021-12-16T14:54:06Z",
+        }
+        assert result == expected
+
+    def test_prep_metadata_other_metadata(self):
+        metadata = {"parameters": {"Something else": {}}}
+        result = lambda_function.prep_metadata(metadata)
+        expected = {
+            "consignment": "",
+            "contact-name": "",
+            "source-organisation": "",
+            "contact-email": "",
+            "submitted-at": "",
+        }
+        assert result == expected

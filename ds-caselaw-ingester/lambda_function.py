@@ -116,7 +116,10 @@ def extract_lambda_versions(versions: List[Dict[str, str]]) -> List[Tuple[str, s
 
 
 def store_metadata(uri: str, metadata: dict) -> None:
-    tdr_metadata = metadata["parameters"]["TDR"]
+    try:
+        tdr_metadata = metadata["parameters"]["TDR"]
+    except KeyError:
+        return  # TODO: Get non-TDR metadata added to the metadata file
 
     # Store source information
     api_client.set_property(
@@ -150,18 +153,39 @@ def store_file(file, folder, filename, s3_client: Session.client):
         print("Credentials not available")
 
 
+def prep_metadata(metadata):
+    try:
+        tdr_metadata = metadata["parameters"]["TDR"]
+        metadata = {
+            "consignment": tdr_metadata["Internal-Sender-Identifier"],
+            "contact-name": tdr_metadata["Contact-Name"],
+            "source-organisation": tdr_metadata["Source-Organization"],
+            "contact-email": tdr_metadata["Contact-Email"],
+            "submitted-at": tdr_metadata["Consignment-Completed-Datetime"],
+        }
+    except KeyError:
+        metadata = {  # TODO: Add metadata from consignments not from TDR
+            "consignment": "",
+            "contact-name": "",
+            "source-organisation": "",
+            "contact-email": "",
+            "submitted-at": "",
+        }
+    return metadata
+
+
 def send_new_judgment_notification(uri: str, metadata: dict):
-    tdr_metadata = metadata["parameters"]["TDR"]
+    metadata = prep_metadata(metadata)
     notifications_client = NotificationsAPIClient(os.getenv("NOTIFY_API_KEY"))
     response = notifications_client.send_email_notification(
         email_address=os.getenv("NOTIFY_EDITORIAL_ADDRESS"),
         template_id=os.getenv("NOTIFY_NEW_JUDGMENT_TEMPLATE_ID"),
         personalisation={
             "url": f'{os.getenv("EDITORIAL_UI_BASE_URL")}detail?judgment_uri={uri}',
-            "consignment": tdr_metadata["Internal-Sender-Identifier"],
-            "submitter": f'{tdr_metadata["Contact-Name"]}, {tdr_metadata["Source-Organization"]}'
-            f' <{tdr_metadata["Contact-Email"]}>',
-            "submitted_at": tdr_metadata["Consignment-Completed-Datetime"],
+            "consignment": metadata["consignment"],
+            "submitter": f'{metadata["contact-name"]}, {metadata["source-organisation"]}'
+            f' <{metadata["contact-email"]}>',
+            "submitted_at": metadata["submitted-at"],
         },
     )
     print(
@@ -170,17 +194,17 @@ def send_new_judgment_notification(uri: str, metadata: dict):
 
 
 def send_updated_judgment_notification(uri: str, metadata: dict):
-    tdr_metadata = metadata["parameters"]["TDR"]
+    metadata = prep_metadata(metadata)
     notifications_client = NotificationsAPIClient(os.getenv("NOTIFY_API_KEY"))
     response = notifications_client.send_email_notification(
         email_address=os.getenv("NOTIFY_EDITORIAL_ADDRESS"),
         template_id=os.getenv("NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID"),
         personalisation={
             "url": f'{os.getenv("EDITORIAL_UI_BASE_URL")}detail?judgment_uri={uri}',
-            "consignment": tdr_metadata["Internal-Sender-Identifier"],
-            "submitter": f'{tdr_metadata["Contact-Name"]}, {tdr_metadata["Source-Organization"]} '
-            f'<{tdr_metadata["Contact-Email"]}>',
-            "submitted_at": tdr_metadata["Consignment-Completed-Datetime"],
+            "consignment": metadata["consignment"],
+            "submitter": f'{metadata["contact-name"]}, {metadata["source-organisation"]}'
+            f' <{metadata["contact-email"]}>',
+            "submitted_at": metadata["submitted-at"],
         },
     )
     print(
@@ -352,9 +376,13 @@ def handler(event, context):
 
     # Store docx and rename
     docx_filename = extract_docx_filename(metadata, consignment_reference)
+    if not consignment_reference:
+        filename = docx_filename
+    else:
+        filename = f"{consignment_reference}/{docx_filename}"
     copy_file(
         tar,
-        f"{consignment_reference}/{docx_filename}",
+        filename,
         f'{uri.replace("/", "_")}.docx',
         uri,
         s3_client,

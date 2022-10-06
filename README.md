@@ -84,13 +84,12 @@ make send-message
 
 To test a tarfile locally:
 
-1. Add your test tarfile to `aws_examples/s3/te-editorial-out-int`
+1. Add your test tarfile to `aws_examples/s3/te-editorial-out-int`.
 2. Edit `aws_examples/sns/parsed-judgment.json` to contain your tarfile name in `s3-folder-url` and consignment reference
-   in `consignment-reference`
-3. In `scripts/setup-localstack.sh`, change the line which begins `awslocal s3 cp aws_examples/s3/te-editorial-out-int/`
-   to contain your tarfile name, e.g. if your tarfile is called `XYZ-123.tar.gz`, this line should read
-   `awslocal s3 cp aws_examples/s3/te-editorial-out-int/XYZ-123.tar.gz s3://te-editorial-out-int`
-4. Run `make setup` and `make send-message` to ingest your tarfile
+   in `consignment-reference`.
+3. Run `make setup aws_examples/s3/te-editorial-out-int/<your tarfile>`, for example `make setup aws_examples/s3/te-editorial-out-int/XYZ-123.tar.gz`.
+   If you run `make setup` without an argument, the original test tarfile `TDR-2022-DNWR.tar.gz` will be used
+4. Run `make send-message` to ingest your tarfile.
 
 ## Deployment
 

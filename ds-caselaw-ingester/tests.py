@@ -560,13 +560,31 @@ class LambdaTest(unittest.TestCase):
         assert result == expected
 
     def test_prep_metadata_other_metadata(self):
-        metadata = {"parameters": {"Something else": {}}}
+        metadata = {
+            "parameters": {"BAG": {"reference": "a-unique-uuid"}},
+            "sender": "jim@jurisdatum.com",
+            "batch": "a-batch-identifier",
+            "Consignment-Completed-DateTime": "2021-12-16T14:54:06Z",
+        }
+        result = lambda_function.prep_metadata(metadata)
+        expected = {
+            "consignment": "a-unique-uuid",
+            "source-organisation": "jim@jurisdatum.com",
+            "submitted-at": "2021-12-16T14:54:06Z",
+        }
+        assert result == expected
+
+    def test_prep_metadata_missing_metadata(self):
+        metadata = {
+            "parameters": {},
+            "sender": "jim@jurisdatum.com",
+            "batch": "a-batch-identifier",
+            "Consignment-Completed-DateTime": "2021-12-16T14:54:06Z",
+        }
         result = lambda_function.prep_metadata(metadata)
         expected = {
             "consignment": "",
-            "contact-name": "",
-            "source-organisation": "",
-            "contact-email": "",
-            "submitted-at": "",
+            "source-organisation": "jim@jurisdatum.com",
+            "submitted-at": "2021-12-16T14:54:06Z",
         }
         assert result == expected

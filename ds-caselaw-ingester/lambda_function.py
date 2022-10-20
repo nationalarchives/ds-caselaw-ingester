@@ -118,28 +118,43 @@ def extract_lambda_versions(versions: List[Dict[str, str]]) -> List[Tuple[str, s
 def store_metadata(uri: str, metadata: dict) -> None:
     try:
         tdr_metadata = metadata["parameters"]["TDR"]
+        # Store source information
+        api_client.set_property(
+            uri, name="source-organisation", value=tdr_metadata["Source-Organization"]
+        )
+        api_client.set_property(
+            uri, name="source-name", value=tdr_metadata["Contact-Name"]
+        )
+        api_client.set_property(
+            uri, name="source-email", value=tdr_metadata["Contact-Email"]
+        )
+        # Store TDR data
+        api_client.set_property(
+            uri,
+            name="transfer-consignment-reference",
+            value=tdr_metadata["Internal-Sender-Identifier"],
+        )
+        api_client.set_property(
+            uri,
+            name="transfer-received-at",
+            value=tdr_metadata["Consignment-Completed-Datetime"],
+        )
     except KeyError:
-        return  # TODO: Get non-TDR metadata added to the metadata file
-
-    # Store source information
-    api_client.set_property(
-        uri, name="source-organisation", value=tdr_metadata["Source-Organization"]
-    )
-    api_client.set_property(uri, name="source-name", value=tdr_metadata["Contact-Name"])
-    api_client.set_property(
-        uri, name="source-email", value=tdr_metadata["Contact-Email"]
-    )
-    # Store TDR data
-    api_client.set_property(
-        uri,
-        name="transfer-consignment-reference",
-        value=tdr_metadata["Internal-Sender-Identifier"],
-    )
-    api_client.set_property(
-        uri,
-        name="transfer-received-at",
-        value=tdr_metadata["Consignment-Completed-Datetime"],
-    )
+        other_metadata = prep_metadata(metadata)
+        # Store source information
+        api_client.set_property(
+            uri, name="source-organisation", value=other_metadata["source-organisation"]
+        )
+        api_client.set_property(
+            uri,
+            name="transfer-consignment-reference",
+            value=other_metadata["consignment"],
+        )
+        api_client.set_property(
+            uri,
+            name="transfer-received-at",
+            value=other_metadata["submitted-at"],
+        )
 
 
 def store_file(file, folder, filename, s3_client: Session.client):
@@ -163,15 +178,17 @@ def prep_metadata(metadata):
             "contact-email": tdr_metadata["Contact-Email"],
             "submitted-at": tdr_metadata["Consignment-Completed-Datetime"],
         }
+        return metadata
     except KeyError:
-        metadata = {  # TODO: Add metadata from consignments not from TDR
-            "consignment": "",
-            "contact-name": "",
-            "source-organisation": "",
-            "contact-email": "",
-            "submitted-at": "",
+        consignment = metadata.get("parameters", {}).get("BAG", {}).get("reference", "")
+        source_organisation = metadata.get("sender", "")
+        submitted_at = metadata.get("Consignment-Completed-DateTime", "")
+        metadata = {
+            "consignment": consignment,
+            "source-organisation": source_organisation,
+            "submitted-at": submitted_at,
         }
-    return metadata
+        return metadata
 
 
 def send_new_judgment_notification(uri: str, metadata: dict):

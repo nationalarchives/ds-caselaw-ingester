@@ -410,6 +410,15 @@ class LambdaTest(unittest.TestCase):
         result = lambda_function.get_consignment_reference(message)
         assert result == "ewca_civ_2021_1881"
 
+    def test_get_consignment_reference_presigned_url(self):
+        message = {
+            "consignment-reference": "",
+            "s3-folder-url": "http://172.17.0.2:4566/te-editorial-out-int/"
+            "ewca_civ_2021_1881.tar.gz?randomstuffafterthefilename",
+        }
+        result = lambda_function.get_consignment_reference(message)
+        assert result == "ewca_civ_2021_1881"
+
     def test_malformed_message(self):
         message = {"something-unexpected": "???"}
         with self.assertRaises(lambda_function.InvalidMessageException):

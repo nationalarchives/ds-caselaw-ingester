@@ -571,6 +571,8 @@ class LambdaTest(unittest.TestCase):
             "consignment": "a-unique-uuid",
             "source-organisation": "jim@jurisdatum.com",
             "submitted-at": "2021-12-16T14:54:06Z",
+            "contact-name": "",
+            "contact-email": "",
         }
         assert result == expected
 
@@ -586,5 +588,45 @@ class LambdaTest(unittest.TestCase):
             "consignment": "",
             "source-organisation": "jim@jurisdatum.com",
             "submitted-at": "2021-12-16T14:54:06Z",
+            "contact-name": "",
+            "contact-email": "",
         }
         assert result == expected
+
+    @patch.dict(
+        os.environ,
+        {"EDITORIAL_UI_BASE_URL": "http://editor.url/"},
+        clear=True,
+    )
+    def test_notification_personalisation(self):
+        metadata = {
+            "consignment": "TDR-2022-1234",
+            "contact-name": "Bob Jones",
+            "source-organisation": "The Court",
+            "contact-email": "bob.jones@court.com",
+            "submitted-at": "2022-01-01",
+        }
+        uri = "/ewhc/cop/2022/1"
+        result = lambda_function.notification_personalisation(metadata, uri)
+        assert result == {
+            "url": "http://editor.url/detail?judgment_uri=/ewhc/cop/2022/1",
+            "consignment": "TDR-2022-1234",
+            "submitter": "Bob Jones, The Court <bob.jones@court.com>",
+            "submitted_at": "2022-01-01",
+        }
+
+    @patch.dict(
+        os.environ,
+        {"EDITORIAL_UI_BASE_URL": "http://editor.url/"},
+        clear=True,
+    )
+    def test_notification_personalisation_missing_metadata(self):
+        metadata = {}
+        uri = "/ewhc/cop/2022/1"
+        result = lambda_function.notification_personalisation(metadata, uri)
+        assert result == {
+            "url": "http://editor.url/detail?judgment_uri=/ewhc/cop/2022/1",
+            "consignment": "No consignment reference supplied",
+            "submitter": "No contact name supplied, No source organisation supplied <No contact email supplied>",
+            "submitted_at": "No submitted at time supplied",
+        }

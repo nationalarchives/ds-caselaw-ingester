@@ -116,45 +116,24 @@ def extract_lambda_versions(versions: List[Dict[str, str]]) -> List[Tuple[str, s
 
 
 def store_metadata(uri: str, metadata: dict) -> None:
-    try:
-        tdr_metadata = metadata["parameters"]["TDR"]
-        # Store source information
-        api_client.set_property(
-            uri, name="source-organisation", value=tdr_metadata["Source-Organization"]
-        )
-        api_client.set_property(
-            uri, name="source-name", value=tdr_metadata["Contact-Name"]
-        )
-        api_client.set_property(
-            uri, name="source-email", value=tdr_metadata["Contact-Email"]
-        )
-        # Store TDR data
-        api_client.set_property(
-            uri,
-            name="transfer-consignment-reference",
-            value=tdr_metadata["Internal-Sender-Identifier"],
-        )
-        api_client.set_property(
-            uri,
-            name="transfer-received-at",
-            value=tdr_metadata["Consignment-Completed-Datetime"],
-        )
-    except KeyError:
-        other_metadata = prep_metadata(metadata)
-        # Store source information
-        api_client.set_property(
-            uri, name="source-organisation", value=other_metadata["source-organisation"]
-        )
-        api_client.set_property(
-            uri,
-            name="transfer-consignment-reference",
-            value=other_metadata["consignment"],
-        )
-        api_client.set_property(
-            uri,
-            name="transfer-received-at",
-            value=other_metadata["submitted-at"],
-        )
+    metadata = prep_metadata(metadata)
+    # Store source information
+    api_client.set_property(
+        uri, name="source-organisation", value=metadata["source-organisation"]
+    )
+    api_client.set_property(uri, name="source-name", value=metadata["contact-name"])
+    api_client.set_property(uri, name="source-email", value=metadata["contact-email"])
+    # Store TDR data
+    api_client.set_property(
+        uri,
+        name="transfer-consignment-reference",
+        value=metadata["consignment"],
+    )
+    api_client.set_property(
+        uri,
+        name="transfer-received-at",
+        value=metadata["submitted-at"],
+    )
 
 
 def store_file(file, folder, filename, s3_client: Session.client):
@@ -185,10 +164,23 @@ def prep_metadata(metadata):
         submitted_at = metadata.get("Consignment-Completed-DateTime", "")
         metadata = {
             "consignment": consignment,
+            "contact-name": "",
             "source-organisation": source_organisation,
+            "contact-email": "",
             "submitted-at": submitted_at,
         }
         return metadata
+
+
+def notification_personalisation(metadata, uri):
+    return {
+        "url": f'{os.getenv("EDITORIAL_UI_BASE_URL")}detail?judgment_uri={uri}',
+        "consignment": metadata.get("consignment", "No consignment reference supplied"),
+        "submitter": f'{metadata.get("contact-name", "No contact name supplied")}, '
+        f'{metadata.get("source-organisation", "No source organisation supplied")}'
+        f' <{metadata.get("contact-email", "No contact email supplied")}>',
+        "submitted_at": metadata.get("submitted-at", "No submitted at time supplied"),
+    }
 
 
 def send_new_judgment_notification(uri: str, metadata: dict):
@@ -197,13 +189,7 @@ def send_new_judgment_notification(uri: str, metadata: dict):
     response = notifications_client.send_email_notification(
         email_address=os.getenv("NOTIFY_EDITORIAL_ADDRESS"),
         template_id=os.getenv("NOTIFY_NEW_JUDGMENT_TEMPLATE_ID"),
-        personalisation={
-            "url": f'{os.getenv("EDITORIAL_UI_BASE_URL")}detail?judgment_uri={uri}',
-            "consignment": metadata["consignment"],
-            "submitter": f'{metadata["contact-name"]}, {metadata["source-organisation"]}'
-            f' <{metadata["contact-email"]}>',
-            "submitted_at": metadata["submitted-at"],
-        },
+        personalisation=notification_personalisation(metadata, uri),
     )
     print(
         f'Sent notification to {os.getenv("NOTIFY_EDITORIAL_ADDRESS")} (Message ID: {response["id"]})'
@@ -216,13 +202,7 @@ def send_updated_judgment_notification(uri: str, metadata: dict):
     response = notifications_client.send_email_notification(
         email_address=os.getenv("NOTIFY_EDITORIAL_ADDRESS"),
         template_id=os.getenv("NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID"),
-        personalisation={
-            "url": f'{os.getenv("EDITORIAL_UI_BASE_URL")}detail?judgment_uri={uri}',
-            "consignment": metadata["consignment"],
-            "submitter": f'{metadata["contact-name"]}, {metadata["source-organisation"]}'
-            f' <{metadata["contact-email"]}>',
-            "submitted_at": metadata["submitted-at"],
-        },
+        personalisation=notification_personalisation(metadata, uri),
     )
     print(
         f'Sent notification to {os.getenv("NOTIFY_EDITORIAL_ADDRESS")} (Message ID: {response["id"]})'

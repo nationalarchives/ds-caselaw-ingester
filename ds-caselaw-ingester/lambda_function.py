@@ -30,6 +30,10 @@ class DocxFilenameNotFoundException(Exception):
     pass
 
 
+class XmlFilenameNotFoundException(Exception):
+    pass
+
+
 class MaximumRetriesExceededException(Exception):
     pass
 
@@ -98,13 +102,25 @@ def get_consignment_reference(message):
         )
 
 
-def extract_docx_filename(metadata: dict, consignment_reference: str) -> str:
+def extract_asset_filename(
+    metadata: dict, consignment_reference: str, asset_type: str
+) -> str:
     try:
-        return metadata["parameters"]["TRE"]["payload"]["filename"]
+        return metadata["parameters"]["TRE"]["payload"][asset_type]
     except KeyError:
-        raise DocxFilenameNotFoundException(
-            f"No .docx filename was found in metadata. Consignment Ref: {consignment_reference}"
-        )
+        try:
+            return metadata["parameters"]["BAG"]["payload"][asset_type]
+        except KeyError:
+            if asset_type == "filename":
+                raise DocxFilenameNotFoundException(
+                    f"No .docx filename was found in metadata. Consignment Ref: {consignment_reference}"
+                )
+            elif asset_type == "xml":
+                raise XmlFilenameNotFoundException(
+                    f"No XML filename was found in metadata. Consignment Ref: {consignment_reference}"
+                )
+            else:
+                pass  # Not all judgments have images so carry on
 
 
 def extract_lambda_versions(versions: List[Dict[str, str]]) -> List[Tuple[str, str]]:
@@ -348,7 +364,7 @@ def handler(event, context):
     metadata = extract_metadata(tar, consignment_reference)
 
     # Extract and parse the judgment XML
-    xml_file_name = metadata["parameters"]["TRE"]["payload"]["xml"]
+    xml_file_name = extract_asset_filename(metadata, consignment_reference, "xml")
     uri = extract_uri(metadata, consignment_reference)
     xml = get_best_xml(uri, tar, xml_file_name, consignment_reference)
 
@@ -372,7 +388,7 @@ def handler(event, context):
     store_metadata(uri, metadata)
 
     # Store docx and rename
-    docx_filename = extract_docx_filename(metadata, consignment_reference)
+    docx_filename = extract_asset_filename(metadata, consignment_reference, "filename")
     if not consignment_reference:
         filename = docx_filename
     else:
@@ -394,7 +410,7 @@ def handler(event, context):
         pass
 
     # Store images
-    image_list = metadata["parameters"]["TRE"]["payload"]["images"]
+    image_list = extract_asset_filename(metadata, consignment_reference, "images")
     if image_list:
         for image_filename in image_list:
             copy_file(

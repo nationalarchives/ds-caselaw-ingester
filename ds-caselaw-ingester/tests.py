@@ -143,14 +143,39 @@ class LambdaTest(unittest.TestCase):
     def test_extract_docx_filename_success(self):
         metadata = {"parameters": {"TRE": {"payload": {"filename": "judgment.docx"}}}}
         assert (
-            lambda_function.extract_docx_filename(metadata, "anything")
+            lambda_function.extract_asset_filename(metadata, "anything", "filename")
             == "judgment.docx"
         )
+
+    def test_extract_xml_filename_success(self):
+        metadata = {"parameters": {"TRE": {"payload": {"xml": "judgment.xml"}}}}
+        assert (
+            lambda_function.extract_asset_filename(metadata, "anything", "xml")
+            == "judgment.xml"
+        )
+
+    def test_extract_images_filenames_success(self):
+        metadata = {"parameters": {"TRE": {"payload": {"images": ["image1.jpg"]}}}}
+        assert lambda_function.extract_asset_filename(
+            metadata, "anything", "images"
+        ) == ["image1.jpg"]
 
     def test_extract_docx_filename_failure(self):
         metadata = {"parameters": {"TRE": {"payload": {}}}}
         with self.assertRaises(lambda_function.DocxFilenameNotFoundException):
-            lambda_function.extract_docx_filename(metadata, "anything")
+            lambda_function.extract_asset_filename(metadata, "anything", "filename")
+
+    def test_extract_xml_filename_failure(self):
+        metadata = {"parameters": {"TRE": {"payload": {}}}}
+        with self.assertRaises(lambda_function.XmlFilenameNotFoundException):
+            lambda_function.extract_asset_filename(metadata, "anything", "xml")
+
+    def test_extract_images_filenames_empty(self):
+        metadata = {"parameters": {"TRE": {"payload": {}}}}
+        assert (
+            lambda_function.extract_asset_filename(metadata, "anything", "images")
+            is None
+        )
 
     def test_store_metadata(self):
         metadata = {

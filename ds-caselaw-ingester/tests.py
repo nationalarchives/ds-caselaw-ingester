@@ -207,6 +207,7 @@ class LambdaTest(unittest.TestCase):
             "EDITORIAL_UI_BASE_URL": "http://editor.url/",
             "NOTIFY_EDITORIAL_ADDRESS": "test@notifications.service.gov.uk",
             "NOTIFY_NEW_JUDGMENT_TEMPLATE_ID": "template-id",
+            "ROLLBAR_ENV": "production",
         },
         clear=True,
     )
@@ -242,11 +243,25 @@ class LambdaTest(unittest.TestCase):
 
     @patch.dict(
         os.environ,
+        {"ROLLBAR_ENV": "staging"},
+        clear=True,
+    )
+    @patch("builtins.print")
+    def test_do_not_send_new_judgment_notification_on_staging(self, mock_print):
+        metadata = {"parameters": {"anything": "anything"}}
+        NotificationsAPIClient.send_email_notification = MagicMock()
+        lambda_function.send_new_judgment_notification("uri", metadata)
+        NotificationsAPIClient.send_email_notification.assert_not_called
+        mock_print.assert_not_called
+
+    @patch.dict(
+        os.environ,
         {
             "NOTIFY_API_KEY": "ingester-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
             "EDITORIAL_UI_BASE_URL": "http://editor.url/",
             "NOTIFY_EDITORIAL_ADDRESS": "test@notifications.service.gov.uk",
             "NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID": "template-id",
+            "ROLLBAR_ENV": "production",
         },
         clear=True,
     )

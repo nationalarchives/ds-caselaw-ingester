@@ -538,3 +538,9 @@ class LambdaTest(unittest.TestCase):
             )
             assert result.__class__ == ET.Element
             assert result.tag == "error"
+
+    def test_unpublish_updated_judgment(self):
+        uri = "a/fake/uri"
+        api_client.set_published = MagicMock()
+        lambda_function.unpublish_updated_judgment(uri)
+        api_client.set_published.assert_called_with(uri, False)

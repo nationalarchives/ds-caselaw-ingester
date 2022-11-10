@@ -287,6 +287,10 @@ def get_best_xml(uri, tar, xml_file_name, consignment_reference):
         return parse_xml(contents)
 
 
+def unpublish_updated_judgment(uri):
+    api_client.set_published(uri, False)
+
+
 @rollbar.lambda_function
 def handler(event, context):
     decoder = json.decoder.JSONDecoder()
@@ -337,6 +341,7 @@ def handler(event, context):
     if updated:
         # Notify editors that a document has been updated
         send_updated_judgment_notification(uri, metadata)
+        unpublish_updated_judgment(uri)
         print(f"Updated judgment {uri}")
     elif inserted:
         # Notify editors that a new document is ready

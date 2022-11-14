@@ -80,6 +80,17 @@ And then send a message:
 make send-message
 ```
 
+## Local testing
+
+To test a tarfile locally:
+
+1. Add your test tarfile to `aws_examples/s3/te-editorial-out-int`.
+2. Edit `aws_examples/sns/parsed-judgment.json` to contain your tarfile name in `s3-folder-url` and consignment reference
+   in `consignment-reference`.
+3. Run `make setup aws_examples/s3/te-editorial-out-int/<your tarfile>`, for example `make setup aws_examples/s3/te-editorial-out-int/XYZ-123.tar.gz`.
+   If you run `make setup` without an argument, the original test tarfile `TDR-2022-DNWR.tar.gz` will be used
+4. Run `make send-message` to ingest your tarfile.
+
 ## Deployment
 
 Every change to the `main` branch is automatically deployed to the staging environment via GitHub actions.

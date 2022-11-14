@@ -30,6 +30,10 @@ awslocal s3api create-bucket \
 awslocal s3api create-bucket \
   --bucket public-asset-bucket
 
-awslocal s3 cp aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz s3://te-editorial-out-int
+if [ -n "$1" ]; then
+  awslocal s3 cp $1 s3://te-editorial-out-int
+else
+  awslocal s3 cp aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz s3://te-editorial-out-int
+fi
 
 awslocal sqs create-queue --queue-name retry-queue

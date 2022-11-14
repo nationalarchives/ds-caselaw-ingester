@@ -6,9 +6,16 @@ build:
 	@zip -g dist/lambda.zip ds-caselaw-ingester/lambda_function.py
 	@echo 'Built dist/lambda.zip'
 
+ifeq (setup,$(firstword $(MAKECMDGOALS)))
+  # use the rest as arguments for "setup"
+  RUN_ARG := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+  # ...and turn them into do-nothing targets
+  $(eval $(RUN_ARG):;@:)
+endif
+
 setup:
 	make build
-	sh scripts/setup-localstack.sh
+	sh scripts/setup-localstack.sh $(RUN_ARG)
 
 update:
 	make build

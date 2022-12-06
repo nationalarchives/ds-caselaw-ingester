@@ -1,4 +1,8 @@
-# ds-caselaw-sqs-lambda
+# The National Archives: Find Case Law
+
+This repository is part of the [Find Case Law](https://caselaw.nationalarchives.gov.uk/) project at [The National Archives](https://www.nationalarchives.gov.uk/). For more information on the project, check [the documentation](https://github.com/nationalarchives/ds-find-caselaw-docs).
+
+# Case Law Ingester
 
 This is the repository for the lambda function used to parse Transformation Engine judgments and insert them to Marklogic
 

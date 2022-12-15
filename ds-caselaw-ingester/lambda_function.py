@@ -149,14 +149,12 @@ def store_file(file, folder, filename, s3_client: Session.client):
     except NoCredentialsError:
         print("Credentials not available")
 
-
-def send_new_judgment_notification(uri: str, metadata: dict):
-    if os.getenv("ROLLBAR_ENV") == "production":
+def send_judgment_notification(uri: str, metadata: dict, template_id: str):
+    if os.getenv("ROLLBAR_ENV") == "prod":
         tdr_metadata = metadata["parameters"]["TDR"]
         notifications_client = NotificationsAPIClient(os.getenv("NOTIFY_API_KEY"))
         response = notifications_client.send_email_notification(
             email_address=os.getenv("NOTIFY_EDITORIAL_ADDRESS"),
-            template_id=os.getenv("NOTIFY_NEW_JUDGMENT_TEMPLATE_ID"),
             personalisation={
                 "url": f'{os.getenv("EDITORIAL_UI_BASE_URL")}detail?judgment_uri={uri}',
                 "consignment": tdr_metadata["Internal-Sender-Identifier"],
@@ -168,27 +166,15 @@ def send_new_judgment_notification(uri: str, metadata: dict):
         print(
             f'Sent notification to {os.getenv("NOTIFY_EDITORIAL_ADDRESS")} (Message ID: {response["id"]})'
         )
+    else:
+        print("Skipped sending judgment notification")
 
+
+def send_new_judgment_notification(uri: str, metadata: dict):
+    send_judgment_notification(uri, metadata, os.getenv("NOTIFY_NEW_JUDGMENT_TEMPLATE_ID"))
 
 def send_updated_judgment_notification(uri: str, metadata: dict):
-    if os.getenv("ROLLBAR_ENV") == "production":
-        tdr_metadata = metadata["parameters"]["TDR"]
-        notifications_client = NotificationsAPIClient(os.getenv("NOTIFY_API_KEY"))
-        response = notifications_client.send_email_notification(
-            email_address=os.getenv("NOTIFY_EDITORIAL_ADDRESS"),
-            template_id=os.getenv("NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID"),
-            personalisation={
-                "url": f'{os.getenv("EDITORIAL_UI_BASE_URL")}detail?judgment_uri={uri}',
-                "consignment": tdr_metadata["Internal-Sender-Identifier"],
-                "submitter": f'{tdr_metadata["Contact-Name"]}, {tdr_metadata["Source-Organization"]} '
-                f'<{tdr_metadata["Contact-Email"]}>',
-                "submitted_at": tdr_metadata["Consignment-Completed-Datetime"],
-            },
-        )
-        print(
-            f'Sent notification to {os.getenv("NOTIFY_EDITORIAL_ADDRESS")} (Message ID: {response["id"]})'
-        )
-
+    send_judgment_notification(uri, metadata, os.getenv("NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID"))
 
 def copy_file(tarfile, input_filename, output_filename, uri, s3_client: Session.client):
     try:

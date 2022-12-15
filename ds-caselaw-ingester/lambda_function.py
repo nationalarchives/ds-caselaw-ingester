@@ -151,7 +151,7 @@ def store_file(file, folder, filename, s3_client: Session.client):
 
 
 def send_new_judgment_notification(uri: str, metadata: dict):
-    if os.getenv("ROLLBAR_ENV") == "production":
+    if os.getenv("ROLLBAR_ENV") == "prod":
         tdr_metadata = metadata["parameters"]["TDR"]
         notifications_client = NotificationsAPIClient(os.getenv("NOTIFY_API_KEY"))
         response = notifications_client.send_email_notification(
@@ -171,7 +171,7 @@ def send_new_judgment_notification(uri: str, metadata: dict):
 
 
 def send_updated_judgment_notification(uri: str, metadata: dict):
-    if os.getenv("ROLLBAR_ENV") == "production":
+    if os.getenv("ROLLBAR_ENV") == "prod":
         tdr_metadata = metadata["parameters"]["TDR"]
         notifications_client = NotificationsAPIClient(os.getenv("NOTIFY_API_KEY"))
         response = notifications_client.send_email_notification(

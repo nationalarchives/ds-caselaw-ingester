@@ -207,7 +207,7 @@ class LambdaTest(unittest.TestCase):
             "EDITORIAL_UI_BASE_URL": "http://editor.url/",
             "NOTIFY_EDITORIAL_ADDRESS": "test@notifications.service.gov.uk",
             "NOTIFY_NEW_JUDGMENT_TEMPLATE_ID": "template-id",
-            "ROLLBAR_ENV": "production",
+            "ROLLBAR_ENV": "prod",
         },
         clear=True,
     )
@@ -261,7 +261,7 @@ class LambdaTest(unittest.TestCase):
             "EDITORIAL_UI_BASE_URL": "http://editor.url/",
             "NOTIFY_EDITORIAL_ADDRESS": "test@notifications.service.gov.uk",
             "NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID": "template-id",
-            "ROLLBAR_ENV": "production",
+            "ROLLBAR_ENV": "prod",
         },
         clear=True,
     )

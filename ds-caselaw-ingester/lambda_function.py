@@ -22,6 +22,10 @@ from notifications_python_client.notifications import NotificationsAPIClient
 rollbar.init(os.getenv("ROLLBAR_TOKEN"), environment=os.getenv("ROLLBAR_ENV"))
 
 
+class S3HTTPError(Exception):
+    pass
+
+
 class FileNotFoundException(Exception):
     pass
 
@@ -318,15 +322,19 @@ def handler(event, context):
     # Retrieve tar file from S3
     http = urllib3.PoolManager()
     try:
-        file = http.request("GET", message["s3-folder-url"])
-    except:
+        s3_response = http.request("GET", message["s3-folder-url"])
+        tar_gz_contents = s3_response.data
+        if s3_response.status < 400:
+            raise S3HTTPError(tar_gz_contents)
+    except Exception:
         # Send retry message to sqs if the GET fails
         send_retry_message(message, sqs_client)
-
+        raise
     # Store it in the /tmp directory
     filename = os.path.join("/tmp", f"{consignment_reference}.tar.gz")
+
     with open(filename, "wb") as out:
-        out.write(file.data)
+        out.write(tar_gz_contents)
         out.close()
 
     tar = tarfile.open(filename, mode="r")

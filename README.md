@@ -6,7 +6,7 @@ This repository is part of the [Find Case Law](https://caselaw.nationalarchives.
 
 This is the repository for the lambda function used to parse Transformation Engine judgments and insert them to Marklogic
 
-## Development
+## Local Development
 
 We're using [localstack](https://github.com/localstack/localstack), along with the awslocal-cli to enable local development of the lambda function.
 
@@ -24,7 +24,8 @@ python3 -m pip install -r requirements/local.txt
 
 ### Setup Localstack
 
-First, copy `.env.example` to `.env` and fill in the missing variables. If you are using Localstack via Docker, leave `MARKLOGIC_HOST` as `host.docker.internal`.
+First, copy `.env.example` to `.env` and ensure the `MARKLOGIC_*` variables are filled in.
+If you are using Localstack via Docker, leave `MARKLOGIC_HOST` as `host.docker.internal`.
 
 Then, start Localstack using:
 

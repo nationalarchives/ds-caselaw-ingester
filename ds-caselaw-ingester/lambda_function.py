@@ -324,8 +324,8 @@ def handler(event, context):
     try:
         s3_response = http.request("GET", message["s3-folder-url"])
         tar_gz_contents = s3_response.data
-        if s3_response.status < 400:
-            raise S3HTTPError(tar_gz_contents)
+        if s3_response.status >= 400:
+            raise S3HTTPError(tar_gz_contents[:250])
     except Exception:
         # Send retry message to sqs if the GET fails
         send_retry_message(message, sqs_client)

@@ -22,31 +22,37 @@ from notifications_python_client.notifications import NotificationsAPIClient
 rollbar.init(os.getenv("ROLLBAR_TOKEN"), environment=os.getenv("ROLLBAR_ENV"))
 
 
-class S3HTTPError(Exception):
+class ReportableException(Exception):
+    def __init__(self, *args, **kwargs):
+        rollbar.report_message("Something happened!", "warning", str(self))
+        super().__init__(*args, **kwargs)
+
+
+class S3HTTPError(ReportableException):
     pass
 
 
-class FileNotFoundException(Exception):
+class FileNotFoundException(ReportableException):
     pass
 
 
-class DocxFilenameNotFoundException(Exception):
+class DocxFilenameNotFoundException(ReportableException):
     pass
 
 
-class MaximumRetriesExceededException(Exception):
+class MaximumRetriesExceededException(ReportableException):
     pass
 
 
-class InvalidXMLException(Exception):
+class InvalidXMLException(ReportableException):
     pass
 
 
-class InvalidMessageException(Exception):
+class InvalidMessageException(ReportableException):
     pass
 
 
-class DocumentInsertionError(Exception):
+class DocumentInsertionError(ReportableException):
     pass
 
 

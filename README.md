@@ -64,11 +64,14 @@ The logs will show the response from the lambda directly below this line. Any va
 
 ### Unit tests
 
-To run the tests:
+To run the tests
 
-```bash
-python -m unittest
-```
+* [First time] create a virtualenv (`virtualenv venv -p \`which python\`` )
+* Activate it with `. venv/bin/activate`
+* `scripts/test`
+* When you're done, you might want to `deactivate`
+
+Note that you might get a spurious errors about django config and environment variables if you're running in the wrong environment.
 
 ### Updating the lambda
 

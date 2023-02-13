@@ -5,6 +5,7 @@ import xml.etree.ElementTree as ET
 from unittest.mock import ANY, MagicMock, call, patch
 
 import boto3
+import lambda_function
 from botocore.exceptions import NoCredentialsError
 from callee import Contains
 from caselawclient.Client import (
@@ -13,8 +14,6 @@ from caselawclient.Client import (
     api_client,
 )
 from notifications_python_client.notifications import NotificationsAPIClient
-
-from . import lambda_function
 
 
 class LambdaTest(unittest.TestCase):

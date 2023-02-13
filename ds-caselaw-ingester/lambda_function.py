@@ -411,4 +411,6 @@ def handler(event, context):
 
     tar.close()
 
+    print("Ingestion complete")
+
     return message

@@ -1,11 +1,11 @@
 import os
 import tarfile
-import unittest
 import xml.etree.ElementTree as ET
 from unittest.mock import ANY, MagicMock, call, patch
 
 import boto3
 import lambda_function
+import pytest
 from botocore.exceptions import NoCredentialsError
 from callee import Contains
 from caselawclient.Client import (
@@ -16,7 +16,38 @@ from caselawclient.Client import (
 from notifications_python_client.notifications import NotificationsAPIClient
 
 
-class LambdaTest(unittest.TestCase):
+class TestHandler:
+    @patch("lambda_function.api_client")
+    @patch("lambda_function.extract_metadata")
+    @patch("lambda_function.tarfile")
+    @patch("lambda_function.boto3.session.Session")
+    @patch("lambda_function.urllib3.PoolManager")
+    def test_handler_messages(
+        self, urllib_pool, boto_session, tarfile, metadata, apiclient, capsys
+    ):
+        """Mostly intended as a very sketchy test of the primary function"""
+        urllib_pool.return_value.request.return_value.status = 200
+        urllib_pool.return_value.request.return_value.data = b"data"
+        tarfile.open.return_value.getmembers().return_value.name.extractfile.return_value = (
+            b"3"
+        )
+
+        message = """{"consignment-reference": "DXW-2001-DRGN",
+                      "number-of-retries": 1,
+                      "consignment-type": "judgment",
+                      "s3-folder-url": "DXW-2001-DRGN"}"""
+        event = {"Records": [{"Sns": {"Message": message}}]}
+        lambda_function.handler(event=event, context=None)
+
+        log = capsys.readouterr().out
+        assert "Ingester Start: Consignment reference DXW-2001-DRGN" in log
+        assert "Ingesting document" in log
+        assert "Updated judgment xml" in log
+        assert "Upload Successful" in log
+        assert "Ingestion complete" in log
+
+
+class TestLambda:
     TDR_TARBALL_PATH = os.path.join(
         os.path.dirname(__file__),
         "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
@@ -108,8 +139,8 @@ class LambdaTest(unittest.TestCase):
             self.TARBALL_MISSING_METADATA_PATH,
             mode="r",
         )
-        with self.assertRaisesRegex(
-            lambda_function.FileNotFoundException, "Consignment Ref:"
+        with pytest.raises(
+            lambda_function.FileNotFoundException, match="Consignment Ref:"
         ):
             lambda_function.extract_metadata(tar, consignment_reference)
 
@@ -148,7 +179,7 @@ class LambdaTest(unittest.TestCase):
 
     def test_extract_docx_filename_failure(self):
         metadata = {"parameters": {"TRE": {"payload": {}}}}
-        with self.assertRaises(lambda_function.DocxFilenameNotFoundException):
+        with pytest.raises(lambda_function.DocxFilenameNotFoundException):
             lambda_function.extract_docx_filename(metadata, "anything")
 
     def test_store_metadata(self):
@@ -313,7 +344,7 @@ class LambdaTest(unittest.TestCase):
         )
         filename = "does_not_exist.txt"
         session = boto3.Session
-        with self.assertRaises(lambda_function.FileNotFoundException):
+        with pytest.raises(lambda_function.FileNotFoundException):
             lambda_function.copy_file(tar, filename, "new_filename", "uri", session)
 
     @patch.dict(
@@ -354,7 +385,7 @@ class LambdaTest(unittest.TestCase):
             "number-of-retries": 1,
         }
         sqs_client = boto3.Session
-        with self.assertRaises(lambda_function.MaximumRetriesExceededException):
+        with pytest.raises(lambda_function.MaximumRetriesExceededException):
             lambda_function.send_retry_message(message, sqs_client)
 
     def test_create_xml_contents_success(self):
@@ -435,7 +466,7 @@ class LambdaTest(unittest.TestCase):
 
     def test_malformed_message(self):
         message = {"something-unexpected": "???"}
-        with self.assertRaises(lambda_function.InvalidMessageException):
+        with pytest.raises(lambda_function.InvalidMessageException):
             lambda_function.get_consignment_reference(message)
 
     def test_update_judgment_xml_success(self):

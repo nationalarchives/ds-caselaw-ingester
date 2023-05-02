@@ -34,4 +34,4 @@ jobs:
         with:
           python-version: "3.9"
       - run: pip install -r requirements/local.txt
-      - run: python -m unittest
+      - run: python -m pytest ds-caselaw-ingester/tests.py

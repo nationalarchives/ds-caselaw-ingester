@@ -22,31 +22,37 @@ from notifications_python_client.notifications import NotificationsAPIClient
 rollbar.init(os.getenv("ROLLBAR_TOKEN"), environment=os.getenv("ROLLBAR_ENV"))
 
 
-class S3HTTPError(Exception):
+class ReportableException(Exception):
+    def __init__(self, *args, **kwargs):
+        rollbar.report_message("Something happened!", "warning", str(self))
+        super().__init__(*args, **kwargs)
+
+
+class S3HTTPError(ReportableException):
     pass
 
 
-class FileNotFoundException(Exception):
+class FileNotFoundException(ReportableException):
     pass
 
 
-class DocxFilenameNotFoundException(Exception):
+class DocxFilenameNotFoundException(ReportableException):
     pass
 
 
-class MaximumRetriesExceededException(Exception):
+class MaximumRetriesExceededException(ReportableException):
     pass
 
 
-class InvalidXMLException(Exception):
+class InvalidXMLException(ReportableException):
     pass
 
 
-class InvalidMessageException(Exception):
+class InvalidMessageException(ReportableException):
     pass
 
 
-class DocumentInsertionError(Exception):
+class DocumentInsertionError(ReportableException):
     pass
 
 
@@ -302,6 +308,7 @@ def handler(event, context):
     decoder = json.decoder.JSONDecoder()
     message = decoder.decode(event["Records"][0]["Sns"]["Message"])
     consignment_reference = get_consignment_reference(message)
+    print(f"Ingester Start: Consignment reference {consignment_reference}")
 
     if (
         os.getenv("AWS_ACCESS_KEY_ID")
@@ -343,6 +350,7 @@ def handler(event, context):
     # Extract and parse the judgment XML
     xml_file_name = metadata["parameters"]["TRE"]["payload"]["xml"]
     uri = extract_uri(metadata, consignment_reference)
+    print(f"Ingesting document {uri}")
     xml = get_best_xml(uri, tar, xml_file_name, consignment_reference)
 
     updated = update_judgment_xml(uri, xml)
@@ -352,11 +360,11 @@ def handler(event, context):
         # Notify editors that a document has been updated
         send_updated_judgment_notification(uri, metadata)
         unpublish_updated_judgment(uri)
-        print(f"Updated judgment {uri}")
+        print(f"Updated judgment xml for {uri}")
     elif inserted:
         # Notify editors that a new document is ready
         send_new_judgment_notification(uri, metadata)
-        print(f"Inserted judgment {uri}")
+        print(f"Inserted judgment xml for {uri}")
     else:
         raise DocumentInsertionError(
             f"Judgment {uri} failed to insert into Marklogic. Consignment Ref: {consignment_reference}"
@@ -402,5 +410,7 @@ def handler(event, context):
         update_published_documents(uri, s3_client)
 
     tar.close()
+
+    print("Ingestion complete")
 
     return message

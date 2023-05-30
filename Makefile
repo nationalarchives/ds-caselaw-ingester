@@ -21,8 +21,12 @@ update:
 	make build
 	@sh scripts/update-lambda.sh
 
-send-message:
+send-message-v1:
 	@awslocal sns publish --topic-arn arn:aws:sns:us-east-1:000000000000:judgments --message file://aws_examples/sns/parsed-judgment.json
+
+send-message-v2:
+	@awslocal sns publish --topic-arn arn:aws:sns:us-east-1:000000000000:judgments --message file://aws_examples/sns/parsed-judgment-v2.json
+
 
 delete-document:
 	@curl --anyauth --user admin:admin -X DELETE -i http://localhost:8000/v1/documents\?database\=Judgments\&uri\=/ewca/civ/2022/111.xml

@@ -44,13 +44,15 @@ This will create a folder, `dist`, on your local machine that contains a zip fil
 
 ### Sending a message
 
-To send the example message bundled, use the `send-message` make target:
+To send the example message bundled, use the `send-message-v2` make target:
 
 ```bash
-make send-message
+make send-message-v2
 ```
 
 This will publish a message to the SNS topic, triggering the `handle` function in our lambda.
+
+(`send-message-v1` exists, and sends a v1 message.)
 
 ### Viewing Output
 
@@ -84,7 +86,7 @@ make update
 And then send a message:
 
 ```bash
-make send-message
+make send-message-v2
 ```
 
 ## Local testing
@@ -96,7 +98,7 @@ To test a tarfile locally:
    in `consignment-reference`.
 3. Run `make setup aws_examples/s3/te-editorial-out-int/<your tarfile>`, for example `make setup aws_examples/s3/te-editorial-out-int/XYZ-123.tar.gz`.
    If you run `make setup` without an argument, the original test tarfile `TDR-2022-DNWR.tar.gz` will be used
-4. Run `make send-message` to ingest your tarfile.
+4. Run `make send-message-v2` to ingest your tarfile.
 
 ## Deployment
 

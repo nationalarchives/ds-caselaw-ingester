@@ -1,0 +1,18 @@
+{
+  "properties": {
+      "messageType": "uk.gov.nationalarchives.tre.messages.judgmentpackage.available.JudgmentPackageAvailable",
+      "timestamp": "2023-05-15T09:14:53.791409Z",
+      "function": "staging-tre-judgment-packer-lambda",
+      "producer": "TRE",
+      "executionId": "cc46e39f-76ef-43c9-a6d7-c6b064c3556a",
+      "parentExecutionId": "d26458ae-19a7-4159-8381-805075163198"
+  },
+  "parameters": {
+      "status": "JUDGMENT_PARSE_NO_ERRORS",
+      "reference": "FCL-12345",
+      "originator": "FCL",
+      "bundleFileURI": "http://172.17.0.2:4566/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
+      "metadataFilePath": "/metadata.json",
+      "metadataFileType": "Json"
+  }
+}

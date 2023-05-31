@@ -264,10 +264,7 @@ def send_retry_message(
                 f'Maximum number of retries reached for {original_message["consignment-reference"]}'
             )
     else:
-        import warnings
-
-        warnings.warn("TODO Retry v2 not written!")
-        return
+        raise MaximumRetriesExceededException("v2 messages cannot yet be retried")
 
 
 def create_parser_log_xml(tar):

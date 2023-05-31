@@ -115,21 +115,32 @@ def get_consignment_reference_v1(message):
         return result
     except KeyError:
         raise InvalidMessageException(
-            "Malformed message, please supply a consignment-reference or s3-folder-url"
+            "Malformed v1 message, please supply a consignment-reference or s3-folder-url"
         )
 
 
 def get_consignment_reference_v2(message):
-    raise RuntimeError
+    result = message.get("parameters", {}).get("reference")
+    if result:
+        return result
+
+    tarfile_location = message.get("parameters", {}).get("bundleFileURI")
+    if tarfile_location:
+        tarfile_name = re.findall("([^/]+$)", tarfile_location)[0]
+        result = tarfile_name.partition(".tar.gz")[0]
+        return result
+
+    raise InvalidMessageException(
+        "Malformed v2 message, please supply a consignment-reference or s3-folder-url"
+    )
 
 
 def get_s3_response(message):
-
+    http = urllib3.PoolManager()
     if is_v1(message):
-        http = urllib3.PoolManager()
         return http.request("GET", message["s3-folder-url"])
     else:
-        raise RuntimeError
+        return http.request("GET", message["parameters"]["bundleFileURI"])
 
 
 def extract_docx_filename(metadata: dict, consignment_reference: str) -> str:
@@ -253,7 +264,10 @@ def send_retry_message(
                 f'Maximum number of retries reached for {original_message["consignment-reference"]}'
             )
     else:
-        raise RuntimeError
+        import warnings
+
+        warnings.warn("TODO Retry v2 not written!")
+        return
 
 
 def create_parser_log_xml(tar):
@@ -362,6 +376,7 @@ def handler(event, context):
         if s3_response.status >= 400:
             raise S3HTTPError(tar_gz_contents[:250])
     except Exception:
+
         # Send retry message to sqs if the GET fails
         send_retry_message(message, sqs_client)
         raise

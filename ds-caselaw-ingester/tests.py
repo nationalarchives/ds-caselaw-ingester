@@ -47,6 +47,52 @@ class TestHandler:
         assert "Upload Successful" in log
         assert "Ingestion complete" in log
 
+    @patch("lambda_function.api_client")
+    @patch("lambda_function.extract_metadata")
+    @patch("lambda_function.tarfile")
+    @patch("lambda_function.boto3.session.Session")
+    @patch("lambda_function.urllib3.PoolManager")
+    def test_handler_messages_v2(
+        self, urllib_pool, boto_session, tarfile, metadata, apiclient, capsys
+    ):
+        """Mostly intended as a very sketchy test of the primary function"""
+        urllib_pool.return_value.request.return_value.status = 200
+        urllib_pool.return_value.request.return_value.data = b"data"
+        tarfile.open.return_value.getmembers().return_value.name.extractfile.return_value = (
+            b"3"
+        )
+
+        message = """{
+            "properties": {
+                "messageType":
+                  "uk.gov.nationalarchives.tre.messages.judgmentpackage.available.JudgmentPackageAvailable",
+                "timestamp": "2023-05-15T09:14:53.791409Z",
+                "function": "staging-tre-judgment-packer-lambda",
+                "producer": "TRE",
+                "executionId": "cc46e39f-76ef-43c9-a6d7-c6b064c3556a",
+                "parentExecutionId": "d26458ae-19a7-4159-8381-805075163198"
+            },
+            "parameters": {
+                "status": "JUDGMENT_PARSE_NO_ERRORS",
+                "reference": "FCL-12345",
+                "originator": "FCL",
+                "bundleFileURI": "http://172.17.0.2:4566/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
+                "metadataFilePath": "/metadata.json",
+                "metadataFileType": "Json"
+            }
+        }
+        """
+        event = {"Records": [{"Sns": {"Message": message}}]}
+        lambda_function.handler(event=event, context=None)
+
+        log = capsys.readouterr().out
+        assert "Ingester Start: Consignment reference FCL-12345" in log
+        assert "v1: False" in log
+        assert "Ingesting document" in log
+        assert "Updated judgment xml" in log
+        assert "Upload Successful" in log
+        assert "Ingestion complete" in log
+
 
 class TestLambda:
     TDR_TARBALL_PATH = os.path.join(

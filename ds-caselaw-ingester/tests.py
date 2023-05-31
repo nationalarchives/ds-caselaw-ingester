@@ -22,7 +22,7 @@ class TestHandler:
     @patch("lambda_function.tarfile")
     @patch("lambda_function.boto3.session.Session")
     @patch("lambda_function.urllib3.PoolManager")
-    def test_handler_messages(
+    def test_handler_messages_v1(
         self, urllib_pool, boto_session, tarfile, metadata, apiclient, capsys
     ):
         """Mostly intended as a very sketchy test of the primary function"""

@@ -92,7 +92,18 @@ def extract_uri(metadata: dict, consignment_reference: str) -> str:
     return uri
 
 
+def is_v1(message):
+    return "parameters" not in message.keys()
+
+
 def get_consignment_reference(message):
+    if is_v1(message):
+        return get_consignment_reference_v1(message)
+    else:
+        return get_consignment_reference_v2(message)
+
+
+def get_consignment_reference_v1(message):
     try:
         result = message.get("consignment-reference", "")
 
@@ -106,6 +117,19 @@ def get_consignment_reference(message):
         raise InvalidMessageException(
             "Malformed message, please supply a consignment-reference or s3-folder-url"
         )
+
+
+def get_consignment_reference_v2(message):
+    raise RuntimeError
+
+
+def get_s3_response(message):
+
+    if is_v1(message):
+        http = urllib3.PoolManager()
+        return http.request("GET", message["s3-folder-url"])
+    else:
+        raise RuntimeError
 
 
 def extract_docx_filename(metadata: dict, consignment_reference: str) -> str:
@@ -211,21 +235,25 @@ def copy_file(tarfile, input_filename, output_filename, uri, s3_client: Session.
 def send_retry_message(
     original_message: Dict[str, Union[str, int]], sqs_client: Session.client
 ) -> None:
-    retry_number = int(original_message["number-of-retries"]) + 1
-    if retry_number <= int(os.getenv("MAX_RETRIES", "5")):
-        retry_message = {
-            "consignment-reference": original_message["consignment-reference"],
-            "s3-folder-url": "",
-            "consignment-type": original_message["consignment-type"],
-            "number-of-retries": retry_number,
-        }
-        sqs_client.send_message(
-            QueueUrl=os.getenv("SQS_QUEUE_URL"), MessageBody=json.dumps(retry_message)
-        )
+    if is_v1(original_message):
+        retry_number = int(original_message["number-of-retries"]) + 1
+        if retry_number <= int(os.getenv("MAX_RETRIES", "5")):
+            retry_message = {
+                "consignment-reference": original_message["consignment-reference"],
+                "s3-folder-url": "",
+                "consignment-type": original_message["consignment-type"],
+                "number-of-retries": retry_number,
+            }
+            sqs_client.send_message(
+                QueueUrl=os.getenv("SQS_QUEUE_URL"),
+                MessageBody=json.dumps(retry_message),
+            )
+        else:
+            raise MaximumRetriesExceededException(
+                f'Maximum number of retries reached for {original_message["consignment-reference"]}'
+            )
     else:
-        raise MaximumRetriesExceededException(
-            f'Maximum number of retries reached for {original_message["consignment-reference"]}'
-        )
+        raise RuntimeError
 
 
 def create_parser_log_xml(tar):
@@ -327,9 +355,8 @@ def handler(event, context):
         s3_client = session.client("s3")
 
     # Retrieve tar file from S3
-    http = urllib3.PoolManager()
     try:
-        s3_response = http.request("GET", message["s3-folder-url"])
+        s3_response = get_s3_response(message)
         tar_gz_contents = s3_response.data
         if s3_response.status >= 400:
             raise S3HTTPError(tar_gz_contents[:250])

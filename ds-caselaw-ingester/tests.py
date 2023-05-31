@@ -1,3 +1,4 @@
+import json
 import os
 import tarfile
 import xml.etree.ElementTree as ET
@@ -14,6 +15,30 @@ from caselawclient.Client import (
     api_client,
 )
 from notifications_python_client.notifications import NotificationsAPIClient
+
+v2_message_raw = """
+    {
+        "properties": {
+            "messageType":
+                "uk.gov.nationalarchives.tre.messages.judgmentpackage.available.JudgmentPackageAvailable",
+            "timestamp": "2023-05-15T09:14:53.791409Z",
+            "function": "staging-tre-judgment-packer-lambda",
+            "producer": "TRE",
+            "executionId": "cc46e39f-76ef-43c9-a6d7-c6b064c3556a",
+            "parentExecutionId": "d26458ae-19a7-4159-8381-805075163198"
+        },
+        "parameters": {
+            "status": "JUDGMENT_PARSE_NO_ERRORS",
+            "reference": "FCL-12345",
+            "originator": "FCL",
+            "bundleFileURI": "http://172.17.0.2:4566/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
+            "metadataFilePath": "/metadata.json",
+            "metadataFileType": "Json"
+        }
+    }
+    """
+
+v2_message = json.loads(v2_message_raw)
 
 
 class TestHandler:
@@ -62,26 +87,7 @@ class TestHandler:
             b"3"
         )
 
-        message = """{
-            "properties": {
-                "messageType":
-                  "uk.gov.nationalarchives.tre.messages.judgmentpackage.available.JudgmentPackageAvailable",
-                "timestamp": "2023-05-15T09:14:53.791409Z",
-                "function": "staging-tre-judgment-packer-lambda",
-                "producer": "TRE",
-                "executionId": "cc46e39f-76ef-43c9-a6d7-c6b064c3556a",
-                "parentExecutionId": "d26458ae-19a7-4159-8381-805075163198"
-            },
-            "parameters": {
-                "status": "JUDGMENT_PARSE_NO_ERRORS",
-                "reference": "FCL-12345",
-                "originator": "FCL",
-                "bundleFileURI": "http://172.17.0.2:4566/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
-                "metadataFilePath": "/metadata.json",
-                "metadataFileType": "Json"
-            }
-        }
-        """
+        message = v2_message_raw
         event = {"Records": [{"Sns": {"Message": message}}]}
         lambda_function.handler(event=event, context=None)
 
@@ -401,7 +407,7 @@ class TestLambda:
             "SQS_QUEUE_URL": "http://172.17.0.2:4566/000000000000/retry-queue",
         },
     )
-    def test_send_retry_message_success(self):
+    def test_send_retry_message_success_v1(self):
         message = {
             "consignment-reference": "TDR-2022-DNWR",
             "s3-folder-url": "http://172.17.0.2:4566/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
@@ -420,11 +426,15 @@ class TestLambda:
             MessageBody=expected_message,
         )
 
+    @pytest.mark.skip
+    def test_send_retry_message_success_v2(self):
+        ...
+
     @patch.dict(
         os.environ,
         {"MAX_RETRIES": "1"},
     )
-    def test_send_retry_message_failure(self):
+    def test_send_retry_message_failure_v1(self):
         message = {
             "consignment-reference": "TDR-2022-DNWR",
             "s3-folder-url": "http://172.17.0.2:4566/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
@@ -434,6 +444,10 @@ class TestLambda:
         sqs_client = boto3.Session
         with pytest.raises(lambda_function.MaximumRetriesExceededException):
             lambda_function.send_retry_message(message, sqs_client)
+
+    @pytest.mark.skip
+    def test_send_retry_message_failure_v2(self):
+        ...
 
     def test_create_xml_contents_success(self):
         tar = tarfile.open(
@@ -479,7 +493,7 @@ class TestLambda:
         lambda_function.update_published_documents("uri", s3_client)
         s3_client.copy.assert_has_calls(calls)
 
-    def test_get_consignment_reference_success(self):
+    def test_get_consignment_reference_success_v1(self):
         message = {
             "consignment-reference": "TDR-2022-DNWR",
             "s3-folder-url": "http://172.17.0.2:4566/te-editorial-out-int/ewca_civ_2021_1881.tar.gz",
@@ -487,7 +501,13 @@ class TestLambda:
         result = lambda_function.get_consignment_reference(message)
         assert result == "TDR-2022-DNWR"
 
-    def test_get_consignment_reference_empty(self):
+    def test_get_consignment_reference_success_v2(self):
+        message = v2_message
+        message["parameters"]["reference"] = "THIS_REF"
+        result = lambda_function.get_consignment_reference(message)
+        assert result == "THIS_REF"
+
+    def test_get_consignment_reference_empty_v1(self):
         message = {
             "consignment-reference": "",
             "s3-folder-url": "http://172.17.0.2:4566/te-editorial-out-int/ewca_civ_2021_1881.tar.gz",
@@ -495,19 +515,46 @@ class TestLambda:
         result = lambda_function.get_consignment_reference(message)
         assert result == "ewca_civ_2021_1881"
 
-    def test_get_consignment_reference_missing(self):
+    def test_get_consignment_reference_empty_v2(self):
+        message = v2_message
+        message["parameters"]["reference"] = ""
+        message["parameters"][
+            "bundleFileURI"
+        ] = "http://172.17.0.2:4566/te-editorial-out-int/ewca_civ_2021_1881.tar.gz"
+        result = lambda_function.get_consignment_reference(message)
+        assert result == "ewca_civ_2021_1881"
+
+    def test_get_consignment_reference_missing_v1(self):
         message = {
             "s3-folder-url": "http://172.17.0.2:4566/te-editorial-out-int/ewca_civ_2021_1881.tar.gz"
         }
         result = lambda_function.get_consignment_reference(message)
         assert result == "ewca_civ_2021_1881"
 
-    def test_get_consignment_reference_presigned_url(self):
+    def test_get_consignment_reference_missing_v2(self):
+        message = dict(v2_message)
+        del message["parameters"]["reference"]
+        message["parameters"][
+            "bundleFileURI"
+        ] = "http://172.17.0.2:4566/te-editorial-out-int/ewca_civ_2021_1881.tar.gz"
+        result = lambda_function.get_consignment_reference(message)
+        assert result == "ewca_civ_2021_1881"
+
+    def test_get_consignment_reference_presigned_url_v1(self):
         message = {
             "consignment-reference": "",
             "s3-folder-url": "http://172.17.0.2:4566/te-editorial-out-int/"
             "ewca_civ_2021_1881.tar.gz?randomstuffafterthefilename",
         }
+        result = lambda_function.get_consignment_reference(message)
+        assert result == "ewca_civ_2021_1881"
+
+    def test_get_consignment_reference_presigned_url_v2(self):
+        message = v2_message
+        message["parameters"]["reference"] = ""
+        message["parameters"][
+            "bundleFileURI"
+        ] = "http://172.17.0.2:4566/te-editorial-out-int/ewca_civ_2021_1881.tar.gz?randomstuffafterthefilename"
         result = lambda_function.get_consignment_reference(message)
         assert result == "ewca_civ_2021_1881"
 

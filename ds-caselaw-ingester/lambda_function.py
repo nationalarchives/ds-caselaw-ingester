@@ -337,6 +337,7 @@ def handler(event, context):
     message = decoder.decode(event["Records"][0]["Sns"]["Message"])
     consignment_reference = get_consignment_reference(message)
     print(f"Ingester Start: Consignment reference {consignment_reference}")
+    print(f"v1: {is_v1(message)}")
 
     if (
         os.getenv("AWS_ACCESS_KEY_ID")

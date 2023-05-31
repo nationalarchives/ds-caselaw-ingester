@@ -41,6 +41,7 @@ class TestHandler:
 
         log = capsys.readouterr().out
         assert "Ingester Start: Consignment reference DXW-2001-DRGN" in log
+        assert "v1: True" in log
         assert "Ingesting document" in log
         assert "Updated judgment xml" in log
         assert "Upload Successful" in log

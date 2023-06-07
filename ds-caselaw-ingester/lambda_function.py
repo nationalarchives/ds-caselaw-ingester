@@ -307,9 +307,9 @@ def update_judgment_xml(uri, xml) -> bool:
         return False
 
 
-def insert_judgment_xml(uri, xml) -> bool:
+def insert_document_xml(uri, xml) -> bool:
     try:
-        api_client.insert_judgment_xml(uri, xml)
+        api_client.insert_document_xml(uri, xml)
         return True
     except MarklogicCommunicationError:
         return False
@@ -394,7 +394,7 @@ def handler(event, context):
     xml = get_best_xml(uri, tar, xml_file_name, consignment_reference)
 
     updated = update_judgment_xml(uri, xml)
-    inserted = False if updated else insert_judgment_xml(uri, xml)
+    inserted = False if updated else insert_document_xml(uri, xml)
 
     if updated:
         # Notify editors that a document has been updated

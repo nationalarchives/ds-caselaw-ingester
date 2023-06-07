@@ -588,18 +588,18 @@ class TestLambda:
         result = lambda_function.update_judgment_xml("a/fake/uri", xml)
         assert result is False
 
-    def test_insert_judgment_xml_success(self):
+    def test_insert_document_xml_success(self):
         xml = ET.XML("<xml>Here's some xml</xml>")
-        api_client.insert_judgment_xml = MagicMock(return_value=True)
-        result = lambda_function.insert_judgment_xml("a/fake/uri", xml)
+        api_client.insert_document_xml = MagicMock(return_value=True)
+        result = lambda_function.insert_document_xml("a/fake/uri", xml)
         assert result is True
 
-    def test_insert_judgment_xml_failure(self):
+    def test_insert_document_xml_failure(self):
         xml = ET.XML("<xml>Here's some xml</xml>")
-        api_client.insert_judgment_xml = MagicMock(
+        api_client.insert_document_xml = MagicMock(
             side_effect=MarklogicCommunicationError("error")
         )
-        result = lambda_function.insert_judgment_xml("a/fake/uri", xml)
+        result = lambda_function.insert_document_xml("a/fake/uri", xml)
         assert result is False
 
     def test_get_best_xml_with_valid_xml_file(self):

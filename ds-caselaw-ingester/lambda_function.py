@@ -3,7 +3,9 @@ import logging
 import os
 import re
 import tarfile
+import uuid
 import xml.etree.ElementTree as ET
+from datetime import datetime
 from typing import Dict, List, Tuple, Union
 from xml.sax.saxutils import escape
 
@@ -224,44 +226,25 @@ def store_file(file, folder, filename, s3_client: Session.client):
         print("Credentials not available")
 
 
-def send_new_judgment_notification(uri: str, metadata: dict):
-    if os.getenv("ROLLBAR_ENV") == "prod":
-        tdr_metadata = metadata["parameters"]["TDR"]
-        notifications_client = NotificationsAPIClient(os.getenv("NOTIFY_API_KEY"))
-        response = notifications_client.send_email_notification(
-            email_address=os.getenv("NOTIFY_EDITORIAL_ADDRESS"),
-            template_id=os.getenv("NOTIFY_NEW_JUDGMENT_TEMPLATE_ID"),
-            personalisation={
-                "url": f'{os.getenv("EDITORIAL_UI_BASE_URL")}detail?judgment_uri={uri}',
-                "consignment": tdr_metadata["Internal-Sender-Identifier"],
-                "submitter": f'{tdr_metadata["Contact-Name"]}, {tdr_metadata["Source-Organization"]}'
-                f' <{tdr_metadata["Contact-Email"]}>',
-                "submitted_at": tdr_metadata["Consignment-Completed-Datetime"],
-            },
-        )
-        print(
-            f'Sent notification to {os.getenv("NOTIFY_EDITORIAL_ADDRESS")} (Message ID: {response["id"]})'
-        )
-
-
-def send_updated_judgment_notification(uri: str, metadata: dict):
-    if os.getenv("ROLLBAR_ENV") == "prod":
-        tdr_metadata = metadata["parameters"]["TDR"]
-        notifications_client = NotificationsAPIClient(os.getenv("NOTIFY_API_KEY"))
-        response = notifications_client.send_email_notification(
-            email_address=os.getenv("NOTIFY_EDITORIAL_ADDRESS"),
-            template_id=os.getenv("NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID"),
-            personalisation={
-                "url": f'{os.getenv("EDITORIAL_UI_BASE_URL")}detail?judgment_uri={uri}',
-                "consignment": tdr_metadata["Internal-Sender-Identifier"],
-                "submitter": f'{tdr_metadata["Contact-Name"]}, {tdr_metadata["Source-Organization"]} '
-                f'<{tdr_metadata["Contact-Email"]}>',
-                "submitted_at": tdr_metadata["Consignment-Completed-Datetime"],
-            },
-        )
-        print(
-            f'Sent notification to {os.getenv("NOTIFY_EDITORIAL_ADDRESS")} (Message ID: {response["id"]})'
-        )
+def send_new_judgment_notification(uri: str, metadata: dict) -> None:
+    if os.getenv("ROLLBAR_ENV") != "prod":
+        return
+    tdr_metadata = metadata["parameters"]["TDR"]
+    notifications_client = NotificationsAPIClient(os.getenv("NOTIFY_API_KEY"))
+    response = notifications_client.send_email_notification(
+        email_address=os.getenv("NOTIFY_EDITORIAL_ADDRESS"),
+        template_id=os.getenv("NOTIFY_NEW_JUDGMENT_TEMPLATE_ID"),
+        personalisation={
+            "url": f'{os.getenv("EDITORIAL_UI_BASE_URL")}detail?judgment_uri={uri}',
+            "consignment": tdr_metadata["Internal-Sender-Identifier"],
+            "submitter": f'{tdr_metadata["Contact-Name"]}, {tdr_metadata["Source-Organization"]}'
+            f' <{tdr_metadata["Contact-Email"]}>',
+            "submitted_at": tdr_metadata["Consignment-Completed-Datetime"],
+        },
+    )
+    print(
+        f'Sent notification to {os.getenv("NOTIFY_EDITORIAL_ADDRESS")} (Message ID: {response["id"]})'
+    )
 
 
 def copy_file(tarfile, input_filename, output_filename, uri, s3_client: Session.client):
@@ -344,6 +327,16 @@ def insert_document_xml(uri, xml) -> bool:
         return False
 
 
+def select_uri(source_uri):
+    """If the judgment exists, suggest a URL that is not going to be collided with,
+    even if there are multiple requests a second or the ingester is restarted."""
+    if not api_client.judgment_exists(source_uri):
+        return source_uri
+    else:
+        now = datetime.now().strftime("%Y%m%dT%H%M%S")
+        return f"collisions/{now}/{uuid.uuid4()}"
+
+
 def get_best_xml(uri, tar, xml_file_name, consignment_reference):
     xml_file = extract_xml_file(tar, xml_file_name)
     if xml_file:
@@ -403,44 +396,45 @@ def handler(event, context):
 
     # Extract and parse the judgment XML
     xml_file_name = metadata["parameters"]["TRE"]["payload"]["xml"]
-    uri = extract_uri(metadata, consignment_reference)
-    print(f"Ingesting document {uri}")
-    xml = get_best_xml(uri, tar, xml_file_name, consignment_reference)
+    source_uri = extract_uri(metadata, consignment_reference)
+    target_uri = select_uri(source_uri)
+    print(f"Ingesting document {source_uri} at {target_uri}")
+    xml = get_best_xml(target_uri, tar, xml_file_name, consignment_reference)
 
-    updated = update_judgment_xml(uri, xml)
-    inserted = False if updated else insert_document_xml(uri, xml)
+    inserted = insert_document_xml(target_uri, xml)
 
-    if updated:
-        # Notify editors that a document has been updated
-        send_updated_judgment_notification(uri, metadata)
-        unpublish_updated_judgment(uri)
-        print(f"Updated judgment xml for {uri}")
-    elif inserted:
+    if inserted:
         # Notify editors that a new document is ready
-        send_new_judgment_notification(uri, metadata)
-        print(f"Inserted judgment xml for {uri}")
+        send_new_judgment_notification(target_uri, metadata)
+        print(f"Inserted judgment xml for {source_uri} at {target_uri}")
     else:
         raise DocumentInsertionError(
-            f"Judgment {uri} failed to insert into Marklogic. Consignment Ref: {consignment_reference}"
+            f"Judgment {source_uri} failed to insert into Marklogic at {target_uri}."
+            f"Consignment Ref: {consignment_reference}"
         )
 
     # Store metadata
-    store_metadata(uri, metadata)
+    store_metadata(target_uri, metadata)
 
     # Store docx and rename
     docx_filename = extract_docx_filename(metadata, consignment_reference)
     copy_file(
         tar,
         f"{consignment_reference}/{docx_filename}",
-        f'{uri.replace("/", "_")}.docx',
-        uri,
+        f'{target_uri.replace("/", "_")}.docx',
+        target_uri,
         s3_client,
     )
+    # TODO: the editor move functionality should change the name of the docx file to match?
 
     # Store parser log
     try:
         copy_file(
-            tar, f"{consignment_reference}/parser.log", "parser.log", uri, s3_client
+            tar,
+            f"{consignment_reference}/parser.log",
+            "parser.log",
+            target_uri,
+            s3_client,
         )
     except FileNotFoundException:
         pass
@@ -453,15 +447,17 @@ def handler(event, context):
                 tar,
                 f"{consignment_reference}/{image_filename}",
                 image_filename,
-                uri,
+                target_uri,
                 s3_client,
             )
 
     # Copy original tarfile
-    store_file(open(filename, mode="rb"), uri, os.path.basename(filename), s3_client)
+    store_file(
+        open(filename, mode="rb"), target_uri, os.path.basename(filename), s3_client
+    )
 
-    if api_client.get_published(uri):
-        update_published_documents(uri, s3_client)
+    if api_client.get_published(target_uri):
+        update_published_documents(target_uri, s3_client)
 
     tar.close()
 

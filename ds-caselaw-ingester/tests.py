@@ -86,6 +86,19 @@ class TestHandler:
         tarfile.open.return_value.getmembers().return_value.name.extractfile.return_value = (
             b"3"
         )
+        metadata.return_value = {
+            "parameters": {
+                "TRE": {"payload": {"xml": "", "filename": "temp.docx", "images": []}},
+                "TDR": {
+                    "Source-Organization": "",
+                    "Contact-Name": "",
+                    "Contact-Email": "",
+                    "Internal-Sender-Identifier": "",
+                    "Consignment-Completed-Datetime": "",
+                },
+                "PARSER": {"uri": ""},
+            }
+        }
 
         message = v2_message_raw
         event = {"Records": [{"Sns": {"Message": message}}]}
@@ -94,6 +107,7 @@ class TestHandler:
         log = capsys.readouterr().out
         assert "Ingester Start: Consignment reference FCL-12345" in log
         assert "v1: False" in log
+        assert "tar.gz saved locally as /tmp/FCL-12345.tar.gz" in log
         assert "Ingesting document" in log
         assert "Updated judgment xml" in log
         assert "Upload Successful" in log

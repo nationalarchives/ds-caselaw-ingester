@@ -521,8 +521,8 @@ class TestLambda:
         message["parameters"][
             "bundleFileURI"
         ] = "http://172.17.0.2:4566/te-editorial-out-int/ewca_civ_2021_1881.tar.gz"
-        result = lambda_function.get_consignment_reference(message)
-        assert result == "ewca_civ_2021_1881"
+        with pytest.raises(lambda_function.InvalidMessageException):
+            lambda_function.get_consignment_reference(message)
 
     def test_get_consignment_reference_missing_v1(self):
         message = {
@@ -537,8 +537,8 @@ class TestLambda:
         message["parameters"][
             "bundleFileURI"
         ] = "http://172.17.0.2:4566/te-editorial-out-int/ewca_civ_2021_1881.tar.gz"
-        result = lambda_function.get_consignment_reference(message)
-        assert result == "ewca_civ_2021_1881"
+        with pytest.raises(lambda_function.InvalidMessageException):
+            lambda_function.get_consignment_reference(message)
 
     def test_get_consignment_reference_presigned_url_v1(self):
         message = {
@@ -555,8 +555,8 @@ class TestLambda:
         message["parameters"][
             "bundleFileURI"
         ] = "http://172.17.0.2:4566/te-editorial-out-int/ewca_civ_2021_1881.tar.gz?randomstuffafterthefilename"
-        result = lambda_function.get_consignment_reference(message)
-        assert result == "ewca_civ_2021_1881"
+        with pytest.raises(lambda_function.InvalidMessageException):
+            lambda_function.get_consignment_reference(message)
 
     def test_malformed_message(self):
         message = {"something-unexpected": "???"}

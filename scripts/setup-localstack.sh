@@ -36,4 +36,7 @@ else
   awslocal s3 cp aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz s3://te-editorial-out-int
 fi
 
+awslocal s3api create-bucket --bucket staging-tre-court-document-pack-out
+awslocal s3 cp aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz s3://staging-tre-court-document-pack-out/QX/e31b117f-ff09-49b6-a697-7952c7a67384/QX.tar.gz
+
 awslocal sqs create-queue --queue-name retry-queue

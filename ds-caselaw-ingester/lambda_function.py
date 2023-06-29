@@ -142,6 +142,8 @@ def save_s3_response_v2(message, s3_client):
     reference = get_consignment_reference_v2(message)
     filename = os.path.join("/tmp", f"{reference}.tar.gz")
     s3_client.download_file(s3_bucket, s3_key, filename)
+    if not os.path.exists(filename):
+        raise RuntimeError(f"File {filename} not created")
     print(f"tar.gz saved locally as {filename}")
     return filename
 

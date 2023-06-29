@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import tarfile
 import xml.etree.ElementTree as ET
 from unittest.mock import ANY, MagicMock, call, patch
@@ -15,6 +16,12 @@ from caselawclient.Client import (
     api_client,
 )
 from notifications_python_client.notifications import NotificationsAPIClient
+
+TDR_TARBALL_PATH = os.path.join(
+    os.path.dirname(__file__),
+    "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
+)
+
 
 v2_message_raw = """
     {
@@ -39,6 +46,10 @@ v2_message_raw = """
     """
 
 v2_message = json.loads(v2_message_raw)
+
+
+def create_fake_tdr_file(*args, **kwargs):
+    shutil.copyfile(TDR_TARBALL_PATH, "/tmp/FCL-12345.tar.gz")
 
 
 class TestHandler:
@@ -85,6 +96,9 @@ class TestHandler:
         urllib_pool.return_value.request.return_value.data = b"data"
         tarfile.open.return_value.getmembers().return_value.name.extractfile.return_value = (
             b"3"
+        )
+        boto_session.return_value.client.return_value.download_file = (
+            create_fake_tdr_file
         )
         metadata.return_value = {
             "parameters": {

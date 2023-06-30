@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import tarfile
 import xml.etree.ElementTree as ET
 from unittest.mock import ANY, MagicMock, call, patch
@@ -15,6 +16,12 @@ from caselawclient.Client import (
     api_client,
 )
 from notifications_python_client.notifications import NotificationsAPIClient
+
+TDR_TARBALL_PATH = os.path.join(
+    os.path.dirname(__file__),
+    "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
+)
+
 
 v2_message_raw = """
     {
@@ -39,6 +46,10 @@ v2_message_raw = """
     """
 
 v2_message = json.loads(v2_message_raw)
+
+
+def create_fake_tdr_file(*args, **kwargs):
+    shutil.copyfile(TDR_TARBALL_PATH, "/tmp/FCL-12345.tar.gz")
 
 
 class TestHandler:
@@ -86,6 +97,22 @@ class TestHandler:
         tarfile.open.return_value.getmembers().return_value.name.extractfile.return_value = (
             b"3"
         )
+        boto_session.return_value.client.return_value.download_file = (
+            create_fake_tdr_file
+        )
+        metadata.return_value = {
+            "parameters": {
+                "TRE": {"payload": {"xml": "", "filename": "temp.docx", "images": []}},
+                "TDR": {
+                    "Source-Organization": "",
+                    "Contact-Name": "",
+                    "Contact-Email": "",
+                    "Internal-Sender-Identifier": "",
+                    "Consignment-Completed-Datetime": "",
+                },
+                "PARSER": {"uri": ""},
+            }
+        }
 
         message = v2_message_raw
         event = {"Records": [{"Sns": {"Message": message}}]}
@@ -94,6 +121,7 @@ class TestHandler:
         log = capsys.readouterr().out
         assert "Ingester Start: Consignment reference FCL-12345" in log
         assert "v1: False" in log
+        assert "tar.gz saved locally as /tmp/FCL-12345.tar.gz" in log
         assert "Ingesting document" in log
         assert "Updated judgment xml" in log
         assert "Upload Successful" in log
@@ -521,8 +549,8 @@ class TestLambda:
         message["parameters"][
             "bundleFileURI"
         ] = "http://172.17.0.2:4566/te-editorial-out-int/ewca_civ_2021_1881.tar.gz"
-        result = lambda_function.get_consignment_reference(message)
-        assert result == "ewca_civ_2021_1881"
+        with pytest.raises(lambda_function.InvalidMessageException):
+            lambda_function.get_consignment_reference(message)
 
     def test_get_consignment_reference_missing_v1(self):
         message = {
@@ -537,8 +565,8 @@ class TestLambda:
         message["parameters"][
             "bundleFileURI"
         ] = "http://172.17.0.2:4566/te-editorial-out-int/ewca_civ_2021_1881.tar.gz"
-        result = lambda_function.get_consignment_reference(message)
-        assert result == "ewca_civ_2021_1881"
+        with pytest.raises(lambda_function.InvalidMessageException):
+            lambda_function.get_consignment_reference(message)
 
     def test_get_consignment_reference_presigned_url_v1(self):
         message = {
@@ -555,8 +583,8 @@ class TestLambda:
         message["parameters"][
             "bundleFileURI"
         ] = "http://172.17.0.2:4566/te-editorial-out-int/ewca_civ_2021_1881.tar.gz?randomstuffafterthefilename"
-        result = lambda_function.get_consignment_reference(message)
-        assert result == "ewca_civ_2021_1881"
+        with pytest.raises(lambda_function.InvalidMessageException):
+            lambda_function.get_consignment_reference(message)
 
     def test_malformed_message(self):
         message = {"something-unexpected": "???"}

@@ -476,32 +476,6 @@ class TestLambda:
         result = lambda_function.create_parser_log_xml(tar)
         assert result == "<error>parser.log not found</error>"
 
-    @patch.dict(
-        os.environ,
-        {"PUBLIC_ASSET_BUCKET": "public-bucket", "AWS_BUCKET_NAME": "private-bucket"},
-    )
-    def test_update_published_documents(self):
-        contents = {"Contents": [{"Key": "file1.ext"}, {"Key": "file2.ext"}]}
-        s3_client = boto3.Session
-        s3_client.list_objects = MagicMock(return_value=contents)
-        s3_client.copy = MagicMock()
-        calls = [
-            call(
-                {"Bucket": "private-bucket", "Key": "file1.ext"},
-                "public-bucket",
-                "file1.ext",
-                {"ACL": "public-read"},
-            ),
-            call(
-                {"Bucket": "private-bucket", "Key": "file2.ext"},
-                "public-bucket",
-                "file2.ext",
-                {"ACL": "public-read"},
-            ),
-        ]
-        lambda_function.update_published_documents("uri", s3_client)
-        s3_client.copy.assert_has_calls(calls)
-
     def test_get_consignment_reference_success_v1(self):
         message = {
             "consignment-reference": "TDR-2022-DNWR",

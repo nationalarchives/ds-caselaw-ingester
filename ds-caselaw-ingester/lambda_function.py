@@ -410,7 +410,6 @@ def handler(event, context):
         target_uri,
         s3_client,
     )
-    # TODO: the editor move functionality should change the name of the docx file to match?
 
     # Store parser log
     try:

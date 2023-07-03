@@ -355,6 +355,7 @@ def handler(event, context):
     message = decoder.decode(event["Records"][0]["Sns"]["Message"])
     consignment_reference = get_consignment_reference(message)
     print(f"Ingester Start: Consignment reference {consignment_reference}")
+    print(f"Received Message: {message}")
     print(f"v1: {is_v1(message)}")
 
     if (

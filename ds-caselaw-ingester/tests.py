@@ -116,34 +116,37 @@ class TestHandler:
         """Mostly intended as a very sketchy test of the primary function"""
         urllib_pool.return_value.request.return_value.status = 200
         urllib_pool.return_value.request.return_value.data = b"data"
-        tarfile.open.return_value.getmembers().return_value.name.extractfile.return_value = (
-            b"3"
-        )
+        xml_member = MagicMock()
+        xml_member.name = "demo.xml"
+        docx_member = MagicMock()
+        docx_member.name = "demo.docx"
+        tarfile.open.return_value.getmembers.return_value = [xml_member, docx_member]
+        tarfile.open.return_value.extractfile.return_value.read.return_value = b"3"
         boto_session.return_value.client.return_value.download_file = (
             create_fake_tdr_file
         )
-        metadata.return_value = {
-            "parameters": {
-                "TRE": {"payload": {"xml": "", "filename": "temp.docx", "images": []}},
-                "TDR": {
-                    "Source-Organization": "",
-                    "Contact-Name": "",
-                    "Contact-Email": "",
-                    "Internal-Sender-Identifier": "",
-                    "Consignment-Completed-Datetime": "",
-                },
-                "PARSER": {"uri": ""},
-            }
-        }
-
         # metadata.return_value = {
-        #     "uri": "https://caselaw.nationalarchives.gov.uk/id/eat/2022/1",
-        #     "court": "EAT",
-        #     "cite": "[2022] EAT 1",
-        #     "date": "2021-09-28",
-        #     "name": "SECRETARY OF STATE FOR JUSTICE v MR ALAN JOHNSON",
-        #     "attachments": [],
+        #     "parameters": {
+        #         "TRE": {"payload": {"xml": "", "filename": "temp.docx", "images": []}},
+        #         "TDR": {
+        #             "Source-Organization": "",
+        #             "Contact-Name": "",
+        #             "Contact-Email": "",
+        #             "Internal-Sender-Identifier": "",
+        #             "Consignment-Completed-Datetime": "",
+        #         },
+        #         "PARSER": {"uri": ""},
+        #     }
         # }
+
+        metadata.return_value = {
+            "uri": "https://caselaw.nationalarchives.gov.uk/id/eat/2022/1",
+            "court": "EAT",
+            "cite": "[2022] EAT 1",
+            "date": "2021-09-28",
+            "name": "SECRETARY OF STATE FOR JUSTICE v MR ALAN JOHNSON",
+            "attachments": [],
+        }
 
         message = v2_message_raw
         event = {"Records": [{"Sns": {"Message": message}}]}

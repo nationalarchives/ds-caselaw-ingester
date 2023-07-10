@@ -6,7 +6,7 @@ import tarfile
 import uuid
 import xml.etree.ElementTree as ET
 from datetime import datetime
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 from xml.sax.saxutils import escape
 
 import boto3
@@ -144,6 +144,14 @@ class DocumentInsertionError(ReportableException):
     pass
 
 
+def infer_file_by_extension(tar: tarfile, extension: str) -> Optional[str]:
+    """not recommended: deprecate when v2 messages contain all strings"""
+    for member in tar.getmembers():
+        if member.name.endswith(f".{extension}"):
+            return member.name
+    raise FileNotFoundError(f"unable to find a file with a {extension} extension")
+
+
 def extract_xml_file(tar: tarfile, xml_file_name: str):
     xml_file = None
     if xml_file_name:
@@ -169,7 +177,11 @@ def extract_metadata(tar: tarfile, consignment_reference: str):
 
 
 def extract_uri(metadata: dict, consignment_reference: str) -> str:
-    uri = metadata["parameters"]["PARSER"].get("uri", "")
+    try:
+        uri = metadata["parameters"]["PARSER"].get("uri", "")
+    except KeyError:
+        # TODO: remove this when the output from TDR is fixed and returns PARSER elements for v2 reparses
+        uri = metadata.get("uri", "")
 
     if uri:
         uri = uri.replace("https://caselaw.nationalarchives.gov.uk/id/", "")
@@ -207,7 +219,11 @@ def extract_lambda_versions(versions: List[Dict[str, str]]) -> List[Tuple[str, s
 
 
 def store_metadata(uri: str, metadata: dict) -> None:
-    tdr_metadata = metadata["parameters"]["TDR"]
+    try:
+        tdr_metadata = metadata["parameters"]["TDR"]
+    except KeyError:
+        logging.warning("No TDR section detected; not updating metadata")
+        return None
 
     # Store source information
     api_client.set_property(
@@ -396,7 +412,10 @@ def handler(event, context):
     metadata = extract_metadata(tar, consignment_reference)
 
     # Extract and parse the judgment XML
-    xml_file_name = metadata["parameters"]["TRE"]["payload"]["xml"]
+    try:
+        xml_file_name = metadata["parameters"]["TRE"]["payload"]["xml"]
+    except KeyError:
+        xml_file_name = infer_file_by_extension(tar, "xml")
     source_uri = extract_uri(metadata, consignment_reference)
     target_uri = select_uri(source_uri)
     print(f"Ingesting document {source_uri} at {target_uri}")
@@ -418,14 +437,23 @@ def handler(event, context):
     store_metadata(target_uri, metadata)
 
     # Store docx and rename
-    docx_filename = extract_docx_filename(metadata, consignment_reference)
-    copy_file(
-        tar,
-        f"{consignment_reference}/{docx_filename}",
-        f'{target_uri.replace("/", "_")}.docx',
-        target_uri,
-        s3_client,
-    )
+    docx_filename = None
+    try:
+        docx_filename = extract_docx_filename(metadata, consignment_reference)
+    except DocxFilenameNotFoundException:
+        try:
+            docx_filename = infer_file_by_extension(tar, "docx")
+        except FileNotFoundError:
+            logging.warning("No docx file found!")
+
+    if docx_filename:
+        copy_file(
+            tar,
+            f"{consignment_reference}/{docx_filename}",
+            f'{target_uri.replace("/", "_")}.docx',
+            target_uri,
+            s3_client,
+        )
 
     # Store parser log
     try:
@@ -440,7 +468,10 @@ def handler(event, context):
         pass
 
     # Store images
-    image_list = metadata["parameters"]["TRE"]["payload"]["images"]
+    try:
+        image_list = metadata["parameters"]["TRE"]["payload"]["images"]
+    except KeyError:
+        image_list = []
     if image_list:
         for image_filename in image_list:
             copy_file(

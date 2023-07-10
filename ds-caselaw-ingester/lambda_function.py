@@ -24,6 +24,92 @@ from notifications_python_client.notifications import NotificationsAPIClient
 rollbar.init(os.getenv("ROLLBAR_TOKEN"), environment=os.getenv("ROLLBAR_ENV"))
 
 
+class Message(object):
+    @classmethod
+    def from_event(cls, event):
+        decoder = json.decoder.JSONDecoder()
+        message = decoder.decode(event["Records"][0]["Sns"]["Message"])
+        return cls.from_message(message)
+
+    @classmethod
+    def from_message(cls, message):
+        if "parameters" in message.keys():
+            return V2Message(message)
+        else:
+            return V1Message(message)
+
+    def __init__(self, message):
+        self.message = message
+
+
+class V1Message(Message):
+    def is_v1(self):
+        return True
+
+    def get_consignment_reference(self):
+        try:
+            result = self.message.get("consignment-reference", "")
+
+            if not result:
+                tarfile_location = self.message["s3-folder-url"]
+                tarfile_name = re.findall("([^/]+$)", tarfile_location)[0]
+                result = tarfile_name.partition(".tar.gz")[0]
+
+            return result
+        except KeyError:
+            raise InvalidMessageException(
+                "Malformed v1 message, please supply a consignment-reference or s3-folder-url"
+            )
+
+    def save_s3_response(self, sqs_client, s3_client):
+        http = urllib3.PoolManager()
+
+        try:
+            s3_response = http.request("GET", self.message["s3-folder-url"])
+            tar_gz_contents = s3_response.data
+            if s3_response.status >= 400:
+                raise S3HTTPError(tar_gz_contents[:250])
+        except Exception:
+            # Send retry message to sqs if the GET fails
+            send_retry_message(self.message, sqs_client)
+            raise
+        # Store it in the /tmp directory
+
+        reference = self.get_consignment_reference()
+        filename = os.path.join("/tmp", f"{reference}.tar.gz")
+
+        with open(filename, "wb") as out:
+            out.write(tar_gz_contents)
+            out.close()
+
+        return filename
+
+
+class V2Message(Message):
+    def is_v1(self):
+        return False
+
+    def get_consignment_reference(self):
+        result = self.message.get("parameters", {}).get("reference")
+        if result:
+            return result
+
+        raise InvalidMessageException(
+            "Malformed v2 message, please supply a consignment-reference or s3-folder-url"
+        )
+
+    def save_s3_response(self, sqs_client, s3_client):
+        s3_bucket = self.message.get("parameters", {}).get("s3Bucket")
+        s3_key = self.message.get("parameters", {}).get("s3Key")
+        reference = self.get_consignment_reference()
+        filename = os.path.join("/tmp", f"{reference}.tar.gz")
+        s3_client.download_file(s3_bucket, s3_key, filename)
+        if not os.path.exists(filename):
+            raise RuntimeError(f"File {filename} not created")
+        print(f"tar.gz saved locally as {filename}")
+        return filename
+
+
 class ReportableException(Exception):
     def __init__(self, *args, **kwargs):
         rollbar.report_message("Something happened!", "warning", str(self))
@@ -95,83 +181,12 @@ def extract_uri(metadata: dict, consignment_reference: str) -> str:
 
 
 def is_v1(message):
-    return "parameters" not in message.keys()
+    return Message.from_message(message).is_v1()
 
 
+# called by tests
 def get_consignment_reference(message):
-    if is_v1(message):
-        return get_consignment_reference_v1(message)
-    else:
-        return get_consignment_reference_v2(message)
-
-
-def get_consignment_reference_v1(message):
-    try:
-        result = message.get("consignment-reference", "")
-
-        if not result:
-            tarfile_location = message["s3-folder-url"]
-            tarfile_name = re.findall("([^/]+$)", tarfile_location)[0]
-            result = tarfile_name.partition(".tar.gz")[0]
-
-        return result
-    except KeyError:
-        raise InvalidMessageException(
-            "Malformed v1 message, please supply a consignment-reference or s3-folder-url"
-        )
-
-
-def get_consignment_reference_v2(message):
-    result = message.get("parameters", {}).get("reference")
-    if result:
-        return result
-
-    raise InvalidMessageException(
-        "Malformed v2 message, please supply a consignment-reference or s3-folder-url"
-    )
-
-
-def save_s3_response(message, sqs_client, s3_client):
-    if is_v1(message):
-        return save_s3_response_v1(message, sqs_client)
-    else:
-        return save_s3_response_v2(message, s3_client)
-
-
-def save_s3_response_v2(message, s3_client):
-    s3_bucket = message.get("parameters", {}).get("s3Bucket")
-    s3_key = message.get("parameters", {}).get("s3Key")
-    reference = get_consignment_reference_v2(message)
-    filename = os.path.join("/tmp", f"{reference}.tar.gz")
-    s3_client.download_file(s3_bucket, s3_key, filename)
-    if not os.path.exists(filename):
-        raise RuntimeError(f"File {filename} not created")
-    print(f"tar.gz saved locally as {filename}")
-    return filename
-
-
-def save_s3_response_v1(message, sqs_client):
-    http = urllib3.PoolManager()
-
-    try:
-        s3_response = http.request("GET", message["s3-folder-url"])
-        tar_gz_contents = s3_response.data
-        if s3_response.status >= 400:
-            raise S3HTTPError(tar_gz_contents[:250])
-    except Exception:
-        # Send retry message to sqs if the GET fails
-        send_retry_message(message, sqs_client)
-        raise
-    # Store it in the /tmp directory
-
-    reference = get_consignment_reference_v1(message)
-    filename = os.path.join("/tmp", f"{reference}.tar.gz")
-
-    with open(filename, "wb") as out:
-        out.write(tar_gz_contents)
-        out.close()
-
-    return filename
+    return Message.from_message(message).get_consignment_reference()
 
 
 def extract_docx_filename(metadata: dict, consignment_reference: str) -> str:
@@ -351,12 +366,12 @@ def unpublish_updated_judgment(uri):
 
 @rollbar.lambda_function
 def handler(event, context):
-    decoder = json.decoder.JSONDecoder()
-    message = decoder.decode(event["Records"][0]["Sns"]["Message"])
-    consignment_reference = get_consignment_reference(message)
+    message = Message.from_event(event)
+
+    consignment_reference = message.get_consignment_reference()
     print(f"Ingester Start: Consignment reference {consignment_reference}")
-    print(f"Received Message: {message}")
-    print(f"v1: {is_v1(message)}")
+    print(f"Received Message: {message.message}")
+    print(f"v1: {message.is_v1()}")
 
     if (
         os.getenv("AWS_ACCESS_KEY_ID")
@@ -375,7 +390,7 @@ def handler(event, context):
         s3_client = session.client("s3")
 
     # Retrieve tar file from S3
-    filename = save_s3_response(message, sqs_client, s3_client)
+    filename = message.save_s3_response(sqs_client, s3_client)
 
     tar = tarfile.open(filename, mode="r")
     metadata = extract_metadata(tar, consignment_reference)
@@ -445,4 +460,4 @@ def handler(event, context):
 
     print("Ingestion complete")
 
-    return message
+    return message.message

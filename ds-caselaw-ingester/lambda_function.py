@@ -239,24 +239,34 @@ def store_file(file, folder, filename, s3_client: Session.client):
         print("Credentials not available")
 
 
-def send_new_judgment_notification(uri: str, metadata: dict):
-    if os.getenv("ROLLBAR_ENV") == "prod":
-        tdr_metadata = metadata["parameters"]["TDR"]
-        notifications_client = NotificationsAPIClient(os.getenv("NOTIFY_API_KEY"))
-        response = notifications_client.send_email_notification(
-            email_address=os.getenv("NOTIFY_EDITORIAL_ADDRESS"),
-            template_id=os.getenv("NOTIFY_NEW_JUDGMENT_TEMPLATE_ID"),
-            personalisation={
-                "url": f'{os.getenv("EDITORIAL_UI_BASE_URL")}detail?judgment_uri={uri}',
-                "consignment": tdr_metadata["Internal-Sender-Identifier"],
-                "submitter": f'{tdr_metadata["Contact-Name"]}, {tdr_metadata["Source-Organization"]}'
-                f' <{tdr_metadata["Contact-Email"]}>',
-                "submitted_at": tdr_metadata["Consignment-Completed-Datetime"],
-            },
-        )
+def send_new_judgment_notification(uri: str, metadata: dict) -> None:
+    tdr_metadata = metadata["parameters"]["TDR"]
+    if "/press-summary/" in uri:
+        doctype = "Press Summary"
+    else:
+        doctype = "Judgment"
+    personalisation = {
+        "url": f'{os.getenv("EDITORIAL_UI_BASE_URL")}detail?judgment_uri={uri}',
+        "consignment": tdr_metadata["Internal-Sender-Identifier"],
+        "submitter": f'{tdr_metadata["Contact-Name"]}, {tdr_metadata["Source-Organization"]}'
+        f' <{tdr_metadata["Contact-Email"]}>',
+        "submitted_at": tdr_metadata["Consignment-Completed-Datetime"],
+        "doctype": doctype,
+    }
+    if os.getenv("ROLLBAR_ENV") != "prod":
         print(
-            f'Sent notification to {os.getenv("NOTIFY_EDITORIAL_ADDRESS")} (Message ID: {response["id"]})'
+            f"Would send a notification but we're not in production.\n{personalisation}"
         )
+        return
+    notifications_client = NotificationsAPIClient(os.getenv("NOTIFY_API_KEY"))
+    response = notifications_client.send_email_notification(
+        email_address=os.getenv("NOTIFY_EDITORIAL_ADDRESS"),
+        template_id=os.getenv("NOTIFY_NEW_JUDGMENT_TEMPLATE_ID"),
+        personalisation=personalisation,
+    )
+    print(
+        f'Sent notification to {os.getenv("NOTIFY_EDITORIAL_ADDRESS")} (Message ID: {response["id"]})'
+    )
 
 
 def send_updated_judgment_notification(uri: str, metadata: dict):

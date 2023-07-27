@@ -345,13 +345,16 @@ class TestLambda:
             }
         }
         expected_personalisation = {
-            "url": "http://editor.url/detail?judgment_uri=uri",
+            "url": "http://editor.url/detail?judgment_uri=ewca/2023/1/press-summary/1",
             "consignment": "TDR-2021-CF6L",
             "submitter": "Tom King, Ministry of Justice <someone@example.com>",
             "submitted_at": "2021-12-16T14:54:06Z",
+            "doctype": "Press Summary",
         }
         NotificationsAPIClient.send_email_notification = MagicMock()
-        lambda_function.send_new_judgment_notification("uri", metadata)
+        lambda_function.send_new_judgment_notification(
+            "ewca/2023/1/press-summary/1", metadata
+        )
         NotificationsAPIClient.send_email_notification.assert_called_with(
             email_address="test@notifications.service.gov.uk",
             template_id="template-id",
@@ -368,11 +371,21 @@ class TestLambda:
     )
     @patch("builtins.print")
     def test_do_not_send_new_judgment_notification_on_staging(self, mock_print):
-        metadata = {"parameters": {"anything": "anything"}}
+        metadata = {
+            "parameters": {
+                "TDR": {
+                    "Source-Organization": "Ministry of Justice",
+                    "Contact-Name": "Tom King",
+                    "Internal-Sender-Identifier": "TDR-2021-CF6L",
+                    "Consignment-Completed-Datetime": "2021-12-16T14:54:06Z",
+                    "Contact-Email": "someone@example.com",
+                }
+            }
+        }
+
         NotificationsAPIClient.send_email_notification = MagicMock()
         lambda_function.send_new_judgment_notification("uri", metadata)
-        NotificationsAPIClient.send_email_notification.assert_not_called
-        mock_print.assert_not_called
+        NotificationsAPIClient.send_email_notification.assert_not_called()
 
     @patch.dict(
         os.environ,

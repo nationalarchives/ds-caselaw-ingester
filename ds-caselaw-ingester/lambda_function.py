@@ -453,6 +453,9 @@ def handler(event, context):
     # Store metadata
     store_metadata(uri, metadata)
 
+    # Copy original tarfile
+    store_file(open(filename, mode="rb"), uri, os.path.basename(filename), s3_client)
+
     # Store docx and rename
     docx_filename = extract_docx_filename(metadata, consignment_reference)
     copy_file(
@@ -482,9 +485,6 @@ def handler(event, context):
                 uri,
                 s3_client,
             )
-
-    # Copy original tarfile
-    store_file(open(filename, mode="rb"), uri, os.path.basename(filename), s3_client)
 
     if api_client.get_published(uri):
         update_published_documents(uri, s3_client)

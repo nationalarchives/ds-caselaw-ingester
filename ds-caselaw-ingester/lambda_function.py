@@ -429,7 +429,6 @@ def handler(event, context):
 
     if not message.is_v1():
         # this is just for debug purposes, it should be safely removable
-        uri = extract_uri(metadata, consignment_reference)
         store_file(open(filename, mode="rb"), "v2-debug", "debug.tar.gz", s3_client)
 
     # Extract and parse the judgment XML

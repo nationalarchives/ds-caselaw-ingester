@@ -455,7 +455,10 @@ def handler(event, context):
         )
 
     # Store metadata
-    store_metadata(uri, metadata)
+
+    has_TDR_data = "TDR" in metadata["parameters"].keys()
+    if has_TDR_data:
+        store_metadata(uri, metadata)
 
     # Copy original tarfile
     store_file(open(filename, mode="rb"), uri, os.path.basename(filename), s3_client)

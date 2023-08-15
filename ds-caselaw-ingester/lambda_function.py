@@ -156,7 +156,7 @@ def extract_metadata(tar: tarfile, consignment_reference: str):
     te_metadata_file = None
     decoder = json.decoder.JSONDecoder()
     for member in tar.getmembers():
-        if "metadata.json" in member.name:
+        if "-metadata.json" in member.name:
             te_metadata_file = tar.extractfile(member)
 
     if te_metadata_file is None:

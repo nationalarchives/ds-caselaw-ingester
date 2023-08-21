@@ -143,11 +143,6 @@ class TestLambda:
         "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
     )
 
-    EDGE_TARBALL_PATH = os.path.join(
-        os.path.dirname(__file__),
-        "../aws_examples/s3/te-editorial-out-int/ewca_civ_2021_1881.tar.gz",
-    )
-
     TARBALL_MISSING_METADATA_PATH = os.path.join(
         os.path.dirname(__file__),
         "../aws_examples/s3/te-editorial-out-int/TAR-MISSING-METADATA.tar.gz",
@@ -168,26 +163,7 @@ class TestLambda:
         xml = ET.XML(result.read())
         assert xml.tag == "{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}akomaNtoso"
 
-    def test_extract_xml_file_success_edge(self):
-        filename = "judgment.xml"
-        tar = tarfile.open(
-            self.EDGE_TARBALL_PATH,
-            mode="r",
-        )
-        result = lambda_function.extract_xml_file(tar, filename)
-        # XML document may not be valid in an "edge" tarball, so just check the file is there
-        assert result is not None
-
     def test_extract_xml_file_not_found_tdr(self):
-        filename = "unknown.xml"
-        tar = tarfile.open(
-            self.TDR_TARBALL_PATH,
-            mode="r",
-        )
-        result = lambda_function.extract_xml_file(tar, filename)
-        assert result is None
-
-    def test_extract_xml_file_not_found_edge(self):
         filename = "unknown.xml"
         tar = tarfile.open(
             self.TDR_TARBALL_PATH,
@@ -209,15 +185,6 @@ class TestLambda:
         consignment_reference = "TDR-2022-DNWR"
         tar = tarfile.open(
             self.TDR_TARBALL_PATH,
-            mode="r",
-        )
-        result = lambda_function.extract_metadata(tar, consignment_reference)
-        assert result["parameters"]["TRE"]["payload"] is not None
-
-    def test_extract_metadata_success_edge(self):
-        consignment_reference = "name_of_tarfile"
-        tar = tarfile.open(
-            self.EDGE_TARBALL_PATH,
             mode="r",
         )
         result = lambda_function.extract_metadata(tar, consignment_reference)

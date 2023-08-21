@@ -156,7 +156,7 @@ def extract_metadata(tar: tarfile, consignment_reference: str):
     te_metadata_file = None
     decoder = json.decoder.JSONDecoder()
     for member in tar.getmembers():
-        if "metadata.json" in member.name:
+        if "-metadata.json" in member.name:
             te_metadata_file = tar.extractfile(member)
 
     if te_metadata_file is None:
@@ -455,7 +455,10 @@ def handler(event, context):
         )
 
     # Store metadata
-    store_metadata(uri, metadata)
+
+    has_TDR_data = "TDR" in metadata["parameters"].keys()
+    if has_TDR_data:
+        store_metadata(uri, metadata)
 
     # Copy original tarfile
     store_file(open(filename, mode="rb"), uri, os.path.basename(filename), s3_client)

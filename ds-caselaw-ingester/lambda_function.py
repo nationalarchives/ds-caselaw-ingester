@@ -189,11 +189,15 @@ def get_consignment_reference(message):
 
 def extract_docx_filename(metadata: dict, consignment_reference: str) -> str:
     try:
-        return metadata["parameters"]["TRE"]["payload"]["filename"]
+        docx_filename = metadata["parameters"]["TRE"]["payload"]["filename"]
     except KeyError:
         raise DocxFilenameNotFoundException(
             f"No .docx filename was found in metadata. Consignment Ref: {consignment_reference}"
         )
+
+    # 2023-08-23: data/ was erroneously added to the v2 filename. This should go away soon.
+    docx_filename = docx_filename.replace("data/", "")
+    return docx_filename
 
 
 def extract_lambda_versions(versions: List[Dict[str, str]]) -> List[Tuple[str, str]]:

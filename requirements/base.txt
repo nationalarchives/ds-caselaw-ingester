@@ -1,7 +1,10 @@
 django-environ~=0.10
-ds-caselaw-marklogic-api-client==10.0.1
+ds-caselaw-marklogic-api-client==14.0.2
 requests-toolbelt~=1.0
 urllib3~=1.26
 boto3
 rollbar
 notifications-python-client~=8.0
+
+mypy-boto3-s3
+mypy-boto3-sns

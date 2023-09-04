@@ -13,13 +13,26 @@ import urllib3
 from boto3.session import Session
 from botocore.exceptions import NoCredentialsError
 from caselawclient.Client import (
+    DEFAULT_USER_AGENT,
+    MarklogicApiClient,
     MarklogicCommunicationError,
     MarklogicResourceNotFoundError,
-    api_client,
 )
+from dotenv import load_dotenv
 from notifications_python_client.notifications import NotificationsAPIClient
 
+load_dotenv()
+
+
 rollbar.init(os.getenv("ROLLBAR_TOKEN"), environment=os.getenv("ROLLBAR_ENV"))
+
+api_client = MarklogicApiClient(
+    host=os.getenv("MARKLOGIC_HOST", default=None),
+    username=os.getenv("MARKLOGIC_USER", default=None),
+    password=os.getenv("MARKLOGIC_PASSWORD", default=None),
+    use_https=os.getenv("MARKLOGIC_USE_HTTPS", default=False),
+    user_agent=f"ds-caselaw-ingester/unknown {DEFAULT_USER_AGENT}",
+)
 
 
 class Message(object):

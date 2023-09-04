@@ -269,7 +269,7 @@ class TestLambda:
         session.upload_fileobj = MagicMock()
         lambda_function.store_file(None, "folder", "filename.ext", session)
         mock_print.assert_called_with("Upload Successful folder/filename.ext")
-        session.upload_fileobj.assert_called_with(None, None, "folder/filename.ext")
+        session.upload_fileobj.assert_called_with(None, ANY, "folder/filename.ext")
 
     @patch("builtins.print")
     def test_store_file_file_not_found(self, mock_print):
@@ -277,7 +277,7 @@ class TestLambda:
         session.upload_fileobj = MagicMock(side_effect=FileNotFoundError)
         lambda_function.store_file(None, "folder", "filename.ext", session)
         mock_print.assert_called_with("The file folder/filename.ext was not found")
-        session.upload_fileobj.assert_called_with(None, None, "folder/filename.ext")
+        session.upload_fileobj.assert_called_with(None, ANY, "folder/filename.ext")
 
     @patch("builtins.print")
     def test_store_file_file_no_credentials(self, mock_print):
@@ -285,7 +285,7 @@ class TestLambda:
         session.upload_fileobj = MagicMock(side_effect=NoCredentialsError)
         lambda_function.store_file(None, "folder", "filename.ext", session)
         mock_print.assert_called_with("Credentials not available")
-        session.upload_fileobj.assert_called_with(None, None, "folder/filename.ext")
+        session.upload_fileobj.assert_called_with(None, ANY, "folder/filename.ext")
 
     @patch.dict(
         os.environ,

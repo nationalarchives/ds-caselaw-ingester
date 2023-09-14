@@ -1,1 +1,1 @@
-MARKLOGIC_HOST= MARKLOGIC_USER= MARKLOGIC_PASSWORD= python -m pytest ds-caselaw-ingester/tests.py $*
+python -m pytest ds-caselaw-ingester/tests.py $*

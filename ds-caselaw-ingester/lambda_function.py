@@ -95,6 +95,9 @@ class V1Message(Message):
 
         return filename
 
+    def is_valid_ingester_message(self):
+        return True
+
 
 class V2Message(Message):
     def is_v1(self):
@@ -119,6 +122,14 @@ class V2Message(Message):
             raise RuntimeError(f"File {filename} not created")
         print(f"tar.gz saved locally as {filename}")
         return filename
+
+    def is_valid_ingester_message(self):
+        message_type = self.message["properties"]["messageType"]
+        print(f"Message type: {message_type}")
+        return (
+            message_type
+            == "uk.gov.nationalarchives.da.messages.courtdocumentpackage.available.CourtDocumentPackageAvailable"
+        )
 
 
 class ReportableException(Exception):
@@ -412,6 +423,10 @@ def unpublish_updated_judgment(uri):
 @rollbar.lambda_function
 def handler(event, context):
     message = Message.from_event(event)
+
+    if not message.is_valid_ingester_message():
+        print("Message type is not valid for ingestion. Skipping.")
+        return
 
     consignment_reference = message.get_consignment_reference()
     print(f"Ingester Start: Consignment reference {consignment_reference}")

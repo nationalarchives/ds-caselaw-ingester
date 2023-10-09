@@ -26,7 +26,7 @@ v2_message_raw = """
     {
         "properties": {
             "messageType":
-                "uk.gov.nationalarchives.tre.messages.judgmentpackage.available.JudgmentPackageAvailable",
+                "uk.gov.nationalarchives.da.messages.courtdocumentpackage.available.CourtDocumentPackageAvailable",
             "timestamp": "2023-05-15T09:14:53.791409Z",
             "function": "staging-tre-judgment-packer-lambda",
             "producer": "TRE",

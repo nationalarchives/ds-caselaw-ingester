@@ -12,7 +12,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.9"
+          python-version: "3.11"
           cache: pip
           cache-dependency-path: |
             requirements/base.txt
@@ -29,9 +29,9 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@main
-      - name: Set up Python 3.9
+      - name: Set up Python 3.11
         uses: actions/setup-python@v4
         with:
-          python-version: "3.9"
+          python-version: "3.11"
       - run: pip install -r requirements/local.txt
       - run: python -m pytest ds-caselaw-ingester/tests.py

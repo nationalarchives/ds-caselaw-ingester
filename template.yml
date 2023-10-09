@@ -16,7 +16,7 @@ Resources:
     Properties:
       CodeUri: ds-caselaw-ingester/
       Handler: lambda_function.handler
-      Runtime: python3.9
+      Runtime: python3.11
       Architectures:
         - x86_64
 

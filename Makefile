@@ -1,8 +1,8 @@
 build:
 	@mkdir -p dist
-	@STATIC_DEPS=true python3 -m pip install -t package -r requirements/base.txt
 	@rm dist/lambda.zip & 2>&1
-	@cd package && zip -r ../dist/lambda.zip * && cd ..
+	@samlocal build --use-container -m requirements/base.txt
+	@cd .aws-sam/build/TNACaselawIngesterFunction && zip -r ../../../dist/lambda.zip .
 	@zip -g dist/lambda.zip ds-caselaw-ingester/lambda_function.py
 	@echo 'Built dist/lambda.zip'
 

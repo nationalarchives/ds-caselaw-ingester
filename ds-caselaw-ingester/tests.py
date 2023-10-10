@@ -328,7 +328,41 @@ class TestLambda:
             personalisation=expected_personalisation,
         )
         mock_print.assert_called_with(
-            Contains("Sent notification to test@notifications.service.gov.uk")
+            Contains("Sent new notification to test@notifications.service.gov.uk")
+        )
+
+    @patch.dict(
+        os.environ,
+        {
+            "NOTIFY_API_KEY": "ingester-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+            "EDITORIAL_UI_BASE_URL": "http://editor.url/",
+            "NOTIFY_EDITORIAL_ADDRESS": "test@notifications.service.gov.uk",
+            "NOTIFY_NEW_JUDGMENT_TEMPLATE_ID": "template-id",
+            "ROLLBAR_ENV": "prod",
+        },
+        clear=True,
+    )
+    @patch("builtins.print")
+    def test_send_new_judgment_notification_with_no_tdr_section(self, mock_print):
+        metadata = {}
+        expected_personalisation = {
+            "url": "http://editor.url/detail?judgment_uri=ewca/2023/1/press-summary/1",
+            "consignment": "unknown",
+            "submitter": "unknown, unknown <unknown>",
+            "submitted_at": "unknown",
+            "doctype": "Press Summary",
+        }
+        NotificationsAPIClient.send_email_notification = MagicMock()
+        lambda_function.send_new_judgment_notification(
+            "ewca/2023/1/press-summary/1", metadata
+        )
+        NotificationsAPIClient.send_email_notification.assert_called_with(
+            email_address="test@notifications.service.gov.uk",
+            template_id="template-id",
+            personalisation=expected_personalisation,
+        )
+        mock_print.assert_called_with(
+            Contains("Sent new notification to test@notifications.service.gov.uk")
         )
 
     @patch.dict(
@@ -392,7 +426,38 @@ class TestLambda:
             personalisation=expected_personalisation,
         )
         mock_print.assert_called_with(
-            Contains("Sent notification to test@notifications.service.gov.uk")
+            Contains("Sent update notification to test@notifications.service.gov.uk")
+        )
+
+    @patch.dict(
+        os.environ,
+        {
+            "NOTIFY_API_KEY": "ingester-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+            "EDITORIAL_UI_BASE_URL": "http://editor.url/",
+            "NOTIFY_EDITORIAL_ADDRESS": "test@notifications.service.gov.uk",
+            "NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID": "template-id",
+            "ROLLBAR_ENV": "prod",
+        },
+        clear=True,
+    )
+    @patch("builtins.print")
+    def test_send_updated_judgment_notification_with_no_tdr_section(self, mock_print):
+        metadata = {}
+        expected_personalisation = {
+            "url": "http://editor.url/detail?judgment_uri=uri",
+            "consignment": "unknown",
+            "submitter": "unknown, unknown <unknown>",
+            "submitted_at": "unknown",
+        }
+        NotificationsAPIClient.send_email_notification = MagicMock()
+        lambda_function.send_updated_judgment_notification("uri", metadata)
+        NotificationsAPIClient.send_email_notification.assert_called_with(
+            email_address="test@notifications.service.gov.uk",
+            template_id="template-id",
+            personalisation=expected_personalisation,
+        )
+        mock_print.assert_called_with(
+            Contains("Sent update notification to test@notifications.service.gov.uk")
         )
 
     @patch.object(lambda_function, "store_file")

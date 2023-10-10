@@ -252,20 +252,31 @@ def store_file(file, folder, filename, s3_client: Session.client):
         print("Credentials not available")
 
 
+def personalise_email(uri: str, metadata: dict) -> dict:
+    """Doesn't contain 'doctype', re-add for new judgment notification"""
+    try:
+        tdr_metadata = metadata["parameters"]["TDR"]
+    except KeyError:
+        tdr_metadata = {}
+    return {
+        "url": f'{os.getenv("EDITORIAL_UI_BASE_URL")}detail?judgment_uri={uri}',
+        "consignment": tdr_metadata.get("Internal-Sender-Identifier", "unknown"),
+        "submitter": f'{tdr_metadata.get("Contact-Name", "unknown")}, '
+        f'{tdr_metadata.get("Source-Organization", "unknown")}'
+        f' <{tdr_metadata.get("Contact-Email", "unknown")}>',
+        "submitted_at": tdr_metadata.get("Consignment-Completed-Datetime", "unknown"),
+    }
+
+
 def send_new_judgment_notification(uri: str, metadata: dict) -> None:
-    tdr_metadata = metadata["parameters"]["TDR"]
     if "/press-summary/" in uri:
         doctype = "Press Summary"
     else:
         doctype = "Judgment"
-    personalisation = {
-        "url": f'{os.getenv("EDITORIAL_UI_BASE_URL")}detail?judgment_uri={uri}',
-        "consignment": tdr_metadata["Internal-Sender-Identifier"],
-        "submitter": f'{tdr_metadata["Contact-Name"]}, {tdr_metadata["Source-Organization"]}'
-        f' <{tdr_metadata["Contact-Email"]}>',
-        "submitted_at": tdr_metadata["Consignment-Completed-Datetime"],
-        "doctype": doctype,
-    }
+
+    personalisation = personalise_email(uri, metadata)
+    personalisation["doctype"] = doctype
+
     if os.getenv("ROLLBAR_ENV") != "prod":
         print(
             f"Would send a notification but we're not in production.\n{personalisation}"
@@ -278,28 +289,27 @@ def send_new_judgment_notification(uri: str, metadata: dict) -> None:
         personalisation=personalisation,
     )
     print(
-        f'Sent notification to {os.getenv("NOTIFY_EDITORIAL_ADDRESS")} (Message ID: {response["id"]})'
+        f'Sent new notification to {os.getenv("NOTIFY_EDITORIAL_ADDRESS")} (Message ID: {response["id"]})'
     )
 
 
 def send_updated_judgment_notification(uri: str, metadata: dict):
-    if os.getenv("ROLLBAR_ENV") == "prod":
-        tdr_metadata = metadata["parameters"]["TDR"]
-        notifications_client = NotificationsAPIClient(os.getenv("NOTIFY_API_KEY"))
-        response = notifications_client.send_email_notification(
-            email_address=os.getenv("NOTIFY_EDITORIAL_ADDRESS"),
-            template_id=os.getenv("NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID"),
-            personalisation={
-                "url": f'{os.getenv("EDITORIAL_UI_BASE_URL")}detail?judgment_uri={uri}',
-                "consignment": tdr_metadata["Internal-Sender-Identifier"],
-                "submitter": f'{tdr_metadata["Contact-Name"]}, {tdr_metadata["Source-Organization"]} '
-                f'<{tdr_metadata["Contact-Email"]}>',
-                "submitted_at": tdr_metadata["Consignment-Completed-Datetime"],
-            },
-        )
+    personalisation = personalise_email(uri, metadata)
+    if os.getenv("ROLLBAR_ENV") != "prod":
         print(
-            f'Sent notification to {os.getenv("NOTIFY_EDITORIAL_ADDRESS")} (Message ID: {response["id"]})'
+            f"Would send a notification but we're not in production.\n{personalisation}"
         )
+        return
+
+    notifications_client = NotificationsAPIClient(os.getenv("NOTIFY_API_KEY"))
+    response = notifications_client.send_email_notification(
+        email_address=os.getenv("NOTIFY_EDITORIAL_ADDRESS"),
+        template_id=os.getenv("NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID"),
+        personalisation=personalisation,
+    )
+    print(
+        f'Sent update notification to {os.getenv("NOTIFY_EDITORIAL_ADDRESS")} (Message ID: {response["id"]})'
+    )
 
 
 def copy_file(tarfile, input_filename, output_filename, uri, s3_client: Session.client):

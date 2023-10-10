@@ -19,7 +19,7 @@ jobs:
             requirements/local.txt
 
       - name: Run pre-commit
-        uses: pre-commit/action@v2.0.3
+        uses: pre-commit/action@v3.0.0
   test:
     env:
       MARKLOGIC_HOST: ""

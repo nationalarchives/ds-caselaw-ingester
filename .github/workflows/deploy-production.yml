@@ -13,7 +13,7 @@ jobs:
         uses: EndBug/latest-tag@latest
       - uses: actions/setup-python@v4
       - uses: aws-actions/setup-sam@v2
-      - uses: aws-actions/configure-aws-credentials@v1
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_PRODUCTION_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_PRODUCTION_SECRET_ACCESS_KEY }}

@@ -15,7 +15,6 @@ from botocore.exceptions import NoCredentialsError
 from caselawclient.Client import (
     DEFAULT_USER_AGENT,
     MarklogicApiClient,
-    MarklogicCommunicationError,
     MarklogicResourceNotFoundError,
 )
 from dotenv import load_dotenv
@@ -380,16 +379,13 @@ def update_judgment_xml(uri, xml) -> bool:
         api_client.get_judgment_xml(uri, show_unpublished=True)
         api_client.save_judgment_xml(uri, xml)
         return True
-    except (MarklogicResourceNotFoundError, MarklogicCommunicationError):
+    except MarklogicResourceNotFoundError:
         return False
 
 
 def insert_document_xml(uri, xml) -> bool:
-    try:
-        api_client.insert_document_xml(uri, xml)
-        return True
-    except MarklogicCommunicationError:
-        return False
+    api_client.insert_document_xml(uri, xml)
+    return True
 
 
 def get_best_xml(uri, tar, xml_file_name, consignment_reference):

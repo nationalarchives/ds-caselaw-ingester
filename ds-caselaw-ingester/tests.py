@@ -670,8 +670,8 @@ class TestLambda:
         api_client.save_judgment_xml = MagicMock(
             side_effect=MarklogicCommunicationError("error")
         )
-        result = lambda_function.update_judgment_xml("a/fake/uri", xml)
-        assert result is False
+        with pytest.raises(MarklogicCommunicationError):
+            lambda_function.update_judgment_xml("a/fake/uri", xml)
 
     @patch("lambda_function.api_client")
     def test_insert_document_xml_success(self, api_client):
@@ -686,8 +686,8 @@ class TestLambda:
         api_client.insert_document_xml = MagicMock(
             side_effect=MarklogicCommunicationError("error")
         )
-        result = lambda_function.insert_document_xml("a/fake/uri", xml)
-        assert result is False
+        with pytest.raises(MarklogicCommunicationError):
+            lambda_function.insert_document_xml("a/fake/uri", xml)
 
     def test_get_best_xml_with_valid_xml_file(self):
         filename = "TDR-2022-DNWR.xml"

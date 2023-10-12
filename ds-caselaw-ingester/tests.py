@@ -695,7 +695,6 @@ class TestLambda:
             self.TDR_TARBALL_PATH,
             mode="r",
         ) as tar:
-
             result = lambda_function.get_best_xml(
                 "a/valid/uri", tar, filename, "a_consignment_reference"
             )

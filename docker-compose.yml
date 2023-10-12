@@ -1,8 +1,6 @@
-version: "3.8"
-
 services:
   localstack:
-    image: localstack/localstack
+    image: localstack/localstack:2.3.2
     network_mode: bridge
     environment:
       SERVICES: lambda,sns,s3,sqs,iam

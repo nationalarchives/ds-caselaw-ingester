@@ -52,8 +52,8 @@ def create_fake_tdr_file(*args, **kwargs):
 
 
 class TestHandler:
-    @patch("lambda_function.api_client")
-    @patch("lambda_function.extract_metadata")
+    @patch("lambda_function.api_client", autospec=True)
+    @patch("lambda_function.extract_metadata", autospec=True)
     @patch("lambda_function.tarfile")
     @patch("lambda_function.boto3.session.Session")
     @patch("lambda_function.urllib3.PoolManager")
@@ -82,8 +82,8 @@ class TestHandler:
         assert "Upload Successful" in log
         assert "Ingestion complete" in log
 
-    @patch("lambda_function.api_client")
-    @patch("lambda_function.extract_metadata")
+    @patch("lambda_function.api_client", autospec=True)
+    @patch("lambda_function.extract_metadata", autospec=True)
     @patch("lambda_function.tarfile")
     @patch("lambda_function.boto3.session.Session")
     @patch("lambda_function.urllib3.PoolManager")
@@ -238,7 +238,7 @@ class TestLambda:
         with pytest.raises(lambda_function.DocxFilenameNotFoundException):
             lambda_function.extract_docx_filename(metadata, "anything")
 
-    @patch("lambda_function.api_client")
+    @patch("lambda_function.api_client", autospec=True)
     def test_store_metadata(self, api_client):
         metadata = {
             "parameters": {
@@ -645,42 +645,42 @@ class TestLambda:
         with pytest.raises(lambda_function.InvalidMessageException):
             lambda_function.get_consignment_reference(message)
 
-    @patch("lambda_function.api_client")
+    @patch("lambda_function.api_client", autospec=True)
     def test_update_judgment_xml_success(self, api_client):
         xml = ET.XML("<xml>Here's some xml</xml>")
         api_client.get_judgment_xml = MagicMock(return_value=True)
-        api_client.save_judgment_xml = MagicMock(return_value=True)
+        api_client.update_document_xml = MagicMock(return_value=True)
         result = lambda_function.update_judgment_xml("a/fake/uri", xml)
         assert result is True
 
-    @patch("lambda_function.api_client")
+    @patch("lambda_function.api_client", autospec=True)
     def test_update_judgment_xml_judgment_does_not_exist(self, api_client):
         xml = ET.XML("<xml>Here's some xml</xml>")
         api_client.get_judgment_xml = MagicMock(
             side_effect=MarklogicResourceNotFoundError("error")
         )
-        api_client.save_judgment_xml = MagicMock(return_value=True)
+        api_client.update_document_xml = MagicMock(return_value=True)
         result = lambda_function.update_judgment_xml("a/fake/uri", xml)
         assert result is False
 
-    @patch("lambda_function.api_client")
+    @patch("lambda_function.api_client", autospec=True)
     def test_update_judgment_xml_judgment_does_not_save(self, api_client):
         xml = ET.XML("<xml>Here's some xml</xml>")
         api_client.get_judgment_xml = MagicMock(return_value=True)
-        api_client.save_judgment_xml = MagicMock(
+        api_client.update_document_xml = MagicMock(
             side_effect=MarklogicCommunicationError("error")
         )
         with pytest.raises(MarklogicCommunicationError):
             lambda_function.update_judgment_xml("a/fake/uri", xml)
 
-    @patch("lambda_function.api_client")
+    @patch("lambda_function.api_client", autospec=True)
     def test_insert_document_xml_success(self, api_client):
         xml = ET.XML("<xml>Here's some xml</xml>")
         api_client.insert_document_xml = MagicMock(return_value=True)
         result = lambda_function.insert_document_xml("a/fake/uri", xml)
         assert result is True
 
-    @patch("lambda_function.api_client")
+    @patch("lambda_function.api_client", autospec=True)
     def test_insert_document_xml_failure(self, api_client):
         xml = ET.XML("<xml>Here's some xml</xml>")
         api_client.insert_document_xml = MagicMock(
@@ -764,7 +764,7 @@ class TestLambda:
             assert result.__class__ == ET.Element
             assert result.tag == "error"
 
-    @patch("lambda_function.api_client")
+    @patch("lambda_function.api_client", autospec=True)
     def test_unpublish_updated_judgment(self, api_client):
         uri = "a/fake/uri"
         api_client.set_published = MagicMock()

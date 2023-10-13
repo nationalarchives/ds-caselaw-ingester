@@ -17,6 +17,7 @@ from caselawclient.Client import (
     MarklogicApiClient,
     MarklogicResourceNotFoundError,
 )
+from caselawclient.client_helpers import VersionAnnotation, VersionType
 from dotenv import load_dotenv
 from notifications_python_client.notifications import NotificationsAPIClient
 
@@ -375,16 +376,18 @@ def parse_xml(xml) -> ET.Element:
 
 
 def update_judgment_xml(uri, xml) -> bool:
+    annotation = VersionAnnotation(VersionType.SUBMISSION, "updated by ingester")
     try:
         api_client.get_judgment_xml(uri, show_unpublished=True)
-        api_client.save_judgment_xml(uri, xml)
+        api_client.update_document_xml(uri, xml, annotation)
         return True
     except MarklogicResourceNotFoundError:
         return False
 
 
 def insert_document_xml(uri, xml) -> bool:
-    api_client.insert_document_xml(uri, xml)
+    annotation = VersionAnnotation(VersionType.SUBMISSION, "inserted by ingester")
+    api_client.insert_document_xml(uri, xml, annotation)
     return True
 
 

@@ -155,7 +155,7 @@ class DocumentInsertionError(ReportableException):
     pass
 
 
-def extract_xml_file(tar: tarfile, xml_file_name: str):
+def extract_xml_file(tar: tarfile.TarFile, xml_file_name: str):
     xml_file = None
     if xml_file_name:
         for member in tar.getmembers():
@@ -165,7 +165,7 @@ def extract_xml_file(tar: tarfile, xml_file_name: str):
     return xml_file
 
 
-def extract_metadata(tar: tarfile, consignment_reference: str):
+def extract_metadata(tar: tarfile.TarFile, consignment_reference: str):
     te_metadata_file = None
     decoder = json.decoder.JSONDecoder()
     for member in tar.getmembers():

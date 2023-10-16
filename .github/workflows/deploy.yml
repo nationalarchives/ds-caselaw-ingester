@@ -19,19 +19,19 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-west-2
       - run: sam build --use-container -m requirements/base.txt
-      - run:
-          sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --stack-name ds-caselaw-ingester --s3-bucket ingester-test-2 --capabilities CAPABILITY_IAM --region eu-west-2 --parameter-overrides \
-          ParameterKey=AWS_BUCKET_NAME,ParameterValue=${{ vars.AWS_BUCKET_NAME }} \
-          ParameterKey=EDITORIAL_UI_BASE_URL,ParameterValue=${{ vars.EDITORIAL_UI_BASE_URL }} \
-          ParameterKey=MARKLOGIC_HOST,ParameterValue=${{ secrets.MARKLOGIC_HOST }} \
-          ParameterKey=MARKLOGIC_PASSWORD,ParameterValue=${{ secrets.MARKLOGIC_PASSWORD }} \
-          ParameterKey=MARKLOGIC_USER,ParameterValue=${{ secrets.MARKLOGIC_USER }} \
-          ParameterKey=MAX_RETRIES,ParameterValue=${{ vars.MAX_RETRIES }} \
-          ParameterKey=NOTIFY_API_KEY,ParameterValue=${{ secrets.NOTIFY_API_KEY }} \
-          ParameterKey=NOTIFY_EDITORIAL_ADDRESS,ParameterValue=${{ vars.NOTIFY_EDITORIAL_ADDRESS }} \
-          ParameterKey=NOTIFY_NEW_JUDGMENT_TEMPLATE_ID,ParameterValue=${{ vars.NOTIFY_NEW_JUDGMENT_TEMPLATE_ID }} \
-          ParameterKey=NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID,ParameterValue=${{ vars.NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID }} \
-          ParameterKey=PUBLIC_ASSET_BUCKET,ParameterValue=${{ vars.PUBLIC_ASSET_BUCKET }} \
-          ParameterKey=ROLLBAR_ENV,ParameterValue=${{ vars.ROLLBAR_ENV }} \
-          ParameterKey=ROLLBAR_TOKEN,ParameterValue=${{ secrets.ROLLBAR_TOKEN }} \
-          ParameterKey=SQS_QUEUE_URL,ParameterValue=${{ vars.SQS_QUEUE_URL }}
+      - run: >
+          sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --stack-name ds-caselaw-ingester --s3-bucket ingester-test-2 --capabilities CAPABILITY_IAM --region eu-west-2 --parameter-overrides
+          AwsBucketName=${{ vars.AWS_BUCKET_NAME  }}
+          EditorialUiBaseUrl=${{ vars.EDITORIAL_UI_BASE_URL  }}
+          MarklogicHost=${{ secrets.MARKLOGIC_HOST }}
+          MarklogicPassword=${{ secrets.MARKLOGIC_PASSWORD }}
+          MarklogicUser=${{ secrets.MARKLOGIC_USER }}
+          MaxRetries=${{ vars.MAX_RETRIES  }}
+          NotifyApiKey=${{ secrets.NOTIFY_API_KEY }}
+          NotifyEditorialAddress=${{ vars.NOTIFY_EDITORIAL_ADDRESS  }}
+          NotifyNewJudgmentTemplateId=${{ vars.NOTIFY_NEW_JUDGMENT_TEMPLATE_ID  }}
+          NotifyUpdatedJudgmentTemplateId=${{ vars.NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID  }}
+          PublicAssetBucket=${{ vars.PUBLIC_ASSET_BUCKET  }}
+          RollbarEnv=${{ vars.ROLLBAR_ENV  }}
+          RollbarToken=${{ secrets.ROLLBAR_TOKEN }}
+          SqsQueueUrl=${{ vars.SQS_QUEUE_URL }}

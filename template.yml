@@ -11,46 +11,46 @@ Globals:
     Timeout: 3
 
 Parameters:
-  AWS_BUCKET_NAME:
+  AwsBucketName:
     Description: "AWS_BUCKET_NAME"
     Type: "String"
-  EDITORIAL_UI_BASE_URL:
+  EditorialUiBaseUrl:
     Description: "EDITORIAL_UI_BASE_URL"
     Type: "String"
-  MARKLOGIC_HOST:
+  MarklogicHost:
     Description: "MARKLOGIC_HOST"
     Type: "String"
-  MARKLOGIC_PASSWORD:
+  MarklogicPassword:
     Description: "MARKLOGIC_PASSWORD"
     Type: "String"
-  MARKLOGIC_USER:
+  MarklogicUser:
     Description: "MARKLOGIC_USER"
     Type: "String"
-  MAX_RETRIES:
+  MaxRetries:
     Description: "MAX_RETRIES"
     Type: "String"
-  NOTIFY_API_KEY:
+  NotifyApiKey:
     Description: "NOTIFY_API_KEY"
     Type: "String"
-  NOTIFY_EDITORIAL_ADDRESS:
+  NotifyEditorialAddress:
     Description: "NOTIFY_EDITORIAL_ADDRESS"
     Type: "String"
-  NOTIFY_NEW_JUDGMENT_TEMPLATE_ID:
+  NotifyNewJudgmentTemplateId:
     Description: "NOTIFY_NEW_JUDGMENT_TEMPLATE_ID"
     Type: "String"
-  NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID:
+  NotifyUpdatedJudgmentTemplateId:
     Description: "NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID"
     Type: "String"
-  PUBLIC_ASSET_BUCKET:
+  PublicAssetBucket:
     Description: "PUBLIC_ASSET_BUCKET"
     Type: "String"
-  ROLLBAR_ENV:
+  RollbarEnv:
     Description: "ROLLBAR_ENV"
     Type: "String"
-  ROLLBAR_TOKEN:
+  RollbarToken:
     Description: "ROLLBAR_TOKEN"
     Type: "String"
-  SQS_QUEUE_URL:
+  SqsQueueUrl:
     Description: "SQS_QUEUE_URL"
     Type: "String"
 
@@ -65,20 +65,20 @@ Resources:
         - x86_64
       Environment:
         Variables:
-          AWS_BUCKET_NAME: !Ref AWS_BUCKET_NAME
-          EDITORIAL_UI_BASE_URL: !Ref EDITORIAL_UI_BASE_URL
-          MARKLOGIC_HOST: !Ref MARKLOGIC_HOST
-          MARKLOGIC_PASSWORD: !Ref MARKLOGIC_PASSWORD
-          MARKLOGIC_USER: !Ref MARKLOGIC_USER
-          MAX_RETRIES: !Ref MAX_RETRIES
-          NOTIFY_API_KEY: !Ref NOTIFY_API_KEY
-          NOTIFY_EDITORIAL_ADDRESS: !Ref NOTIFY_EDITORIAL_ADDRESS
-          NOTIFY_NEW_JUDGMENT_TEMPLATE_ID: !Ref NOTIFY_NEW_JUDGMENT_TEMPLATE_ID
-          NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID: !Ref NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID
-          PUBLIC_ASSET_BUCKET: !Ref PUBLIC_ASSET_BUCKET
-          ROLLBAR_ENV: !Ref ROLLBAR_ENV
-          ROLLBAR_TOKEN: !Ref ROLLBAR_TOKEN
-          SQS_QUEUE_URL: !Ref SQS_QUEUE_URL
+          AWS_BUCKET_NAME: !Ref AwsBucketName
+          EDITORIAL_UI_BASE_URL: !Ref EditorialUiBaseUrl
+          MARKLOGIC_HOST: !Ref MarklogicHost
+          MARKLOGIC_PASSWORD: !Ref MarklogicPassword
+          MARKLOGIC_USER: !Ref MarklogicUser
+          MAX_RETRIES: !Ref MaxRetries
+          NOTIFY_API_KEY: !Ref NotifyApiKey
+          NOTIFY_EDITORIAL_ADDRESS: !Ref NotifyEditorialAddress
+          NOTIFY_NEW_JUDGMENT_TEMPLATE_ID: !Ref NotifyNewJudgmentTemplateId
+          NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID: !Ref NotifyUpdatedJudgmentTemplateId
+          PUBLIC_ASSET_BUCKET: !Ref PublicAssetBucket
+          ROLLBAR_ENV: !Ref RollbarEnv
+          ROLLBAR_TOKEN: !Ref RollbarToken
+          SQS_QUEUE_URL: !Ref SqsQueueUrl
 
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function

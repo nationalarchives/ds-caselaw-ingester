@@ -10,6 +10,50 @@ Globals:
   Function:
     Timeout: 3
 
+Parameters:
+  AWS_BUCKET_NAME:
+    Description: "AWS_BUCKET_NAME"
+    Type: "String"
+  EDITORIAL_UI_BASE_URL:
+    Description: "EDITORIAL_UI_BASE_URL"
+    Type: "String"
+  MARKLOGIC_HOST:
+    Description: "MARKLOGIC_HOST"
+    Type: "String"
+  MARKLOGIC_PASSWORD:
+    Description: "MARKLOGIC_PASSWORD"
+    Type: "String"
+  MARKLOGIC_USER:
+    Description: "MARKLOGIC_USER"
+    Type: "String"
+  MAX_RETRIES:
+    Description: "MAX_RETRIES"
+    Type: "String"
+  NOTIFY_API_KEY:
+    Description: "NOTIFY_API_KEY"
+    Type: "String"
+  NOTIFY_EDITORIAL_ADDRESS:
+    Description: "NOTIFY_EDITORIAL_ADDRESS"
+    Type: "String"
+  NOTIFY_NEW_JUDGMENT_TEMPLATE_ID:
+    Description: "NOTIFY_NEW_JUDGMENT_TEMPLATE_ID"
+    Type: "String"
+  NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID:
+    Description: "NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID"
+    Type: "String"
+  PUBLIC_ASSET_BUCKET:
+    Description: "PUBLIC_ASSET_BUCKET"
+    Type: "String"
+  ROLLBAR_ENV:
+    Description: "ROLLBAR_ENV"
+    Type: "String"
+  ROLLBAR_TOKEN:
+    Description: "ROLLBAR_TOKEN"
+    Type: "String"
+  SQS_QUEUE_URL:
+    Description: "SQS_QUEUE_URL"
+    Type: "String"
+
 Resources:
   TNACaselawIngesterFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
@@ -19,6 +63,22 @@ Resources:
       Runtime: python3.11
       Architectures:
         - x86_64
+      Environment:
+        Variables:
+          AWS_BUCKET_NAME: !Ref AWS_BUCKET_NAME
+          EDITORIAL_UI_BASE_URL: !Ref EDITORIAL_UI_BASE_URL
+          MARKLOGIC_HOST: !Ref MARKLOGIC_HOST
+          MARKLOGIC_PASSWORD: !Ref MARKLOGIC_PASSWORD
+          MARKLOGIC_USER: !Ref MARKLOGIC_USER
+          MAX_RETRIES: !Ref MAX_RETRIES
+          NOTIFY_API_KEY: !Ref NOTIFY_API_KEY
+          NOTIFY_EDITORIAL_ADDRESS: !Ref NOTIFY_EDITORIAL_ADDRESS
+          NOTIFY_NEW_JUDGMENT_TEMPLATE_ID: !Ref NOTIFY_NEW_JUDGMENT_TEMPLATE_ID
+          NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID: !Ref NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID
+          PUBLIC_ASSET_BUCKET: !Ref PUBLIC_ASSET_BUCKET
+          ROLLBAR_ENV: !Ref ROLLBAR_ENV
+          ROLLBAR_TOKEN: !Ref ROLLBAR_TOKEN
+          SQS_QUEUE_URL: !Ref SQS_QUEUE_URL
 
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function

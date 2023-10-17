@@ -56,6 +56,18 @@ Parameters:
   SqsQueueUrl:
     Description: "SQS_QUEUE_URL"
     Type: "String"
+  VpcSubnetId0:
+    Description: "VPC Subnet ID 0"
+    Type: "String"
+  VpcSubnetId1:
+    Description: "VPC Subnet ID 1"
+    Type: "String"
+  VpcSubnetId2:
+    Description: "VPC Subnet ID 2"
+    Type: "String"
+  VpcSecurityGroupId:
+    Description: "VPC Security Group ID"
+    Type: "String"
 
 Resources:
   TNACaselawIngesterFunction:
@@ -84,6 +96,13 @@ Resources:
           ROLLBAR_ENV: !Ref RollbarEnv
           ROLLBAR_TOKEN: !Ref RollbarToken
           SQS_QUEUE_URL: !Ref SqsQueueUrl
+    VpcConfig:
+      SubnetIds:
+        - !Ref VpcSubnetId0
+        - !Ref VpcSubnetId1
+        - !Ref VpcSubnetId2
+      SecurityGroupIds:
+        - !Ref VpcSecurityGroupId
 
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function

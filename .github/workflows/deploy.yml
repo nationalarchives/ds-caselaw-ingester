@@ -21,18 +21,22 @@ jobs:
       - run: sam build --use-container -m requirements/base.txt
       - run: >
           sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --stack-name ds-caselaw-ingester --s3-bucket ingester-test-2 --capabilities CAPABILITY_IAM --region eu-west-2 --parameter-overrides
-          AwsBucketName=${{ vars.AWS_BUCKET_NAME  }}
-          EditorialUiBaseUrl=${{ vars.EDITORIAL_UI_BASE_URL  }}
+          AwsBucketName=${{ vars.AWS_BUCKET_NAME }}
+          EditorialUiBaseUrl=${{ vars.EDITORIAL_UI_BASE_URL }}
           MarklogicHost=${{ secrets.MARKLOGIC_HOST }}
           MarklogicPassword=${{ secrets.MARKLOGIC_PASSWORD }}
           MarklogicUser=${{ secrets.MARKLOGIC_USER }}
           MarklogicUseHttps=${{ vars.MARKLOGIC_USE_HTTPS }}
-          MaxRetries=${{ vars.MAX_RETRIES  }}
+          MaxRetries=${{ vars.MAX_RETRIES }}
           NotifyApiKey=${{ secrets.NOTIFY_API_KEY }}
-          NotifyEditorialAddress=${{ vars.NOTIFY_EDITORIAL_ADDRESS  }}
-          NotifyNewJudgmentTemplateId=${{ vars.NOTIFY_NEW_JUDGMENT_TEMPLATE_ID  }}
-          NotifyUpdatedJudgmentTemplateId=${{ vars.NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID  }}
-          PublicAssetBucket=${{ vars.PUBLIC_ASSET_BUCKET  }}
-          RollbarEnv=${{ vars.ROLLBAR_ENV  }}
+          NotifyEditorialAddress=${{ vars.NOTIFY_EDITORIAL_ADDRESS }}
+          NotifyNewJudgmentTemplateId=${{ vars.NOTIFY_NEW_JUDGMENT_TEMPLATE_ID }}
+          NotifyUpdatedJudgmentTemplateId=${{ vars.NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID }}
+          PublicAssetBucket=${{ vars.PUBLIC_ASSET_BUCKET }}
+          RollbarEnv=${{ vars.ROLLBAR_ENV }}
           RollbarToken=${{ secrets.ROLLBAR_TOKEN }}
           SqsQueueUrl=${{ vars.SQS_QUEUE_URL }}
+          VpcSubnetId0=${{ vars.VPC_SUBNET_ID_0 }}
+          VpcSubnetId1=${{ vars.VPC_SUBNET_ID_1 }}
+          VpcSubnetId2=${{ vars.VPC_SUBNET_ID_2 }}
+          VpcSecurityGroupId=${{ vars.VPC_SECURITY_GROUP_ID }}

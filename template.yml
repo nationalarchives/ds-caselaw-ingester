@@ -72,7 +72,7 @@ Resources:
     Properties:
       CodeUri: ds-caselaw-ingester/
       Handler: lambda_function.handler
-      Runtime: python3.11
+      Runtime: python3.10
       Architectures:
         - x86_64
       Timeout: 420
@@ -92,13 +92,13 @@ Resources:
           ROLLBAR_ENV: !Ref RollbarEnv
           ROLLBAR_TOKEN: !Ref RollbarToken
           SQS_QUEUE_URL: !Ref SqsQueueUrl
-    VpcConfig:
-      SubnetIds:
-        - !Ref VpcSubnetId0
-        - !Ref VpcSubnetId1
-        - !Ref VpcSubnetId2
-      SecurityGroupIds:
-        - !Ref VpcSecurityGroupId
+      VpcConfig:
+        SubnetIds:
+          - !Ref VpcSubnetId0
+          - !Ref VpcSubnetId1
+          - !Ref VpcSubnetId2
+        SecurityGroupIds:
+          - !Ref VpcSecurityGroupId
 
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function

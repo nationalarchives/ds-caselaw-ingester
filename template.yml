@@ -92,13 +92,13 @@ Resources:
           ROLLBAR_ENV: !Ref RollbarEnv
           ROLLBAR_TOKEN: !Ref RollbarToken
           SQS_QUEUE_URL: !Ref SqsQueueUrl
-    VpcConfig:
-      SubnetIds:
-        - !Ref VpcSubnetId0
-        - !Ref VpcSubnetId1
-        - !Ref VpcSubnetId2
-      SecurityGroupIds:
-        - !Ref VpcSecurityGroupId
+      VpcConfig:
+        SubnetIds:
+          - !Ref VpcSubnetId0
+          - !Ref VpcSubnetId1
+          - !Ref VpcSubnetId2
+        SecurityGroupIds:
+          - !Ref VpcSecurityGroupId
 
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function

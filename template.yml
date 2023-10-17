@@ -63,6 +63,7 @@ Resources:
       Runtime: python3.11
       Architectures:
         - x86_64
+      Timeout: 420
       Environment:
         Variables:
           AWS_BUCKET_NAME: !Ref AwsBucketName

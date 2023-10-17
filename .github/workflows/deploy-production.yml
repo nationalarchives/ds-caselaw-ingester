@@ -37,3 +37,7 @@ jobs:
           RollbarEnv=${{ vars.ROLLBAR_ENV  }}
           RollbarToken=${{ secrets.ROLLBAR_TOKEN }}
           SqsQueueUrl=${{ vars.SQS_QUEUE_URL }}
+          VpcSubnetId0=${{ vars.VPC_SUBNET_ID_0 }}
+          VpcSubnetId1=${{ vars.VPC_SUBNET_ID_1 }}
+          VpcSubnetId2=${{ vars.VPC_SUBNET_ID_2 }}
+          VpcSecurityGroupId=${{ vars.VPC_SECURITY_GROUP_ID }}

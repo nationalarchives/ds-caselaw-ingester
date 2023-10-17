@@ -26,9 +26,6 @@ Parameters:
   MarklogicUser:
     Description: "MARKLOGIC_USER"
     Type: "String"
-  MarklogicUseHttps:
-    Description: "MARKLOGIC_USE_HTTPS"
-    Type: "String"
   MaxRetries:
     Description: "MAX_RETRIES"
     Type: "String"
@@ -86,7 +83,6 @@ Resources:
           MARKLOGIC_HOST: !Ref MarklogicHost
           MARKLOGIC_PASSWORD: !Ref MarklogicPassword
           MARKLOGIC_USER: !Ref MarklogicUser
-          MARKLOGIC_USE_HTTPS: !Ref MarklogicUseHttps
           MAX_RETRIES: !Ref MaxRetries
           NOTIFY_API_KEY: !Ref NotifyApiKey
           NOTIFY_EDITORIAL_ADDRESS: !Ref NotifyEditorialAddress

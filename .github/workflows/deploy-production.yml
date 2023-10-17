@@ -27,7 +27,6 @@ jobs:
           MarklogicHost=${{ secrets.MARKLOGIC_HOST }}
           MarklogicPassword=${{ secrets.MARKLOGIC_PASSWORD }}
           MarklogicUser=${{ secrets.MARKLOGIC_USER }}
-          MarklogicUseHttps=${{ vars.MARKLOGIC_USE_HTTPS }}
           MaxRetries=${{ vars.MAX_RETRIES  }}
           NotifyApiKey=${{ secrets.NOTIFY_API_KEY }}
           NotifyEditorialAddress=${{ vars.NOTIFY_EDITORIAL_ADDRESS  }}

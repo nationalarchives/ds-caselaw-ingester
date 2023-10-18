@@ -666,6 +666,18 @@ class TestLambda:
         assert result is True
 
     @patch("lambda_function.api_client", autospec=True)
+    def test_update_document_xml_success_no_tdr(self, api_client):
+        xml = ET.XML("<xml>Here's some xml</xml>")
+        api_client.get_judgment_xml = MagicMock(return_value=True)
+        api_client.update_document_xml = MagicMock(return_value=True)
+        result = lambda_function.update_document_xml(
+            "a/fake/uri",
+            xml,
+            {"parameters": {}},
+        )
+        assert result is True
+
+    @patch("lambda_function.api_client", autospec=True)
     def test_update_document_xml_judgment_does_not_exist(self, api_client):
         xml = ET.XML("<xml>Here's some xml</xml>")
         api_client.get_judgment_xml = MagicMock(

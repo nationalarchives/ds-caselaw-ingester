@@ -375,9 +375,33 @@ def parse_xml(xml) -> ET.Element:
     return ET.XML(xml)
 
 
-def update_judgment_xml(uri, xml) -> bool:
-    annotation = VersionAnnotation(VersionType.SUBMISSION, "updated by ingester")
+def _build_version_annotation_payload_from_metadata(metadata: dict):
+    """Turns metadata from TRE into a structured annotation payload."""
+    payload = {
+        "tre_raw_metadata": metadata,
+    }
+
+    if "TDR" in metadata["parameters"]:
+        payload["tdr_reference"] = metadata["parameters"]["TDR"][
+            "Internal-Sender-Identifier"
+        ]
+        payload["submitter"] = {
+            "name": metadata["parameters"]["TDR"]["Contact-Name"],
+            "email": metadata["parameters"]["TDR"]["Contact-Email"],
+        }
+
+    return payload
+
+
+def update_document_xml(uri, xml, metadata: dict) -> bool:
     try:
+        annotation = VersionAnnotation(
+            VersionType.SUBMISSION,
+            automated=False,
+            message="Updated document submitted by user.",
+            payload=_build_version_annotation_payload_from_metadata(metadata),
+        )
+
         api_client.get_judgment_xml(uri, show_unpublished=True)
         api_client.update_document_xml(uri, xml, annotation)
         return True
@@ -385,8 +409,13 @@ def update_judgment_xml(uri, xml) -> bool:
         return False
 
 
-def insert_document_xml(uri, xml) -> bool:
-    annotation = VersionAnnotation(VersionType.SUBMISSION, "inserted by ingester")
+def insert_document_xml(uri, xml, metadata) -> bool:
+    annotation = VersionAnnotation(
+        VersionType.SUBMISSION,
+        automated=False,
+        message="New document submitted by user.",
+        payload=_build_version_annotation_payload_from_metadata(metadata),
+    )
     api_client.insert_document_xml(uri, xml, annotation)
     return True
 
@@ -459,8 +488,8 @@ def handler(event, context):
     print(f"Ingesting document {uri}")
     xml = get_best_xml(uri, tar, xml_file_name, consignment_reference)
 
-    updated = update_judgment_xml(uri, xml)
-    inserted = False if updated else insert_document_xml(uri, xml)
+    updated = update_document_xml(uri, xml, metadata)
+    inserted = False if updated else insert_document_xml(uri, xml, metadata)
 
     if updated:
         # Notify editors that a document has been updated

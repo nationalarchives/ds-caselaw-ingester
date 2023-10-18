@@ -646,38 +646,98 @@ class TestLambda:
             lambda_function.get_consignment_reference(message)
 
     @patch("lambda_function.api_client", autospec=True)
-    def test_update_judgment_xml_success(self, api_client):
+    def test_update_document_xml_success(self, api_client):
         xml = ET.XML("<xml>Here's some xml</xml>")
         api_client.get_judgment_xml = MagicMock(return_value=True)
         api_client.update_document_xml = MagicMock(return_value=True)
-        result = lambda_function.update_judgment_xml("a/fake/uri", xml)
+        result = lambda_function.update_document_xml(
+            "a/fake/uri",
+            xml,
+            {
+                "parameters": {
+                    "TDR": {
+                        "Internal-Sender-Identifier": "TDR-2023-ABC",
+                        "Contact-Name": "Test Contact",
+                        "Contact-Email": "test@example.com",
+                    }
+                }
+            },
+        )
         assert result is True
 
     @patch("lambda_function.api_client", autospec=True)
-    def test_update_judgment_xml_judgment_does_not_exist(self, api_client):
+    def test_update_document_xml_success_no_tdr(self, api_client):
+        xml = ET.XML("<xml>Here's some xml</xml>")
+        api_client.get_judgment_xml = MagicMock(return_value=True)
+        api_client.update_document_xml = MagicMock(return_value=True)
+        result = lambda_function.update_document_xml(
+            "a/fake/uri",
+            xml,
+            {"parameters": {}},
+        )
+        assert result is True
+
+    @patch("lambda_function.api_client", autospec=True)
+    def test_update_document_xml_judgment_does_not_exist(self, api_client):
         xml = ET.XML("<xml>Here's some xml</xml>")
         api_client.get_judgment_xml = MagicMock(
             side_effect=MarklogicResourceNotFoundError("error")
         )
         api_client.update_document_xml = MagicMock(return_value=True)
-        result = lambda_function.update_judgment_xml("a/fake/uri", xml)
+        result = lambda_function.update_document_xml(
+            "a/fake/uri",
+            xml,
+            {
+                "parameters": {
+                    "TDR": {
+                        "Internal-Sender-Identifier": "TDR-2023-ABC",
+                        "Contact-Name": "Test Contact",
+                        "Contact-Email": "test@example.com",
+                    }
+                }
+            },
+        )
         assert result is False
 
     @patch("lambda_function.api_client", autospec=True)
-    def test_update_judgment_xml_judgment_does_not_save(self, api_client):
+    def test_update_document_xml_judgment_does_not_save(self, api_client):
         xml = ET.XML("<xml>Here's some xml</xml>")
         api_client.get_judgment_xml = MagicMock(return_value=True)
         api_client.update_document_xml = MagicMock(
             side_effect=MarklogicCommunicationError("error")
         )
         with pytest.raises(MarklogicCommunicationError):
-            lambda_function.update_judgment_xml("a/fake/uri", xml)
+            lambda_function.update_document_xml(
+                "a/fake/uri",
+                xml,
+                {
+                    "parameters": {
+                        "TDR": {
+                            "Internal-Sender-Identifier": "TDR-2023-ABC",
+                            "Contact-Name": "Test Contact",
+                            "Contact-Email": "test@example.com",
+                        }
+                    }
+                },
+            )
 
     @patch("lambda_function.api_client", autospec=True)
     def test_insert_document_xml_success(self, api_client):
         xml = ET.XML("<xml>Here's some xml</xml>")
         api_client.insert_document_xml = MagicMock(return_value=True)
-        result = lambda_function.insert_document_xml("a/fake/uri", xml)
+        result = lambda_function.insert_document_xml(
+            "a/fake/uri",
+            xml,
+            {
+                "parameters": {
+                    "TDR": {
+                        "Internal-Sender-Identifier": "TDR-2023-ABC",
+                        "Contact-Name": "Test Contact",
+                        "Contact-Email": "test@example.com",
+                    }
+                }
+            },
+        )
         assert result is True
 
     @patch("lambda_function.api_client", autospec=True)
@@ -687,7 +747,19 @@ class TestLambda:
             side_effect=MarklogicCommunicationError("error")
         )
         with pytest.raises(MarklogicCommunicationError):
-            lambda_function.insert_document_xml("a/fake/uri", xml)
+            lambda_function.insert_document_xml(
+                "a/fake/uri",
+                xml,
+                {
+                    "parameters": {
+                        "TDR": {
+                            "Internal-Sender-Identifier": "TDR-2023-ABC",
+                            "Contact-Name": "Test Contact",
+                            "Contact-Email": "test@example.com",
+                        }
+                    }
+                },
+            )
 
     def test_get_best_xml_with_valid_xml_file(self):
         filename = "TDR-2022-DNWR.xml"

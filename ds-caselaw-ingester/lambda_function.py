@@ -105,9 +105,7 @@ class V2Message(Message):
         if result:
             return result
 
-        raise InvalidMessageException(
-            "Malformed v2 message, please supply a consignment-reference or s3-folder-url"
-        )
+        raise InvalidMessageException("Malformed v2 message, please supply a reference")
 
     def save_s3_response(self, sqs_client, s3_client):
         s3_bucket = self.message.get("parameters", {}).get("s3Bucket")

@@ -31,6 +31,25 @@ awslocal s3api create-bucket \
 awslocal s3api create-bucket \
   --bucket public-asset-bucket
 
+
+
+awslocal sns create-topic \
+  --name inbound-sns \
+  --attributes consignment-reference=string,s3-folder-url=string,consignment-type=string,number-of-retries=number
+
+awslocal s3api create-bucket \
+  --bucket inbound-bucket
+
+awslocal s3api put-bucket-notification-configuration \
+  --bucket inbound-bucket \
+  --notification-configuration file://scripts/inbound-s3-sns.json
+
+awslocal sns subscribe --protocol lambda \
+--region us-east-1 \
+--topic-arn arn:aws:sns:us-east-1:000000000000:inbound-sns \
+--notification-endpoint arn:aws:lambda:us-east-1:000000000000:function:te-lambda
+
+
 if [ -n "$1" ]; then
   awslocal s3 cp $1 s3://te-editorial-out-int
 else

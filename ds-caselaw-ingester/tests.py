@@ -101,7 +101,14 @@ class TestHandler:
         )
         metadata.return_value = {
             "parameters": {
-                "TRE": {"payload": {"xml": "", "filename": "temp.docx", "images": []}},
+                "TRE": {
+                    "reference": "TDR-2020-FAR",
+                    "payload": {
+                        "xml": "",
+                        "filename": "temp.docx",
+                        "images": [],
+                    },
+                },
                 "TDR": {
                     "Source-Organization": "",
                     "Contact-Name": "",

@@ -542,7 +542,14 @@ def handler(event, context):
                 s3_client,
             )
 
-    if api_client.get_published(uri):
+    force_publish = (
+        metadata.get("parameters", {})
+        .get("INGESTER_OPTIONS", {})
+        .get("auto_publish", False)
+    )
+    if force_publish:
+        print(f"auto_publishing {consignment_reference}")
+    if api_client.get_published(uri) or force_publish:
         update_published_documents(uri, s3_client)
 
     tar.close()

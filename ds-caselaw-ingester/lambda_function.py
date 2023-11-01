@@ -238,7 +238,7 @@ def extract_docx_filename(metadata: dict, consignment_reference: str) -> str:
         return metadata["parameters"]["TRE"]["payload"]["filename"]
     except KeyError:
         raise DocxFilenameNotFoundException(
-            f"No .docx filename was found in metadata. Consignment Ref: {consignment_reference}"
+            f"No .docx filename was found in metadata. Consignment Ref: {consignment_reference}, metadata: {metadata}"
         )
 
 
@@ -350,7 +350,9 @@ def copy_file(tarfile, input_filename, output_filename, uri, s3_client: Session.
         file = tarfile.extractfile(input_filename)
         store_file(file, uri, output_filename, s3_client)
     except KeyError:
-        raise FileNotFoundException(f"File was not found: {input_filename}")
+        raise FileNotFoundException(
+            f"File was not found: {input_filename}, files were {tarfile.getnames()} "
+        )
 
 
 def send_retry_message(

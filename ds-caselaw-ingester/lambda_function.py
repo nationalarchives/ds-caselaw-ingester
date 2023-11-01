@@ -515,10 +515,6 @@ def handler(event, context):
     message.update_consignment_reference(metadata["parameters"]["TRE"]["reference"])
     consignment_reference = message.get_consignment_reference()
 
-    if not message.is_v1():
-        # this is just for debug purposes, it should be safely removable
-        store_file(open(filename, mode="rb"), "v2-debug", "debug.tar.gz", s3_client)
-
     # Extract and parse the judgment XML
     xml_file_name = metadata["parameters"]["TRE"]["payload"]["xml"]
     uri = extract_uri(metadata, consignment_reference)

@@ -136,15 +136,6 @@ class TestHandler:
             }
         }
 
-        # metadata.return_value = {
-        #     "uri": "https://caselaw.nationalarchives.gov.uk/id/eat/2022/1",
-        #     "court": "EAT",
-        #     "cite": "[2022] EAT 1",
-        #     "date": "2021-09-28",
-        #     "name": "SECRETARY OF STATE FOR JUSTICE v MR ALAN JOHNSON",
-        #     "attachments": [],
-        # }
-
         message = v2_message_raw
         event = {"Records": [{"Sns": {"Message": message}}]}
         lambda_function.handler(event=event, context=None)
@@ -195,15 +186,6 @@ class TestHandler:
                 "PARSER": {"uri": ""},
             }
         }
-
-        # metadata.return_value = {
-        #     "uri": "https://caselaw.nationalarchives.gov.uk/id/eat/2022/1",
-        #     "court": "EAT",
-        #     "cite": "[2022] EAT 1",
-        #     "date": "2021-09-28",
-        #     "name": "SECRETARY OF STATE FOR JUSTICE v MR ALAN JOHNSON",
-        #     "attachments": [],
-        # }
 
         message = s3_message_raw
         event = {"Records": [{"Sns": {"Message": message}}]}

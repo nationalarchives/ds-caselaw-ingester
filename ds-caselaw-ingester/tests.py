@@ -98,6 +98,8 @@ class TestHandler:
         assert "Upload Successful" in log
         assert "Ingestion complete" in log
 
+        assert "auto_publish" not in log
+
     @patch("lambda_function.api_client", autospec=True)
     @patch("lambda_function.extract_metadata", autospec=True)
     @patch("lambda_function.tarfile")
@@ -148,6 +150,7 @@ class TestHandler:
         assert "Updated judgment xml" in log
         assert "Upload Successful" in log
         assert "Ingestion complete" in log
+        assert "auto_publish" not in log
 
     @patch("lambda_function.api_client", autospec=True)
     @patch("lambda_function.extract_metadata", autospec=True)
@@ -183,6 +186,7 @@ class TestHandler:
                     "Internal-Sender-Identifier": "",
                     "Consignment-Completed-Datetime": "",
                 },
+                "INGESTER_OPTIONS": {"auto_publish": True},
                 "PARSER": {"uri": ""},
             }
         }
@@ -199,6 +203,7 @@ class TestHandler:
         assert "Updated judgment xml" in log
         assert "Upload Successful" in log
         assert "Ingestion complete" in log
+        assert "auto_publish" in log
 
 
 class TestLambda:

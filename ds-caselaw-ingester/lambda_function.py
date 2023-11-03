@@ -134,7 +134,7 @@ class S3Message(V2Message):
 
     def get_consignment_reference(self):
         # We use the filename as a first draft of the consignment reference,
-        # but later update it with the value from the tar gz
+        # but later update it with the value from the tar gz
         if self._consignment:
             return self._consignment
         return self.message["s3"]["object"]["key"].split("/")[-1].partition(".")[0]
@@ -582,7 +582,7 @@ def handler(event, context):
         .get("INGESTER_OPTIONS", {})
         .get("auto_publish", False)
     )
-    if force_publish:
+    if force_publish is True:
         print(f"auto_publishing {consignment_reference}")
     if api_client.get_published(uri) or force_publish:
         update_published_documents(uri, s3_client)

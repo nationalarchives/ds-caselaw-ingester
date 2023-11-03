@@ -44,13 +44,19 @@ class Message(object):
 
     @classmethod
     def from_message(cls, message):
-        if "parameters" in message.keys():
+        if message.get("Records", [{}])[0].get("eventSource") == "aws:s3":
+            return S3Message(message["Records"][0])
+        elif "parameters" in message.keys():
             return V2Message(message)
         else:
             return V1Message(message)
 
     def __init__(self, message):
         self.message = message
+
+    def update_consignment_reference(self, new_ref):
+        """In most cases we trust we already have the correct consignment reference"""
+        return
 
 
 class V1Message(Message):
@@ -105,13 +111,40 @@ class V2Message(Message):
         if result:
             return result
 
-        raise InvalidMessageException(
-            "Malformed v2 message, please supply a consignment-reference or s3-folder-url"
-        )
+        raise InvalidMessageException("Malformed v2 message, please supply a reference")
 
     def save_s3_response(self, sqs_client, s3_client):
         s3_bucket = self.message.get("parameters", {}).get("s3Bucket")
         s3_key = self.message.get("parameters", {}).get("s3Key")
+        reference = self.get_consignment_reference()
+        filename = os.path.join("/tmp", f"{reference}.tar.gz")
+        s3_client.download_file(s3_bucket, s3_key, filename)
+        if not os.path.exists(filename):
+            raise RuntimeError(f"File {filename} not created")
+        print(f"tar.gz saved locally as {filename}")
+        return filename
+
+
+class S3Message(V2Message):
+    """An SNS message generated directly by adding a file to an S3 bucket"""
+
+    def __init__(self, *args, **kwargs):
+        self._consignment = None
+        super().__init__(*args, **kwargs)
+
+    def get_consignment_reference(self):
+        # We use the filename as a first draft of the consignment reference,
+        # but later update it with the value from the tar gz
+        if self._consignment:
+            return self._consignment
+        return self.message["s3"]["object"]["key"].split("/")[-1].partition(".")[0]
+
+    def update_consignment_reference(self, new_ref):
+        self._consignment = new_ref
+
+    def save_s3_response(self, sqs_client, s3_client):
+        s3_key = self.message["s3"]["object"]["key"]
+        s3_bucket = self.message["s3"]["bucket"]["name"]
         reference = self.get_consignment_reference()
         filename = os.path.join("/tmp", f"{reference}.tar.gz")
         s3_client.download_file(s3_bucket, s3_key, filename)
@@ -205,7 +238,7 @@ def extract_docx_filename(metadata: dict, consignment_reference: str) -> str:
         return metadata["parameters"]["TRE"]["payload"]["filename"]
     except KeyError:
         raise DocxFilenameNotFoundException(
-            f"No .docx filename was found in metadata. Consignment Ref: {consignment_reference}"
+            f"No .docx filename was found in metadata. Consignment Ref: {consignment_reference}, metadata: {metadata}"
         )
 
 
@@ -317,7 +350,9 @@ def copy_file(tarfile, input_filename, output_filename, uri, s3_client: Session.
         file = tarfile.extractfile(input_filename)
         store_file(file, uri, output_filename, s3_client)
     except KeyError:
-        raise FileNotFoundException(f"File was not found: {input_filename}")
+        raise FileNotFoundException(
+            f"File was not found: {input_filename}, files were {tarfile.getnames()} "
+        )
 
 
 def send_retry_message(
@@ -477,10 +512,8 @@ def handler(event, context):
 
     tar = tarfile.open(filename, mode="r")
     metadata = extract_metadata(tar, consignment_reference)
-
-    if not message.is_v1():
-        # this is just for debug purposes, it should be safely removable
-        store_file(open(filename, mode="rb"), "v2-debug", "debug.tar.gz", s3_client)
+    message.update_consignment_reference(metadata["parameters"]["TRE"]["reference"])
+    consignment_reference = message.get_consignment_reference()
 
     # Extract and parse the judgment XML
     xml_file_name = metadata["parameters"]["TRE"]["payload"]["xml"]
@@ -544,11 +577,17 @@ def handler(event, context):
                 s3_client,
             )
 
-    if api_client.get_published(uri):
+    force_publish = (
+        metadata.get("parameters", {})
+        .get("INGESTER_OPTIONS", {})
+        .get("auto_publish", False)
+    )
+    if force_publish is True:
+        print(f"auto_publishing {consignment_reference}")
+    if api_client.get_published(uri) or force_publish:
         update_published_documents(uri, s3_client)
 
     tar.close()
 
     print("Ingestion complete")
-
     return message.message

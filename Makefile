@@ -27,6 +27,9 @@ send-message-v1:
 send-message-v2:
 	@awslocal sns publish --topic-arn arn:aws:sns:us-east-1:000000000000:judgments --message file://aws_examples/sns/parsed-judgment-v2.json
 
+send-message-s3:
+	@awslocal s3 cp aws_examples/s3/te-editorial-out-int/test3.tar.gz s3://inbound-bucket/QX/e31b117f-ff09-49b6-a697-7952c7a67384/QX.tar.gz
+
 
 delete-document:
 	@curl --anyauth --user admin:admin -X DELETE -i http://localhost:8000/v1/documents\?database\=Judgments\&uri\=/ewca/civ/2022/111.xml

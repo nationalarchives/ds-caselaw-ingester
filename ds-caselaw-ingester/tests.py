@@ -44,7 +44,23 @@ v2_message_raw = """
     }
     """
 
+s3_message = {
+    "Records": [
+        {
+            "eventSource": "aws:s3",
+            "s3": {
+                "bucket": {
+                    "name": "staging-tre-court-document-pack-out",
+                },
+                "object": {
+                    "key": "QX/e31b117f-ff09-49b6-a697-7952c7a67384/FCL-12345.tar.gz",
+                },
+            },
+        }
+    ]
+}
 v2_message = json.loads(v2_message_raw)
+s3_message_raw = json.dumps(s3_message)
 
 
 def create_fake_tdr_file(*args, **kwargs):
@@ -82,6 +98,8 @@ class TestHandler:
         assert "Upload Successful" in log
         assert "Ingestion complete" in log
 
+        assert "auto_publish" not in log
+
     @patch("lambda_function.api_client", autospec=True)
     @patch("lambda_function.extract_metadata", autospec=True)
     @patch("lambda_function.tarfile")
@@ -101,7 +119,14 @@ class TestHandler:
         )
         metadata.return_value = {
             "parameters": {
-                "TRE": {"payload": {"xml": "", "filename": "temp.docx", "images": []}},
+                "TRE": {
+                    "reference": "TDR-2020-FAR",
+                    "payload": {
+                        "xml": "",
+                        "filename": "temp.docx",
+                        "images": [],
+                    },
+                },
                 "TDR": {
                     "Source-Organization": "",
                     "Contact-Name": "",
@@ -112,15 +137,6 @@ class TestHandler:
                 "PARSER": {"uri": ""},
             }
         }
-
-        # metadata.return_value = {
-        #     "uri": "https://caselaw.nationalarchives.gov.uk/id/eat/2022/1",
-        #     "court": "EAT",
-        #     "cite": "[2022] EAT 1",
-        #     "date": "2021-09-28",
-        #     "name": "SECRETARY OF STATE FOR JUSTICE v MR ALAN JOHNSON",
-        #     "attachments": [],
-        # }
 
         message = v2_message_raw
         event = {"Records": [{"Sns": {"Message": message}}]}
@@ -134,6 +150,60 @@ class TestHandler:
         assert "Updated judgment xml" in log
         assert "Upload Successful" in log
         assert "Ingestion complete" in log
+        assert "auto_publish" not in log
+
+    @patch("lambda_function.api_client", autospec=True)
+    @patch("lambda_function.extract_metadata", autospec=True)
+    @patch("lambda_function.tarfile")
+    @patch("lambda_function.boto3.session.Session")
+    @patch("lambda_function.urllib3.PoolManager")
+    def test_handler_messages_s3(
+        self, urllib_pool, boto_session, tarfile, metadata, apiclient, capsys
+    ):
+        """Test that, with appropriate stubs, an S3 message passes through the parsing process"""
+        urllib_pool.return_value.request.return_value.status = 200
+        urllib_pool.return_value.request.return_value.data = b"data"
+        tarfile.open.return_value.getmembers().return_value.name.extractfile.return_value = (
+            b"3"
+        )
+        boto_session.return_value.client.return_value.download_file = (
+            create_fake_tdr_file
+        )
+        metadata.return_value = {
+            "parameters": {
+                "TRE": {
+                    "reference": "TDR-2020-FAR",
+                    "payload": {
+                        "xml": "",
+                        "filename": "temp.docx",
+                        "images": [],
+                    },
+                },
+                "TDR": {
+                    "Source-Organization": "",
+                    "Contact-Name": "",
+                    "Contact-Email": "",
+                    "Internal-Sender-Identifier": "",
+                    "Consignment-Completed-Datetime": "",
+                },
+                "INGESTER_OPTIONS": {"auto_publish": True},
+                "PARSER": {"uri": ""},
+            }
+        }
+
+        message = s3_message_raw
+        event = {"Records": [{"Sns": {"Message": message}}]}
+        lambda_function.handler(event=event, context=None)
+
+        log = capsys.readouterr().out
+        assert "Ingester Start: Consignment reference FCL-12345" in log
+        assert "v1: False" in log
+        assert "tar.gz saved locally as /tmp/FCL-12345.tar.gz" in log
+        assert "Ingesting document" in log
+        assert "Updated judgment xml" in log
+        assert "Upload Successful" in log
+        assert "Ingestion complete" in log
+        assert "auto_publish" in log
 
 
 class TestLambda:

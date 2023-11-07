@@ -400,7 +400,7 @@ def update_published_documents(uri, s3_client):
 
         if "parser.log" not in key and not str(key).endswith(".tar.gz"):
             source = {"Bucket": private_bucket, "Key": key}
-            extra_args = {"ACL": "public-read"}
+            extra_args = {}
             s3_client.copy(source, public_bucket, key, extra_args)
 
 

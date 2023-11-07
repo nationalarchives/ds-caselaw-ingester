@@ -633,13 +633,13 @@ class TestLambda:
                 {"Bucket": "private-bucket", "Key": "file1.ext"},
                 "public-bucket",
                 "file1.ext",
-                {"ACL": "public-read"},
+                {},
             ),
             call(
                 {"Bucket": "private-bucket", "Key": "file2.ext"},
                 "public-bucket",
                 "file2.ext",
-                {"ACL": "public-read"},
+                {},
             ),
         ]
         lambda_function.update_published_documents("uri", s3_client)

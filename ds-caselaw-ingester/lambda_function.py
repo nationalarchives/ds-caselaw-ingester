@@ -5,6 +5,7 @@ import re
 import tarfile
 import xml.etree.ElementTree as ET
 from typing import Dict, List, Tuple, Union
+from urllib.parse import unquote_plus
 from xml.sax.saxutils import escape
 
 import boto3
@@ -143,7 +144,7 @@ class S3Message(V2Message):
         self._consignment = new_ref
 
     def save_s3_response(self, sqs_client, s3_client):
-        s3_key = self.message["s3"]["object"]["key"]
+        s3_key = unquote_plus(self.message["s3"]["object"]["key"])
         s3_bucket = self.message["s3"]["bucket"]["name"]
         reference = self.get_consignment_reference()
         filename = os.path.join("/tmp", f"{reference}.tar.gz")

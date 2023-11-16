@@ -915,3 +915,20 @@ class TestLambda:
 
     def test_user_agent(self):
         assert "ingester" in lambda_function.api_client.session.headers["User-Agent"]
+
+    @patch("os.path.exists", return_value=True)
+    @patch("os.getenv", return_value="")
+    def test_unquote_s3(self, getenv, os):
+        my_raw = s3_message_raw.replace(
+            "QX/e31b117f-ff09-49b6-a697-7952c7a67384/FCL-12345.tar.gz",
+            "2010+Reported/%5B2010%5D/1.tar.gz",
+        )
+        assert "2010+Reported" in my_raw
+
+        event = {"Records": [{"Sns": {"Message": my_raw}}]}
+        message = lambda_function.Message.from_event(event)
+        mock_s3_client = MagicMock()
+        message.save_s3_response(None, mock_s3_client)
+        mock_s3_client.download_file.assert_called_with(
+            ANY, "2010 Reported/[2010]/1.tar.gz", ANY
+        )

@@ -105,8 +105,18 @@ class TestHandler:
     @patch("lambda_function.tarfile")
     @patch("lambda_function.boto3.session.Session")
     @patch("lambda_function.urllib3.PoolManager")
+    @patch("lambda_function.send_updated_judgment_notification")
+    @patch("lambda_function.send_new_judgment_notification")
     def test_handler_messages_v2(
-        self, urllib_pool, boto_session, tarfile, metadata, apiclient, capsys
+        self,
+        notify_new,
+        notify_update,
+        urllib_pool,
+        boto_session,
+        tarfile,
+        metadata,
+        apiclient,
+        capsys,
     ):
         """Mostly intended as a very sketchy test of the primary function"""
         urllib_pool.return_value.request.return_value.status = 200
@@ -151,14 +161,26 @@ class TestHandler:
         assert "Upload Successful" in log
         assert "Ingestion complete" in log
         assert "auto_publish" not in log
+        notify_update.assert_called()
+        notify_new.assert_not_called()
 
     @patch("lambda_function.api_client", autospec=True)
     @patch("lambda_function.extract_metadata", autospec=True)
     @patch("lambda_function.tarfile")
     @patch("lambda_function.boto3.session.Session")
     @patch("lambda_function.urllib3.PoolManager")
+    @patch("lambda_function.send_new_judgment_notification")
+    @patch("lambda_function.send_updated_judgment_notification")
     def test_handler_messages_s3(
-        self, urllib_pool, boto_session, tarfile, metadata, apiclient, capsys
+        self,
+        notify_new,
+        notify_updated,
+        urllib_pool,
+        boto_session,
+        tarfile,
+        metadata,
+        apiclient,
+        capsys,
     ):
         """Test that, with appropriate stubs, an S3 message passes through the parsing process"""
         urllib_pool.return_value.request.return_value.status = 200
@@ -204,6 +226,9 @@ class TestHandler:
         assert "Upload Successful" in log
         assert "Ingestion complete" in log
         assert "auto_publish" in log
+        apiclient.set_published.assert_called_with("failures/TDR-2020-FAR")
+        notify_new.assert_not_called()
+        notify_updated.assert_not_called()
 
 
 class TestLambda:

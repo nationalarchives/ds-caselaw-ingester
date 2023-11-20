@@ -525,14 +525,22 @@ def handler(event, context):
     updated = update_document_xml(uri, xml, metadata)
     inserted = False if updated else insert_document_xml(uri, xml, metadata)
 
+    force_publish = (
+        metadata.get("parameters", {})
+        .get("INGESTER_OPTIONS", {})
+        .get("auto_publish", False)
+    )
+
     if updated:
         # Notify editors that a document has been updated
-        send_updated_judgment_notification(uri, metadata)
-        unpublish_updated_judgment(uri)
+        if not force_publish:
+            send_updated_judgment_notification(uri, metadata)
+            unpublish_updated_judgment(uri)
         print(f"Updated judgment xml for {uri}")
     elif inserted:
         # Notify editors that a new document is ready
-        send_new_judgment_notification(uri, metadata)
+        if not force_publish:
+            send_new_judgment_notification(uri, metadata)
         print(f"Inserted judgment xml for {uri}")
     else:
         raise DocumentInsertionError(
@@ -584,7 +592,9 @@ def handler(event, context):
         .get("auto_publish", False)
     )
     if force_publish is True:
-        print(f"auto_publishing {consignment_reference}")
+        print(f"auto_publishing {consignment_reference} at {uri}")
+        api_client.set_published(uri)
+
     if api_client.get_published(uri) or force_publish:
         update_published_documents(uri, s3_client)
 

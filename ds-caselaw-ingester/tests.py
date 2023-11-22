@@ -107,8 +107,10 @@ class TestHandler:
     @patch("lambda_function.urllib3.PoolManager")
     @patch("lambda_function.send_updated_judgment_notification")
     @patch("lambda_function.send_new_judgment_notification")
+    @patch("lambda_function.VersionAnnotation")
     def test_handler_messages_v2(
         self,
+        annotation,
         notify_new,
         notify_update,
         urllib_pool,
@@ -163,6 +165,12 @@ class TestHandler:
         assert "auto_publish" not in log
         notify_update.assert_called()
         notify_new.assert_not_called()
+        annotation.assert_called_with(
+            ANY,
+            automated=False,
+            message="Updated document submitted by TDR user",
+            payload=ANY,
+        )
 
     @patch("lambda_function.api_client", autospec=True)
     @patch("lambda_function.extract_metadata", autospec=True)
@@ -171,8 +179,10 @@ class TestHandler:
     @patch("lambda_function.urllib3.PoolManager")
     @patch("lambda_function.send_new_judgment_notification")
     @patch("lambda_function.send_updated_judgment_notification")
+    @patch("lambda_function.VersionAnnotation")
     def test_handler_messages_s3(
         self,
+        annotation,
         notify_new,
         notify_updated,
         urllib_pool,
@@ -201,13 +211,6 @@ class TestHandler:
                         "images": [],
                     },
                 },
-                "TDR": {
-                    "Source-Organization": "",
-                    "Contact-Name": "",
-                    "Contact-Email": "",
-                    "Internal-Sender-Identifier": "",
-                    "Consignment-Completed-Datetime": "",
-                },
                 "INGESTER_OPTIONS": {"auto_publish": True},
                 "PARSER": {"uri": ""},
             }
@@ -229,6 +232,12 @@ class TestHandler:
         apiclient.set_published.assert_called_with("failures/TDR-2020-FAR")
         notify_new.assert_not_called()
         notify_updated.assert_not_called()
+        annotation.assert_called_with(
+            ANY,
+            automated=True,
+            message="Updated document uploaded by Find Case Law",
+            payload=ANY,
+        )
 
 
 class TestLambda:

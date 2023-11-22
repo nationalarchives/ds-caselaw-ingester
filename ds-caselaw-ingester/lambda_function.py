@@ -36,6 +36,20 @@ api_client = MarklogicApiClient(
 )
 
 
+class Metadata(object):
+    def __init__(self, metadata):
+        self.metadata = metadata
+        self.parameters = metadata.get("parameters", {})
+
+    @property
+    def is_tdr(self):
+        return "TDR" in self.parameters.keys()
+
+    @property
+    def force_publish(self):
+        return self.parameters.get("INGESTER_OPTIONS", {}).get("auto_publish", False)
+
+
 class Message(object):
     @classmethod
     def from_event(cls, event):
@@ -430,11 +444,15 @@ def _build_version_annotation_payload_from_metadata(metadata: dict):
 
 
 def update_document_xml(uri, xml, metadata: dict) -> bool:
+    if Metadata(metadata).is_tdr:
+        message = "Updated document submitted by TDR user"
+    else:
+        message = "Updated document uploaded by Find Case Law"
     try:
         annotation = VersionAnnotation(
             VersionType.SUBMISSION,
-            automated=False,
-            message="Updated document submitted by user.",
+            automated=Metadata(metadata).force_publish,
+            message=message,
             payload=_build_version_annotation_payload_from_metadata(metadata),
         )
 
@@ -446,10 +464,14 @@ def update_document_xml(uri, xml, metadata: dict) -> bool:
 
 
 def insert_document_xml(uri, xml, metadata) -> bool:
+    if Metadata(metadata).is_tdr:
+        message = "New document submitted by TDR user"
+    else:
+        message = "New document uploaded by Find Case Law"
     annotation = VersionAnnotation(
         VersionType.SUBMISSION,
-        automated=False,
-        message="New document submitted by user.",
+        automated=Metadata(metadata).force_publish,
+        message=message,
         payload=_build_version_annotation_payload_from_metadata(metadata),
     )
     api_client.insert_document_xml(uri, xml, annotation)
@@ -525,11 +547,7 @@ def handler(event, context):
     updated = update_document_xml(uri, xml, metadata)
     inserted = False if updated else insert_document_xml(uri, xml, metadata)
 
-    force_publish = (
-        metadata.get("parameters", {})
-        .get("INGESTER_OPTIONS", {})
-        .get("auto_publish", False)
-    )
+    force_publish = Metadata(metadata).force_publish
 
     if updated:
         # Notify editors that a document has been updated
@@ -586,11 +604,7 @@ def handler(event, context):
                 s3_client,
             )
 
-    force_publish = (
-        metadata.get("parameters", {})
-        .get("INGESTER_OPTIONS", {})
-        .get("auto_publish", False)
-    )
+    force_publish = Metadata(metadata).force_publish
     if force_publish is True:
         print(f"auto_publishing {consignment_reference} at {uri}")
         api_client.set_published(uri)

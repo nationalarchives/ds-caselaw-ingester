@@ -72,39 +72,6 @@ class TestHandler:
     @patch("lambda_function.extract_metadata", autospec=True)
     @patch("lambda_function.tarfile")
     @patch("lambda_function.boto3.session.Session")
-    @patch("lambda_function.urllib3.PoolManager")
-    def test_handler_messages_v1(
-        self, urllib_pool, boto_session, tarfile, metadata, apiclient, capsys
-    ):
-        """Mostly intended as a very sketchy test of the primary function"""
-        urllib_pool.return_value.request.return_value.status = 200
-        urllib_pool.return_value.request.return_value.data = b"data"
-        tarfile.open.return_value.getmembers().return_value.name.extractfile.return_value = (
-            b"3"
-        )
-
-        message = """{"consignment-reference": "DXW-2001-DRGN",
-                      "number-of-retries": 1,
-                      "consignment-type": "judgment",
-                      "s3-folder-url": "DXW-2001-DRGN"}"""
-        event = {"Records": [{"Sns": {"Message": message}}]}
-        lambda_function.handler(event=event, context=None)
-
-        log = capsys.readouterr().out
-        assert "Ingester Start: Consignment reference DXW-2001-DRGN" in log
-        assert "v1: True" in log
-        assert "Ingesting document" in log
-        assert "Updated judgment xml" in log
-        assert "Upload Successful" in log
-        assert "Ingestion complete" in log
-
-        assert "auto_publish" not in log
-
-    @patch("lambda_function.api_client", autospec=True)
-    @patch("lambda_function.extract_metadata", autospec=True)
-    @patch("lambda_function.tarfile")
-    @patch("lambda_function.boto3.session.Session")
-    @patch("lambda_function.urllib3.PoolManager")
     @patch("lambda_function.send_updated_judgment_notification")
     @patch("lambda_function.send_new_judgment_notification")
     @patch("lambda_function.VersionAnnotation")
@@ -113,7 +80,6 @@ class TestHandler:
         annotation,
         notify_new,
         notify_update,
-        urllib_pool,
         boto_session,
         tarfile,
         metadata,
@@ -121,8 +87,6 @@ class TestHandler:
         capsys,
     ):
         """Mostly intended as a very sketchy test of the primary function"""
-        urllib_pool.return_value.request.return_value.status = 200
-        urllib_pool.return_value.request.return_value.data = b"data"
         tarfile.open.return_value.getmembers().return_value.name.extractfile.return_value = (
             b"3"
         )
@@ -156,7 +120,6 @@ class TestHandler:
 
         log = capsys.readouterr().out
         assert "Ingester Start: Consignment reference FCL-12345" in log
-        assert "v1: False" in log
         assert "tar.gz saved locally as /tmp/FCL-12345.tar.gz" in log
         assert "Ingesting document" in log
         assert "Updated judgment xml" in log
@@ -176,7 +139,6 @@ class TestHandler:
     @patch("lambda_function.extract_metadata", autospec=True)
     @patch("lambda_function.tarfile")
     @patch("lambda_function.boto3.session.Session")
-    @patch("lambda_function.urllib3.PoolManager")
     @patch("lambda_function.send_new_judgment_notification")
     @patch("lambda_function.send_updated_judgment_notification")
     @patch("lambda_function.VersionAnnotation")
@@ -185,7 +147,6 @@ class TestHandler:
         annotation,
         notify_new,
         notify_updated,
-        urllib_pool,
         boto_session,
         tarfile,
         metadata,
@@ -193,8 +154,6 @@ class TestHandler:
         capsys,
     ):
         """Test that, with appropriate stubs, an S3 message passes through the parsing process"""
-        urllib_pool.return_value.request.return_value.status = 200
-        urllib_pool.return_value.request.return_value.data = b"data"
         tarfile.open.return_value.getmembers().return_value.name.extractfile.return_value = (
             b"3"
         )
@@ -222,7 +181,6 @@ class TestHandler:
 
         log = capsys.readouterr().out
         assert "Ingester Start: Consignment reference FCL-12345" in log
-        assert "v1: False" in log
         assert "tar.gz saved locally as /tmp/FCL-12345.tar.gz" in log
         assert "Ingesting document" in log
         assert "Updated judgment xml" in log
@@ -586,55 +544,6 @@ class TestLambda:
         with pytest.raises(lambda_function.FileNotFoundException):
             lambda_function.copy_file(tar, filename, "new_filename", "uri", session)
 
-    @patch.dict(
-        os.environ,
-        {
-            "MAX_RETRIES": "1",
-            "SQS_QUEUE_URL": "http://172.17.0.2:4566/000000000000/retry-queue",
-        },
-    )
-    def test_send_retry_message_success_v1(self):
-        message = {
-            "consignment-reference": "TDR-2022-DNWR",
-            "s3-folder-url": "http://172.17.0.2:4566/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
-            "consignment-type": "judgment",
-            "number-of-retries": 0,
-        }
-        sqs_client = boto3.Session
-        sqs_client.send_message = MagicMock()
-        lambda_function.send_retry_message(message, sqs_client)
-        expected_message = (
-            '{"consignment-reference": "TDR-2022-DNWR", "s3-folder-url": "", '
-            '"consignment-type": "judgment", "number-of-retries": 1}'
-        )
-        sqs_client.send_message.assert_called_with(
-            QueueUrl="http://172.17.0.2:4566/000000000000/retry-queue",
-            MessageBody=expected_message,
-        )
-
-    @pytest.mark.skip
-    def test_send_retry_message_success_v2(self):
-        ...
-
-    @patch.dict(
-        os.environ,
-        {"MAX_RETRIES": "1"},
-    )
-    def test_send_retry_message_failure_v1(self):
-        message = {
-            "consignment-reference": "TDR-2022-DNWR",
-            "s3-folder-url": "http://172.17.0.2:4566/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
-            "consignment-type": "judgment",
-            "number-of-retries": 1,
-        }
-        sqs_client = boto3.Session
-        with pytest.raises(lambda_function.MaximumRetriesExceededException):
-            lambda_function.send_retry_message(message, sqs_client)
-
-    @pytest.mark.skip
-    def test_send_retry_message_failure_v2(self):
-        ...
-
     def test_create_xml_contents_success(self):
         tar = tarfile.open(
             self.TDR_TARBALL_PATH,
@@ -679,27 +588,11 @@ class TestLambda:
         lambda_function.update_published_documents("uri", s3_client)
         s3_client.copy.assert_has_calls(calls)
 
-    def test_get_consignment_reference_success_v1(self):
-        message = {
-            "consignment-reference": "TDR-2022-DNWR",
-            "s3-folder-url": "http://172.17.0.2:4566/te-editorial-out-int/ewca_civ_2021_1881.tar.gz",
-        }
-        result = lambda_function.get_consignment_reference(message)
-        assert result == "TDR-2022-DNWR"
-
     def test_get_consignment_reference_success_v2(self):
         message = v2_message
         message["parameters"]["reference"] = "THIS_REF"
         result = lambda_function.get_consignment_reference(message)
         assert result == "THIS_REF"
-
-    def test_get_consignment_reference_empty_v1(self):
-        message = {
-            "consignment-reference": "",
-            "s3-folder-url": "http://172.17.0.2:4566/te-editorial-out-int/ewca_civ_2021_1881.tar.gz",
-        }
-        result = lambda_function.get_consignment_reference(message)
-        assert result == "ewca_civ_2021_1881"
 
     def test_get_consignment_reference_empty_v2(self):
         message = v2_message
@@ -710,13 +603,6 @@ class TestLambda:
         with pytest.raises(lambda_function.InvalidMessageException):
             lambda_function.get_consignment_reference(message)
 
-    def test_get_consignment_reference_missing_v1(self):
-        message = {
-            "s3-folder-url": "http://172.17.0.2:4566/te-editorial-out-int/ewca_civ_2021_1881.tar.gz"
-        }
-        result = lambda_function.get_consignment_reference(message)
-        assert result == "ewca_civ_2021_1881"
-
     def test_get_consignment_reference_missing_v2(self):
         message = dict(v2_message)
         del message["parameters"]["reference"]
@@ -725,15 +611,6 @@ class TestLambda:
         ] = "http://172.17.0.2:4566/te-editorial-out-int/ewca_civ_2021_1881.tar.gz"
         with pytest.raises(lambda_function.InvalidMessageException):
             lambda_function.get_consignment_reference(message)
-
-    def test_get_consignment_reference_presigned_url_v1(self):
-        message = {
-            "consignment-reference": "",
-            "s3-folder-url": "http://172.17.0.2:4566/te-editorial-out-int/"
-            "ewca_civ_2021_1881.tar.gz?randomstuffafterthefilename",
-        }
-        result = lambda_function.get_consignment_reference(message)
-        assert result == "ewca_civ_2021_1881"
 
     def test_get_consignment_reference_presigned_url_v2(self):
         message = v2_message

@@ -530,7 +530,7 @@ def handler(event, context):
     force_publish = Metadata(metadata).force_publish
     if force_publish is True:
         print(f"auto_publishing {consignment_reference} at {uri}")
-        api_client.set_published(uri)
+        api_client.set_published(uri, True)
 
     if api_client.get_published(uri) or force_publish:
         update_published_documents(uri, s3_client)

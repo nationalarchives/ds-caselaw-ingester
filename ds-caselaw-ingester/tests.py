@@ -187,7 +187,7 @@ class TestHandler:
         assert "Upload Successful" in log
         assert "Ingestion complete" in log
         assert "auto_publish" in log
-        apiclient.set_published.assert_called_with("failures/TDR-2020-FAR")
+        apiclient.set_published.assert_called_with("failures/TDR-2020-FAR", True)
         notify_new.assert_not_called()
         notify_updated.assert_not_called()
         annotation.assert_called_with(

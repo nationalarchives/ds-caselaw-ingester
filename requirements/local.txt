@@ -3,5 +3,5 @@
 awscli
 awscli-local
 
-pytest==7.4.3  # https://github.com/pytest-dev/pytest
+pytest==7.4.4  # https://github.com/pytest-dev/pytest
 callee==0.3.1

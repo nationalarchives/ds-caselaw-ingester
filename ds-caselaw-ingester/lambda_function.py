@@ -53,6 +53,7 @@ class Message(object):
     def from_event(cls, event):
         decoder = json.decoder.JSONDecoder()
         message = decoder.decode(event["Records"][0]["Sns"]["Message"])
+        # passes a messagedict to the class
         return cls.from_message(message)
 
     @classmethod
@@ -153,6 +154,15 @@ class InvalidMessageException(ReportableException):
 
 class DocumentInsertionError(ReportableException):
     pass
+
+
+def all_messages(event) -> List[Message]:
+    """All the messages in the SNS event, as Message subclasses"""
+    decoder = json.decoder.JSONDecoder()
+    messages_as_decoded_json = [
+        decoder.decode(record["Sns"]["Message"]) for record in event["Records"]
+    ]
+    return [Message.from_message(message) for message in messages_as_decoded_json]
 
 
 def extract_xml_file(tar: tarfile.TarFile, xml_file_name: str):
@@ -429,9 +439,8 @@ def unpublish_updated_judgment(uri):
     api_client.set_published(uri, False)
 
 
-@rollbar.lambda_function
-def handler(event, context):
-    message = Message.from_event(event)
+def process_message(message):
+    """This is the core function -- take a message and ingest the referred-to contents"""
 
     consignment_reference = message.get_consignment_reference()
     print(f"Ingester Start: Consignment reference {consignment_reference}")
@@ -539,3 +548,9 @@ def handler(event, context):
 
     print("Ingestion complete")
     return message.message
+
+
+@rollbar.lambda_function
+def handler(event, context):
+    for message in all_messages(event):
+        process_message(message)

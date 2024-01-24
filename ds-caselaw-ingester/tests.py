@@ -115,7 +115,9 @@ class TestHandler:
         }
 
         message = v2_message_raw
-        event = {"Records": [{"Sns": {"Message": message}}]}
+        event = {
+            "Records": [{"Sns": {"Message": message}}, {"Sns": {"Message": message}}]
+        }
         lambda_function.handler(event=event, context=None)
 
         log = capsys.readouterr().out
@@ -127,6 +129,7 @@ class TestHandler:
         assert "Ingestion complete" in log
         assert "auto_publish" not in log
         notify_update.assert_called()
+        assert notify_update.call_count == 2
         notify_new.assert_not_called()
         annotation.assert_called_with(
             ANY,
@@ -134,6 +137,7 @@ class TestHandler:
             message="Updated document submitted by TDR user",
             payload=ANY,
         )
+        assert annotation.call_count == 2
 
     @patch("lambda_function.api_client", autospec=True)
     @patch("lambda_function.extract_metadata", autospec=True)
@@ -176,7 +180,9 @@ class TestHandler:
         }
 
         message = s3_message_raw
-        event = {"Records": [{"Sns": {"Message": message}}]}
+        event = {
+            "Records": [{"Sns": {"Message": message}}, {"Sns": {"Message": message}}]
+        }
         lambda_function.handler(event=event, context=None)
 
         log = capsys.readouterr().out
@@ -188,6 +194,7 @@ class TestHandler:
         assert "Ingestion complete" in log
         assert "auto_publish" in log
         apiclient.set_published.assert_called_with("failures/TDR-2020-FAR", True)
+        assert apiclient.set_published.call_count == 2
         notify_new.assert_not_called()
         notify_updated.assert_not_called()
         annotation.assert_called_with(
@@ -196,6 +203,7 @@ class TestHandler:
             message="Updated document uploaded by Find Case Law",
             payload=ANY,
         )
+        assert annotation.call_count == 2
 
 
 class TestLambda:

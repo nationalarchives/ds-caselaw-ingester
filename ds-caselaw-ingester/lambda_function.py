@@ -439,11 +439,8 @@ def unpublish_updated_judgment(uri):
     api_client.set_published(uri, False)
 
 
-@rollbar.lambda_function
-def handler(event, context):
-    message = Message.from_event(event)
-
-    message = all_messages(event)[0]
+def process_message(message):
+    """This is the core function -- take a message and ingest the referred-to contents"""
 
     consignment_reference = message.get_consignment_reference()
     print(f"Ingester Start: Consignment reference {consignment_reference}")
@@ -551,3 +548,9 @@ def handler(event, context):
 
     print("Ingestion complete")
     return message.message
+
+
+@rollbar.lambda_function
+def handler(event, context):
+    for message in all_messages(event):
+        process_message(message)

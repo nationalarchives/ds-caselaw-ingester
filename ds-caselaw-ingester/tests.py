@@ -21,6 +21,10 @@ TDR_TARBALL_PATH = os.path.join(
     "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
 )
 
+BULK_TARBALL_PATH = os.path.join(
+    os.path.dirname(__file__), "../aws_examples/s3/te-editorial-out-int/test3.tar.gz"
+)
+
 
 v2_message_raw = """
     {
@@ -35,7 +39,7 @@ v2_message_raw = """
         },
         "parameters": {
             "status": "JUDGMENT_PARSE_NO_ERRORS",
-            "reference": "FCL-12345",
+            "reference": "TDR-2022-DNWR",
             "originator": "FCL",
             "bundleFileURI": "http://172.17.0.2:4566/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
             "metadataFilePath": "/metadata.json",
@@ -53,7 +57,7 @@ s3_message = {
                     "name": "staging-tre-court-document-pack-out",
                 },
                 "object": {
-                    "key": "QX/e31b117f-ff09-49b6-a697-7952c7a67384/FCL-12345.tar.gz",
+                    "key": "QX/e31b117f-ff09-49b6-a697-7952c7a67384/BULK-0.tar.gz",
                 },
             },
         }
@@ -64,13 +68,15 @@ s3_message_raw = json.dumps(s3_message)
 
 
 def create_fake_tdr_file(*args, **kwargs):
-    shutil.copyfile(TDR_TARBALL_PATH, "/tmp/FCL-12345.tar.gz")
+    shutil.copyfile(TDR_TARBALL_PATH, "/tmp/TDR-2022-DNWR.tar.gz")
+
+
+def create_fake_bulk_file(*args, **kwargs):
+    shutil.copyfile(BULK_TARBALL_PATH, "/tmp/BULK-0.tar.gz")
 
 
 class TestHandler:
     @patch("lambda_function.api_client", autospec=True)
-    @patch("lambda_function.extract_metadata", autospec=True)
-    @patch("lambda_function.tarfile")
     @patch("lambda_function.boto3.session.Session")
     @patch("lambda_function.send_updated_judgment_notification")
     @patch("lambda_function.send_new_judgment_notification")
@@ -81,38 +87,12 @@ class TestHandler:
         notify_new,
         notify_update,
         boto_session,
-        tarfile,
-        metadata,
         apiclient,
         capsys,
     ):
-        """Mostly intended as a very sketchy test of the primary function"""
-        tarfile.open.return_value.getmembers().return_value.name.extractfile.return_value = (
-            b"3"
-        )
         boto_session.return_value.client.return_value.download_file = (
             create_fake_tdr_file
         )
-        metadata.return_value = {
-            "parameters": {
-                "TRE": {
-                    "reference": "TDR-2020-FAR",
-                    "payload": {
-                        "xml": "",
-                        "filename": "temp.docx",
-                        "images": [],
-                    },
-                },
-                "TDR": {
-                    "Source-Organization": "",
-                    "Contact-Name": "",
-                    "Contact-Email": "",
-                    "Internal-Sender-Identifier": "",
-                    "Consignment-Completed-Datetime": "",
-                },
-                "PARSER": {"uri": ""},
-            }
-        }
 
         message = v2_message_raw
         event = {
@@ -121,13 +101,16 @@ class TestHandler:
         lambda_function.handler(event=event, context=None)
 
         log = capsys.readouterr().out
-        assert "Ingester Start: Consignment reference FCL-12345" in log
-        assert "tar.gz saved locally as /tmp/FCL-12345.tar.gz" in log
+        assert "Ingester Start: Consignment reference TDR-2022-DNWR" in log
+        assert "tar.gz saved locally as /tmp/TDR-2022-DNWR.tar.gz" in log
         assert "Ingesting document" in log
         assert "Updated judgment xml" in log
         assert "Upload Successful" in log
         assert "Ingestion complete" in log
         assert "auto_publish" not in log
+        assert "Invalid XML file" not in log
+        assert "No XML file found" not in log
+        assert "image1.png" in log
         notify_update.assert_called()
         assert notify_update.call_count == 2
         notify_new.assert_not_called()
@@ -140,8 +123,6 @@ class TestHandler:
         assert annotation.call_count == 2
 
     @patch("lambda_function.api_client", autospec=True)
-    @patch("lambda_function.extract_metadata", autospec=True)
-    @patch("lambda_function.tarfile")
     @patch("lambda_function.boto3.session.Session")
     @patch("lambda_function.send_new_judgment_notification")
     @patch("lambda_function.send_updated_judgment_notification")
@@ -152,32 +133,13 @@ class TestHandler:
         notify_new,
         notify_updated,
         boto_session,
-        tarfile,
-        metadata,
         apiclient,
         capsys,
     ):
         """Test that, with appropriate stubs, an S3 message passes through the parsing process"""
-        tarfile.open.return_value.getmembers().return_value.name.extractfile.return_value = (
-            b"3"
-        )
         boto_session.return_value.client.return_value.download_file = (
-            create_fake_tdr_file
+            create_fake_bulk_file
         )
-        metadata.return_value = {
-            "parameters": {
-                "TRE": {
-                    "reference": "TDR-2020-FAR",
-                    "payload": {
-                        "xml": "",
-                        "filename": "temp.docx",
-                        "images": [],
-                    },
-                },
-                "INGESTER_OPTIONS": {"auto_publish": True},
-                "PARSER": {"uri": ""},
-            }
-        }
 
         message = s3_message_raw
         event = {
@@ -186,14 +148,16 @@ class TestHandler:
         lambda_function.handler(event=event, context=None)
 
         log = capsys.readouterr().out
-        assert "Ingester Start: Consignment reference FCL-12345" in log
-        assert "tar.gz saved locally as /tmp/FCL-12345.tar.gz" in log
+        assert "Ingester Start: Consignment reference BULK-0" in log
+        assert "tar.gz saved locally as /tmp/BULK-0.tar.gz" in log
         assert "Ingesting document" in log
         assert "Updated judgment xml" in log
         assert "Upload Successful" in log
         assert "Ingestion complete" in log
         assert "auto_publish" in log
-        apiclient.set_published.assert_called_with("failures/TDR-2020-FAR", True)
+        assert "Invalid XML file" not in log
+        assert "No XML file found" not in log
+        apiclient.set_published.assert_called_with("ukut/iac/2012/82", True)
         assert apiclient.set_published.call_count == 2
         notify_new.assert_not_called()
         notify_updated.assert_not_called()
@@ -839,7 +803,7 @@ class TestLambda:
     @patch("os.getenv", return_value="")
     def test_unquote_s3(self, getenv, os):
         my_raw = s3_message_raw.replace(
-            "QX/e31b117f-ff09-49b6-a697-7952c7a67384/FCL-12345.tar.gz",
+            "QX/e31b117f-ff09-49b6-a697-7952c7a67384/BULK-0.tar.gz",
             "2010+Reported/%5B2010%5D/1.tar.gz",
         )
         assert "2010+Reported" in my_raw

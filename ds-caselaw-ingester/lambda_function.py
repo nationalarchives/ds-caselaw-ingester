@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 import tarfile
 import xml.etree.ElementTree as ET
@@ -21,8 +20,6 @@ from dotenv import load_dotenv
 from notifications_python_client.notifications import NotificationsAPIClient
 
 load_dotenv()
-
-
 rollbar.init(os.getenv("ROLLBAR_TOKEN"), environment=os.getenv("ROLLBAR_ENV"))
 
 api_client = MarklogicApiClient(
@@ -75,6 +72,10 @@ class Message(object):
 
 class V2Message(Message):
     def get_consignment_reference(self):
+        """A strange quirk: the consignment reference we recieve from the V2 message is
+        of the form TDR-2000-123, but the consignment reference inside the document is
+        of the form TRE-TDR-2000-123. The folder in the .tar.gz file is TDR-2000-123,
+        it reflects the V2 message format, not the format found within the tar.gz"""
         result = self.message.get("parameters", {}).get("reference")
         if result:
             return result
@@ -101,8 +102,10 @@ class S3Message(V2Message):
         super().__init__(*args, **kwargs)
 
     def get_consignment_reference(self):
-        # We use the filename as a first draft of the consignment reference,
-        # but later update it with the value from the tar gz
+        """We use the filename as a first draft of the consignment reference,
+        but later update it with the value from the tar gz. Note that this
+        behaviour is totally inconsistent with the behaviour of the V2 message
+        where the consignment reference in the metadata is ignored."""
         if self._consignment:
             return self._consignment
         return self.message["s3"]["object"]["key"].split("/")[-1].partition(".")[0]
@@ -171,7 +174,6 @@ def extract_xml_file(tar: tarfile.TarFile, xml_file_name: str):
         for member in tar.getmembers():
             if xml_file_name in member.name:
                 xml_file = tar.extractfile(member)
-
     return xml_file
 
 
@@ -419,14 +421,14 @@ def get_best_xml(uri, tar, xml_file_name, consignment_reference):
         try:
             return parse_xml(contents)
         except ET.ParseError:
-            logging.warning(
+            print(
                 f"Invalid XML file for uri: {uri}, consignment reference: {consignment_reference}."
                 f" Falling back to parser.log contents."
             )
             contents = create_parser_log_xml(tar)
             return parse_xml(contents)
     else:
-        logging.warning(
+        print(
             f"No XML file found in tarfile for uri: {uri}, filename: {xml_file_name},"
             f"consignment reference: {consignment_reference}."
             f" Falling back to parser.log contents."

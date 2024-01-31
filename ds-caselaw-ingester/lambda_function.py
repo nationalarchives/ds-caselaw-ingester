@@ -160,6 +160,7 @@ class InvalidMessageException(ReportableException):
 class DocumentInsertionError(ReportableException):
     pass
 
+
 class ErrorLogWouldOverwritePublishedDocument(ReportableException):
     pass
 
@@ -499,11 +500,11 @@ def process_message(message):
     except DocumentNotFoundError:  # the target does not exist
         target_published = False
 
-    allow_publish = (
-        is_akoma  # should we forbid publication because it's a parser error log?
-    )
+    # forbid publication if it's a parser error log
+    # allow publication if it's looks like an akoma ntosa document
+    allow_publish = is_akoma
 
-    if target_published and not is_akoma:
+    if target_published and not allow_publish:
         """Do not publish: there is an existing published document, and we do not have a real document"""
         raise ErrorLogWouldOverwritePublishedDocument(
             f"XML for {uri} is a {xml.tag}; a published document already exists there."

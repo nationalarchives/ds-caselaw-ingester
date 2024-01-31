@@ -82,8 +82,10 @@ class TestHandler:
     @patch("lambda_function.send_new_judgment_notification")
     @patch("lambda_function.VersionAnnotation")
     @patch("lambda_function.modify_filename")
+    @patch("lambda_function.Document")
     def test_handler_messages_v2(
         self,
+        document,
         modify_filename,
         annotation,
         notify_new,
@@ -92,6 +94,8 @@ class TestHandler:
         apiclient,
         capsys,
     ):
+
+        document.return_value.get_published.return_value = False
         boto_session.return_value.client.return_value.download_file = (
             create_fake_tdr_file
         )
@@ -132,8 +136,10 @@ class TestHandler:
     @patch("lambda_function.send_updated_judgment_notification")
     @patch("lambda_function.VersionAnnotation")
     @patch("lambda_function.modify_filename")
+    @patch("lambda_function.Document")
     def test_handler_messages_s3(
         self,
+        document,
         modify_filename,
         annotation,
         notify_new,
@@ -146,6 +152,7 @@ class TestHandler:
         boto_session.return_value.client.return_value.download_file = (
             create_fake_bulk_file
         )
+        document.return_value.get_published.return_value = False
 
         message = s3_message_raw
         event = {

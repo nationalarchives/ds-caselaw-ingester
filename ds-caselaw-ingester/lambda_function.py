@@ -17,6 +17,8 @@ from caselawclient.Client import (
     MarklogicResourceNotFoundError,
 )
 from caselawclient.client_helpers import VersionAnnotation, VersionType
+from caselawclient.errors import DocumentNotFoundError
+from caselawclient.models.documents import Document
 from dotenv import load_dotenv
 from notifications_python_client.notifications import NotificationsAPIClient
 
@@ -196,6 +198,10 @@ class NoConsignmentReferenceError(ReportableException):
     pass
 
 
+class ErrorLogWouldOverwritePublishedDocument(ReportableException):
+    pass
+
+
 class TarWrapper:
     def __init__(self, tar_filename):
         self.tar_filename = tar_filename
@@ -226,6 +232,50 @@ class TarWrapper:
     def best_xml(self):
         """Either the XML of the document, or the contents of the parser log"""
         return get_best_xml(self)
+
+    @cached_property
+    def best_xml_is_akoma(self):
+        "Is the XML an Akoma Ntoso document (i.e. not a parser log)"
+        if (
+            self.best_xml.tag
+            == "{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}akomaNtoso"
+        ):
+            return True
+        if self.best_xml.tag == "error":
+            return False
+        raise RuntimeError("Unexpected tag {self.best_xml.tag!r} in {self.uri!r}")
+
+    @cached_property
+    def target_document_published(self):
+        """Is there a document at the uri which has been published?"""
+        try:
+            return Document(self.uri, api_client).get_published()
+        except DocumentNotFoundError:
+            return False
+
+    def verify_xml_is_writable(self):
+        """If we have an parser log as our best XML and the target is published, prevent writing to MarkLogic"""
+        if self.target_document_published and not self.best_xml_is_akoma:
+            """Do not publish: there is an existing published document, and we do not have a real document"""
+            raise ErrorLogWouldOverwritePublishedDocument(
+                f"XML for {self.uri} is a {self.best_xml.tag}; a published document already exists there."
+            )
+        return True
+
+    def publish_if_appropriate(self):
+        """Set as published in MarkLogic and S3"""
+        sqs_client, s3_client = get_aws_clients()
+        if not self.best_xml_is_akoma:
+            return  # Do not publish parser logs
+
+        if self.metadata.force_publish:
+            print(
+                f"auto_publishing {self.metadata.consignment_reference} at {self.uri}"
+            )
+            api_client.set_published(self.uri, True)
+
+        if api_client.get_published(self.uri) or self.metadata.force_publish:
+            update_published_documents(self.uri, s3_client)
 
 
 def all_messages(event) -> List[Message]:
@@ -540,6 +590,7 @@ def process_message(message):
     wrapped_tar = TarWrapper(filename)
     print(f"Ingesting document {wrapped_tar.uri}")
     xml = wrapped_tar.best_xml
+    wrapped_tar.verify_xml_is_writable()  # Don't write parser log if published
 
     updated = update_document_xml(wrapped_tar.uri, xml, wrapped_tar.metadata_dict)
     inserted = (
@@ -618,14 +669,7 @@ def process_message(message):
                 s3_client,
             )
 
-    force_publish = wrapped_tar.metadata.force_publish
-    if force_publish is True:
-        print(f"auto_publishing {consignment_reference} at {wrapped_tar.uri}")
-        api_client.set_published(wrapped_tar.uri, True)
-
-    if api_client.get_published(wrapped_tar.uri) or force_publish:
-        update_published_documents(wrapped_tar.uri, s3_client)
-
+    wrapped_tar.publish_if_appropriate()
     del wrapped_tar
 
     print("Ingestion complete")

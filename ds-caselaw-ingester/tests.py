@@ -82,8 +82,10 @@ class TestHandler:
     @patch("lambda_function.send_updated_judgment_notification")
     @patch("lambda_function.send_new_judgment_notification")
     @patch("lambda_function.VersionAnnotation")
+    @patch("lambda_function.Document")
     def test_handler_messages_v2(
         self,
+        document,
         annotation,
         notify_new,
         notify_update,
@@ -94,7 +96,7 @@ class TestHandler:
         boto_session.return_value.client.return_value.download_file = (
             create_fake_tdr_file
         )
-
+        document.return_value.get_published.return_value = False
         message = v2_message_raw
         event = {
             "Records": [{"Sns": {"Message": message}}, {"Sns": {"Message": message}}]
@@ -128,8 +130,10 @@ class TestHandler:
     @patch("lambda_function.send_new_judgment_notification")
     @patch("lambda_function.send_updated_judgment_notification")
     @patch("lambda_function.VersionAnnotation")
+    @patch("lambda_function.Document")
     def test_handler_messages_s3(
         self,
+        document,
         annotation,
         notify_new,
         notify_updated,
@@ -141,6 +145,7 @@ class TestHandler:
         boto_session.return_value.client.return_value.download_file = (
             create_fake_bulk_file
         )
+        document.return_value.get_published.return_value = True
 
         message = s3_message_raw
         event = {

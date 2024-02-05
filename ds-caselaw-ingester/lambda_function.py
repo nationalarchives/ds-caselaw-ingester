@@ -500,13 +500,7 @@ def unpublish_updated_judgment(uri):
     api_client.set_published(uri, False)
 
 
-def process_message(message):
-    """This is the core function -- take a message and ingest the referred-to contents"""
-
-    consignment_reference = message.get_consignment_reference()
-    print(f"Ingester Start: Consignment reference {consignment_reference}")
-    print(f"Received Message: {message.message}")
-
+def get_aws_clients():
     if (
         os.getenv("AWS_ACCESS_KEY_ID")
         and os.getenv("AWS_SECRET_KEY")
@@ -522,6 +516,17 @@ def process_message(message):
         session = boto3.session.Session()
         sqs_client = session.client("sqs")
         s3_client = session.client("s3")
+
+    return sqs_client, s3_client
+
+
+def process_message(message):
+    """This is the core function -- take a message and ingest the referred-to contents"""
+
+    sqs_client, s3_client = get_aws_clients()
+    consignment_reference = message.get_consignment_reference()
+    print(f"Ingester Start: Consignment reference {consignment_reference}")
+    print(f"Received Message: {message.message}")
 
     # Retrieve tar file from S3
     filename = message.save_s3_response(sqs_client, s3_client)

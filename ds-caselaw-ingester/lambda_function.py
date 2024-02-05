@@ -220,17 +220,12 @@ class TarWrapper:
     @cached_property
     def uri(self):
         """The URI that the document should be inserted/updated at"""
-        return extract_uri(self.metadata_dict, self.metadata.consignment_reference)
+        return self.metadata.extract_uri()
 
     @cached_property
     def best_xml(self):
         """Either the XML of the document, or the contents of the parser log"""
-        return get_best_xml(
-            self.uri,
-            self.tar_file,
-            self.metadata.xml_file_name,
-            self.metadata.consignment_reference,
-        )
+        return get_best_xml(self)
 
 
 def all_messages(event) -> List[Message]:
@@ -251,7 +246,7 @@ def extract_xml_file(tar: tarfile.TarFile, xml_file_name: str):
     return xml_file
 
 
-def extract_metadata(tar: tarfile.TarFile, consignment_reference: str):
+def extract_metadata(tar: tarfile.TarFile):
     te_metadata_file = None
     decoder = json.decoder.JSONDecoder()
     for member in tar.getmembers():
@@ -259,22 +254,8 @@ def extract_metadata(tar: tarfile.TarFile, consignment_reference: str):
             te_metadata_file = tar.extractfile(member)
 
     if te_metadata_file is None:
-        raise FileNotFoundException(
-            f"Metadata file not found. Consignment Ref: {consignment_reference}"
-        )
+        raise FileNotFoundException(f"Metadata file not found. File name: {tar.name!r}")
     return decoder.decode(te_metadata_file.read().decode("utf-8"))
-
-
-def extract_uri(metadata: dict, consignment_reference: str) -> str:
-    uri = metadata["parameters"]["PARSER"].get("uri", "")
-
-    if uri:
-        uri = uri.replace("https://caselaw.nationalarchives.gov.uk/id/", "")
-
-    if not uri:
-        uri = f"failures/{consignment_reference}"
-
-    return uri
 
 
 # called by tests
@@ -488,26 +469,30 @@ def insert_document_xml(uri, xml, metadata) -> bool:
     return True
 
 
-def get_best_xml(uri, tar, xml_file_name, consignment_reference):
-    xml_file = extract_xml_file(tar, xml_file_name)
+def get_best_xml(wrapped_tar):
+    xml_file = extract_xml_file(
+        wrapped_tar.tar_file, wrapped_tar.metadata.xml_file_name
+    )
     if xml_file:
         contents = xml_file.read()
         try:
             return parse_xml(contents)
         except ET.ParseError:
             print(
-                f"Invalid XML file for uri: {uri}, consignment reference: {consignment_reference}."
-                f" Falling back to parser.log contents."
+                f"Invalid XML file for uri: {wrapped_tar.uri!r},"
+                f" consignment reference: {wrapped_tar.metadata.consignment_reference!r}."
+                " Falling back to parser.log contents."
             )
-            contents = create_parser_log_xml(tar)
+            contents = create_parser_log_xml(wrapped_tar.tar_file)
             return parse_xml(contents)
     else:
         print(
-            f"No XML file found in tarfile for uri: {uri}, filename: {xml_file_name},"
-            f"consignment reference: {consignment_reference}."
-            f" Falling back to parser.log contents."
+            f"No XML file found in tarfile for uri: {wrapped_tar.uri!r},"
+            f"filename: {wrapped_tar.metadata.xml_file_name!r}, "
+            f"consignment reference: {wrapped_tar.metadata.consignment_reference!r}."
+            " Falling back to parser.log contents."
         )
-        contents = create_parser_log_xml(tar)
+        contents = create_parser_log_xml(wrapped_tar.tar_file)
         return parse_xml(contents)
 
 
@@ -541,86 +526,96 @@ def process_message(message):
     # Retrieve tar file from S3
     filename = message.save_s3_response(sqs_client, s3_client)
 
-    tar = tarfile.open(filename, mode="r")
-    metadata = extract_metadata(tar, consignment_reference)
-    message.update_consignment_reference(metadata["parameters"]["TRE"]["reference"])
-    consignment_reference = message.get_consignment_reference()
+    wrapped_tar = TarWrapper(filename)
+    print(f"Ingesting document {wrapped_tar.uri}")
+    xml = wrapped_tar.best_xml
 
-    # Extract and parse the judgment XML
-    xml_file_name = metadata["parameters"]["TRE"]["payload"]["xml"]
-    uri = extract_uri(metadata, consignment_reference)
-    print(f"Ingesting document {uri}")
-    xml = get_best_xml(uri, tar, xml_file_name, consignment_reference)
+    updated = update_document_xml(wrapped_tar.uri, xml, wrapped_tar.metadata_dict)
+    inserted = (
+        False
+        if updated
+        else insert_document_xml(wrapped_tar.uri, xml, wrapped_tar.metadata_dict)
+    )
 
-    updated = update_document_xml(uri, xml, metadata)
-    inserted = False if updated else insert_document_xml(uri, xml, metadata)
-
-    force_publish = Metadata(metadata).force_publish
+    force_publish = wrapped_tar.metadata.force_publish
 
     if updated:
         # Notify editors that a document has been updated
         if not force_publish:
-            send_updated_judgment_notification(uri, metadata)
-            unpublish_updated_judgment(uri)
-        print(f"Updated judgment xml for {uri}")
+            send_updated_judgment_notification(
+                wrapped_tar.uri, wrapped_tar.metadata_dict
+            )
+            unpublish_updated_judgment(wrapped_tar.uri)
+        print(f"Updated judgment xml for {wrapped_tar.uri}")
     elif inserted:
         # Notify editors that a new document is ready
         if not force_publish:
-            send_new_judgment_notification(uri, metadata)
-        print(f"Inserted judgment xml for {uri}")
+            send_new_judgment_notification(wrapped_tar.uri, wrapped_tar.metadata_dict)
+        print(f"Inserted judgment xml for {wrapped_tar.uri}")
     else:
         raise DocumentInsertionError(
-            f"Judgment {uri} failed to insert into Marklogic. Consignment Ref: {consignment_reference}"
+            f"Judgment {wrapped_tar.uri} failed to insert into Marklogic. "
+            f"Consignment Ref: {consignment_reference}"
         )
 
     # Store metadata
 
-    has_TDR_data = "TDR" in metadata["parameters"].keys()
+    has_TDR_data = "TDR" in wrapped_tar.metadata.parameters.keys()
     if has_TDR_data:
-        store_metadata(uri, metadata)
+        store_metadata(wrapped_tar.uri, wrapped_tar.metadata_dict)
 
     # Copy original tarfile
-    store_file(open(filename, mode="rb"), uri, os.path.basename(filename), s3_client)
+    store_file(
+        open(wrapped_tar.tar_filename, mode="rb"),
+        wrapped_tar.uri,
+        os.path.basename(wrapped_tar.tar_filename),
+        s3_client,
+    )
 
     # Store docx and rename
-    docx_filename = extract_docx_filename(metadata, consignment_reference)
+    docx_filename = extract_docx_filename(
+        wrapped_tar.metadata_dict, consignment_reference
+    )
     copy_file(
-        tar,
+        wrapped_tar.tar_file,
         f"{consignment_reference}/{docx_filename}",
-        f'{uri.replace("/", "_")}.docx',
-        uri,
+        f'{wrapped_tar.uri.replace("/", "_")}.docx',
+        wrapped_tar.uri,
         s3_client,
     )
 
     # Store parser log
     try:
         copy_file(
-            tar, f"{consignment_reference}/parser.log", "parser.log", uri, s3_client
+            wrapped_tar.tar_file,
+            f"{consignment_reference}/parser.log",
+            "parser.log",
+            wrapped_tar.uri,
+            s3_client,
         )
     except FileNotFoundException:
         pass
 
     # Store images
-    image_list = metadata["parameters"]["TRE"]["payload"]["images"]
-    if image_list:
-        for image_filename in image_list:
+    if wrapped_tar.metadata.image_list:
+        for image_filename in wrapped_tar.metadata.image_list:
             copy_file(
-                tar,
+                wrapped_tar.tar_file,
                 f"{consignment_reference}/{image_filename}",
                 image_filename,
-                uri,
+                wrapped_tar.uri,
                 s3_client,
             )
 
-    force_publish = Metadata(metadata).force_publish
+    force_publish = wrapped_tar.metadata.force_publish
     if force_publish is True:
-        print(f"auto_publishing {consignment_reference} at {uri}")
-        api_client.set_published(uri, True)
+        print(f"auto_publishing {consignment_reference} at {wrapped_tar.uri}")
+        api_client.set_published(wrapped_tar.uri, True)
 
-    if api_client.get_published(uri) or force_publish:
-        update_published_documents(uri, s3_client)
+    if api_client.get_published(wrapped_tar.uri) or force_publish:
+        update_published_documents(wrapped_tar.uri, s3_client)
 
-    tar.close()
+    del wrapped_tar
 
     print("Ingestion complete")
     return message.message

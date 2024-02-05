@@ -396,6 +396,7 @@ def create_parser_log_xml(tar):
 
 
 def update_published_documents(uri, s3_client):
+    """Copy items from the private unpublished bucket to the public published one"""
     public_bucket = os.getenv("PUBLIC_ASSET_BUCKET")
     private_bucket = os.getenv("AWS_BUCKET_NAME")
 
@@ -435,10 +436,12 @@ def _build_version_annotation_payload_from_metadata(metadata: dict):
 
 
 def update_document_xml(uri, xml, metadata: dict) -> bool:
+    """The document already exists in Marklogic: add this new version."""
     if Metadata(metadata).is_tdr:
         message = "Updated document submitted by TDR user"
     else:
         message = "Updated document uploaded by Find Case Law"
+
     try:
         annotation = VersionAnnotation(
             VersionType.SUBMISSION,
@@ -455,6 +458,7 @@ def update_document_xml(uri, xml, metadata: dict) -> bool:
 
 
 def insert_document_xml(uri, xml, metadata) -> bool:
+    """The document doesn't exist in Marklogic: add it."""
     if Metadata(metadata).is_tdr:
         message = "New document submitted by TDR user"
     else:
@@ -470,6 +474,7 @@ def insert_document_xml(uri, xml, metadata) -> bool:
 
 
 def get_best_xml(wrapped_tar):
+    # see https://github.com/nationalarchives/ds-caselaw-ingester/pull/42 for logic
     xml_file = extract_xml_file(
         wrapped_tar.tar_file, wrapped_tar.metadata.xml_file_name
     )
@@ -525,6 +530,7 @@ def process_message(message):
 
     sqs_client, s3_client = get_aws_clients()
     consignment_reference = message.get_consignment_reference()
+
     print(f"Ingester Start: Consignment reference {consignment_reference}")
     print(f"Received Message: {message.message}")
 

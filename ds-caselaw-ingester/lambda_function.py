@@ -2,6 +2,7 @@ import json
 import os
 import tarfile
 import xml.etree.ElementTree as ET
+from functools import cached_property
 from typing import Dict, List, Tuple
 from urllib.parse import unquote_plus
 from xml.sax.saxutils import escape
@@ -189,6 +190,47 @@ class InvalidMessageException(ReportableException):
 
 class DocumentInsertionError(ReportableException):
     pass
+
+
+class NoConsignmentReferenceError(ReportableException):
+    pass
+
+
+class TarWrapper:
+    def __init__(self, tar_filename):
+        self.tar_filename = tar_filename
+        self.tar_file = None
+        if self.tar_filename:
+            self.tar_file = tarfile.open(self.tar_filename, mode="r")
+
+    def __del__(self):
+        if self.tar_filename:
+            self.tar_file.close()
+
+    @cached_property
+    def metadata_dict(self):
+        """The metadata as a dict"""
+        return extract_metadata(self.tar_file)
+
+    @cached_property
+    def metadata(self):
+        """The metadata as an object"""
+        return Metadata(self.metadata_dict)
+
+    @cached_property
+    def uri(self):
+        """The URI that the document should be inserted/updated at"""
+        return extract_uri(self.metadata_dict, self.metadata.consignment_reference)
+
+    @cached_property
+    def best_xml(self):
+        """Either the XML of the document, or the contents of the parser log"""
+        return get_best_xml(
+            self.uri,
+            self.tar_file,
+            self.metadata.xml_file_name,
+            self.metadata.consignment_reference,
+        )
 
 
 def all_messages(event) -> List[Message]:

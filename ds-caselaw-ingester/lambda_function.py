@@ -42,7 +42,39 @@ class Metadata(object):
 
     @property
     def force_publish(self):
-        return self.parameters.get("INGESTER_OPTIONS", {}).get("auto_publish", False)
+        return bool(
+            self.parameters.get("INGESTER_OPTIONS", {}).get("auto_publish", False)
+        )
+
+    @property
+    def consignment_reference(self):
+        return self.metadata["parameters"]["TRE"]["reference"]
+
+    @property
+    def xml_file_name(self):
+        return self.metadata["parameters"]["TRE"]["payload"]["xml"]
+
+    @property
+    def image_list(self):
+        return self.metadata["parameters"]["TRE"]["payload"]["images"]
+
+    @property
+    def raw_uri(self):
+        """Can be none where the document was not correctly parsed"""
+        return self.metadata["parameters"]["PARSER"].get("uri")
+
+    def extract_uri(self) -> str:
+        """The target URI in Marklogic. Could be a failure URI."""
+        uri = None
+        if self.raw_uri:
+            uri = self.raw_uri.replace(
+                "https://caselaw.nationalarchives.gov.uk/id/", ""
+            )
+
+        if not uri:
+            uri = f"failures/{self.consignment_reference}"
+
+        return uri
 
 
 class Message(object):

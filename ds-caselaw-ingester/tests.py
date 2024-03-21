@@ -267,6 +267,11 @@ class TestLambda:
             == "judgment.docx"
         )
 
+    def test_extract_docx_filename_no_docx_provided(self):
+        """Reparsed documents do not have a docx file and have the metadata set to None"""
+        metadata = {"parameters": {"TRE": {"payload": {"filename": None}}}}
+        assert lambda_function.extract_docx_filename(metadata, "anything") is None
+
     def test_extract_docx_filename_failure(self):
         metadata = {"parameters": {"TRE": {"payload": {}}}}
         with pytest.raises(lambda_function.DocxFilenameNotFoundException):

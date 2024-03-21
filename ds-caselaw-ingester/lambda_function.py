@@ -510,13 +510,15 @@ def process_message(message):
 
     # Store docx and rename
     docx_filename = extract_docx_filename(metadata, consignment_reference)
-    copy_file(
-        tar,
-        f"{consignment_reference}/{docx_filename}",
-        f'{uri.replace("/", "_")}.docx',
-        uri,
-        s3_client,
-    )
+    # The docx_filename is None for files which have been reparsed.
+    if docx_filename is None:
+        copy_file(
+            tar,
+            f"{consignment_reference}/{docx_filename}",
+            f'{uri.replace("/", "_")}.docx',
+            uri,
+            s3_client,
+        )
 
     # Store parser log
     try:

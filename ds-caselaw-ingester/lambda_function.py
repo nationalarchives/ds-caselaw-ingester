@@ -510,8 +510,9 @@ def process_message(message):
 
     # Store docx and rename
     docx_filename = extract_docx_filename(metadata, consignment_reference)
+    print(f"extracted docx filename is {docx_filename!r}")
     # The docx_filename is None for files which have been reparsed.
-    if docx_filename is None:
+    if docx_filename is not None:
         copy_file(
             tar,
             f"{consignment_reference}/{docx_filename}",

@@ -159,6 +159,16 @@ class DocumentInsertionError(ReportableException):
     pass
 
 
+def modify_filename(original: str, addition: str) -> str:
+    "Add an addition after the filename, so TRE-2024-A.tar.gz becomes TRE-2024-A_nodocx.tar.gz"
+    path, basename = os.path.split(original)
+    # dot will be an empty string if there is no dot in the filename.
+    # prefix will be everything upto and not including the first dot.
+    prefix, dot, suffix = basename.partition(".")
+    new_basename = f"{prefix}{addition}{dot}{suffix}"
+    return os.path.join(path, new_basename)
+
+
 def all_messages(event) -> List[Message]:
     """All the messages in the SNS event, as Message subclasses"""
     decoder = json.decoder.JSONDecoder()
@@ -505,12 +515,23 @@ def process_message(message):
     if has_TDR_data:
         store_metadata(uri, metadata)
 
-    # Copy original tarfile
-    store_file(open(filename, mode="rb"), uri, os.path.basename(filename), s3_client)
-
-    # Store docx and rename
+    # Determine if there's a word document -- we need to know before we save the tar.gz file
     docx_filename = extract_docx_filename(metadata, consignment_reference)
     print(f"extracted docx filename is {docx_filename!r}")
+
+    # Copy original tarfile
+    modified_targz_filename = (
+        filename if docx_filename else modify_filename(filename, "_nodocx")
+    )
+    store_file(
+        open(modified_targz_filename, mode="rb"),
+        uri,
+        os.path.basename(filename),
+        s3_client,
+    )
+    print(f"saved tar.gz as {modified_targz_filename!r}")
+
+    # Store docx and rename
     # The docx_filename is None for files which have been reparsed.
     if docx_filename is not None:
         copy_file(

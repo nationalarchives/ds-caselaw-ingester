@@ -81,8 +81,10 @@ class TestHandler:
     @patch("lambda_function.send_updated_judgment_notification")
     @patch("lambda_function.send_new_judgment_notification")
     @patch("lambda_function.VersionAnnotation")
+    @patch("lambda_function.modify_filename")
     def test_handler_messages_v2(
         self,
+        modify_filename,
         annotation,
         notify_new,
         notify_update,
@@ -114,6 +116,8 @@ class TestHandler:
         notify_update.assert_called()
         assert notify_update.call_count == 2
         notify_new.assert_not_called()
+        modify_filename.assert_not_called()
+
         annotation.assert_called_with(
             ANY,
             automated=False,
@@ -127,8 +131,10 @@ class TestHandler:
     @patch("lambda_function.send_new_judgment_notification")
     @patch("lambda_function.send_updated_judgment_notification")
     @patch("lambda_function.VersionAnnotation")
+    @patch("lambda_function.modify_filename")
     def test_handler_messages_s3(
         self,
+        modify_filename,
         annotation,
         notify_new,
         notify_updated,
@@ -161,6 +167,7 @@ class TestHandler:
         assert apiclient.set_published.call_count == 2
         notify_new.assert_not_called()
         notify_updated.assert_not_called()
+        modify_filename.assert_not_called()
         annotation.assert_called_with(
             ANY,
             automated=True,
@@ -820,3 +827,18 @@ class TestLambda:
         mock_s3_client.download_file.assert_called_with(
             ANY, "2010 Reported/[2010]/1.tar.gz", ANY
         )
+
+
+modify_filename_data = [
+    ["TRE-2023-XYZ.tar.gz", "TRE-2023-XYZ_.tar.gz"],
+    ["/a/b/c.d.e", "/a/b/c_.d.e"],
+    [
+        "",
+        "_",
+    ],
+]
+
+
+@pytest.mark.parametrize("was, now", modify_filename_data)
+def test_modify_targz_filename(was, now):
+    assert lambda_function.modify_filename(was, addition="_") == now

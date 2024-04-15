@@ -9,3 +9,4 @@ notifications-python-client~=9.0
 mypy-boto3-s3
 mypy-boto3-sns
 python-dotenv
+sqids

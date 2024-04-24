@@ -524,9 +524,9 @@ def process_message(message):
         filename if docx_filename else modify_filename(filename, "_nodocx")
     )
     store_file(
-        open(modified_targz_filename, mode="rb"),
+        open(filename, mode="rb"),
         uri,
-        os.path.basename(filename),
+        os.path.basename(modified_targz_filename),
         s3_client,
     )
     print(f"saved tar.gz as {modified_targz_filename!r}")

@@ -65,12 +65,27 @@ class Message(object):
     def __init__(self, message):
         self.message = message
 
+    @property
+    def originator(self):
+        # potential values are:
+        # Original message from TDR: 'TDR'
+        # Reparse message from FCL: 'FCL'
+        # Bulk parse message from FCL: 'FCL S3'
+        raise NotImplementedError("Bare Message objects do not have an originator")
+
     def update_consignment_reference(self, new_ref):
         """In most cases we trust we already have the correct consignment reference"""
         return
 
 
 class V2Message(Message):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    @property
+    def originator(self):
+        return self.message.get("parameters", {}).get("originator")
+
     def get_consignment_reference(self):
         """A strange quirk: the consignment reference we recieve from the V2 message is
         of the form TDR-2000-123, but the consignment reference inside the document is
@@ -100,6 +115,10 @@ class S3Message(V2Message):
     def __init__(self, *args, **kwargs):
         self._consignment = None
         super().__init__(*args, **kwargs)
+
+    @property
+    def originator(self):
+        return "FCL S3"
 
     def get_consignment_reference(self):
         """We use the filename as a first draft of the consignment reference,
@@ -492,16 +511,18 @@ def process_message(message):
     inserted = False if updated else insert_document_xml(uri, xml, metadata)
 
     force_publish = Metadata(metadata).force_publish
+    notify_editors = message.originator not in ["FCL"]
 
     if updated:
         # Notify editors that a document has been updated
         if not force_publish:
-            send_updated_judgment_notification(uri, metadata)
+            if notify_editors:
+                send_updated_judgment_notification(uri, metadata)
             unpublish_updated_judgment(uri)
         print(f"Updated judgment xml for {uri}")
     elif inserted:
         # Notify editors that a new document is ready
-        if not force_publish:
+        if not force_publish and notify_editors:
             send_new_judgment_notification(uri, metadata)
         print(f"Inserted judgment xml for {uri}")
     else:

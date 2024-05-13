@@ -40,7 +40,7 @@ v2_message_raw = """
         "parameters": {
             "status": "JUDGMENT_PARSE_NO_ERRORS",
             "reference": "TDR-2022-DNWR",
-            "originator": "FCL",
+            "originator": "TDR",
             "bundleFileURI": "http://172.17.0.2:4566/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
             "metadataFilePath": "/metadata.json",
             "metadataFileType": "Json"

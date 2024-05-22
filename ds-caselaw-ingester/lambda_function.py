@@ -54,7 +54,7 @@ class Message(object):
         return cls.from_message(message)
 
     @classmethod
-    def from_message(cls, message):
+    def from_message(cls, message: dict):
         if message.get("Records", [{}])[0].get("eventSource") == "aws:s3":
             return S3Message(message["Records"][0])
         elif "parameters" in message.keys():
@@ -76,6 +76,9 @@ class Message(object):
     def update_consignment_reference(self, new_ref):
         """In most cases we trust we already have the correct consignment reference"""
         return
+
+    def get_consignment_reference(*args, **kwargs):
+        raise NotImplementedError("defer to subclasses")
 
 
 class V2Message(Message):
@@ -384,9 +387,13 @@ def aws_clients():
 
 
 class Ingest:
-    def __init__(self, message):
+    @classmethod
+    def from_message_dict(cls, message_dict: dict):
+        return Ingest(Message.from_message(message_dict))
 
-        self.message = Message.from_message(message)
+    def __init__(self, message: Message):
+        assert isinstance(message, Message), type(message)
+        self.message = message
         self.consignment_reference = self.message.get_consignment_reference()
         print(f"Ingester Start: Consignment reference {self.consignment_reference}")
         print(f"Received Message: {self.message.message}")
@@ -582,7 +589,6 @@ def process_message(message):
     """This is the core function -- take a message and ingest the referred-to contents"""
 
     sqs_client, s3_client = aws_clients()
-
     ingest = Ingest(message)
 
     # Extract and parse the judgment XML

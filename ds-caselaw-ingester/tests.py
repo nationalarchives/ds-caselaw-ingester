@@ -8,6 +8,7 @@ from unittest.mock import ANY, MagicMock, call, patch
 import boto3
 import lambda_function
 import pytest
+import rollbar
 from botocore.exceptions import NoCredentialsError
 from callee import Contains
 from caselawclient.Client import (
@@ -16,6 +17,7 @@ from caselawclient.Client import (
 )
 from notifications_python_client.notifications import NotificationsAPIClient
 
+rollbar.init(access_token=None, enabled=False)
 TDR_TARBALL_PATH = os.path.join(
     os.path.dirname(__file__),
     "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",

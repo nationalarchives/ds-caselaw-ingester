@@ -375,6 +375,7 @@ def aws_clients():
         )
         sqs_client = session.client("sqs", endpoint_url=os.getenv("AWS_ENDPOINT_URL"))
         s3_client = session.client("s3", endpoint_url=os.getenv("AWS_ENDPOINT_URL"))
+
     else:
         session = boto3.session.Session()
         sqs_client = session.client("sqs")
@@ -385,12 +386,11 @@ def aws_clients():
 class Ingest:
     def __init__(self, message):
 
-        sqs_client, s3_client = aws_clients()
-        self.consignment_reference = message.get_consignment_reference()
+        self.message = Message.from_message(message)
+        self.consignment_reference = self.message.get_consignment_reference()
         print(f"Ingester Start: Consignment reference {self.consignment_reference}")
-        print(f"Received Message: {message.message}")
-        self.message = message
-        self.local_tar_filename = message.save_s3_response(sqs_client, s3_client)
+        print(f"Received Message: {self.message.message}")
+        self.local_tar_filename = self.save_tar_file_in_s3()
         self.tar = tarfile.open(self.local_tar_filename, mode="r")
         self.metadata = extract_metadata(self.tar, self.consignment_reference)
         self.message.update_consignment_reference(
@@ -403,6 +403,12 @@ class Ingest:
         self.xml = get_best_xml(
             self.uri, self.tar, self.xml_file_name, self.consignment_reference
         )
+
+    def save_tar_file_in_s3(self):
+        """This should be mocked out for testing -- get the tar file from S3 and
+        save locally, returning the filename it was saved at"""
+        sqs_client, s3_client = aws_clients()
+        return self.message.save_s3_response(sqs_client, s3_client)
 
     def update_document_xml(self) -> bool:
         if self.metadata_object.is_tdr:

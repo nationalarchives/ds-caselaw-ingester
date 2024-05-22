@@ -75,7 +75,17 @@ def create_fake_bulk_file(*args, **kwargs):
     shutil.copyfile(BULK_TARBALL_PATH, "/tmp/BULK-0.tar.gz")
 
 
+@pytest.fixture
+@patch("lambda_function.Ingest.save_tar_file_in_s3", return_value="FAKE")
+def an_ingest(fake_s3):
+    return lambda_function.Ingest(v2_message)
+
+
 class TestHandler:
+
+    def test_foo(self, an_ingest):
+        assert an_ingest == 7
+
     @patch("lambda_function.api_client", autospec=True)
     @patch("lambda_function.boto3.session.Session")
     @patch("lambda_function.send_updated_judgment_notification")

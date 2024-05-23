@@ -135,7 +135,7 @@ class TestHandler:
         assert "Updated judgment xml" in log
         assert "Upload Successful" in log
         assert "Ingestion complete" in log
-        assert "auto_publish" not in log
+        assert "publishing" not in log
         assert "Invalid XML file" not in log
         assert "No XML file found" not in log
         assert "image1.png" in log
@@ -186,7 +186,7 @@ class TestHandler:
         assert "Updated judgment xml" in log
         assert "Upload Successful" in log
         assert "Ingestion complete" in log
-        assert "auto_publish" in log
+        assert "publishing" in log
         assert "Invalid XML file" not in log
         assert "No XML file found" not in log
         apiclient.set_published.assert_called_with("ukut/iac/2012/82", True)

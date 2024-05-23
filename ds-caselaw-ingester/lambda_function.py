@@ -492,6 +492,10 @@ class Ingest:
             f'Sent new notification to {os.getenv("NOTIFY_EDITORIAL_ADDRESS")} (Message ID: {response["id"]})'
         )
 
+    def send_bulk_judgment_notification(self) -> None:
+        """TODO"""
+        pass
+
     def unpublish_updated_judgment(self) -> None:
         api_client.set_published(self.uri, False)
 
@@ -581,8 +585,57 @@ class Ingest:
     def metadata_object(self):
         return Metadata(self.metadata)
 
+    def will_publish(self) -> bool:
+        originator = self.message.originator
+        # TDR
+        if originator == "TDR":
+            return False
+
+        # Bulk
+        if originator == "FCL S3":
+            return self.metadata_object.force_publish is True
+
+        # reparse
+        if originator == "FCL":
+            return api_client.get_published(self.uri) is True
+
+        raise RuntimeError(f"Didn't recognise originator {originator!r}")
+
+    def send_email(self):
+        originator = self.message.originator
+        if originator == "FCL":
+            return None
+
+        if originator == "FCL S3":
+            return (
+                None
+                if self.metadata_object.force_publish
+                else self.send_bulk_judgment_notification()
+            )
+
+        if originator == "TDR":
+            return (
+                self.send_new_judgment_notification()
+                if self.inserted
+                else self.send_updated_judgment_notification()
+            )
+
+        raise RuntimeError(f"Didn't recognise originator {originator!r}")
+
     def close_tar(self):
         self.tar.close()
+
+    def upload_xml(self):
+        self.updated = self.update_document_xml()
+        self.inserted = False if self.updated else self.insert_document_xml()
+        if not self.updated and not self.inserted:
+            raise DocumentInsertionError(
+                f"Judgment {self.uri} failed to insert into Marklogic. Consignment Ref: {self.consignment_reference}"
+            )
+
+    @property
+    def upload_state(self):
+        return "updated" if self.updated else "inserted"
 
 
 def process_message(message):
@@ -592,29 +645,10 @@ def process_message(message):
     ingest = Ingest(message)
 
     # Extract and parse the judgment XML
+    ingest.upload_xml()
+    print(f"{ingest.upload_state.title()} judgment xml for {ingest.uri}")
 
-    updated = ingest.update_document_xml()
-    inserted = False if updated else ingest.insert_document_xml()
-
-    force_publish = ingest.metadata_object.force_publish
-    notify_editors = message.originator not in ["FCL"]
-
-    if updated:
-        # Notify editors that a document has been updated
-        if not force_publish:
-            if notify_editors:
-                ingest.send_updated_judgment_notification()
-            ingest.unpublish_updated_judgment()
-        print(f"Updated judgment xml for {ingest.uri}")
-    elif inserted:
-        # Notify editors that a new document is ready
-        if not force_publish and notify_editors:
-            ingest.send_new_judgment_notification()
-        print(f"Inserted judgment xml for {ingest.uri}")
-    else:
-        raise DocumentInsertionError(
-            f"Judgment {ingest.uri} failed to insert into Marklogic. Consignment Ref: {ingest.consignment_reference}"
-        )
+    ingest.send_email()
 
     # Store metadata in Marklogic
     has_TDR_data = "TDR" in ingest.metadata["parameters"].keys()
@@ -624,12 +658,12 @@ def process_message(message):
     # save files to S3
     ingest.save_files_to_s3()
 
-    if force_publish is True:
-        print(f"auto_publishing {ingest.consignment_reference} at {ingest.uri}")
+    if ingest.will_publish():
+        print(f"publishing {ingest.consignment_reference} at {ingest.uri}")
         api_client.set_published(ingest.uri, True)
-
-    if api_client.get_published(ingest.uri) or force_publish:
         update_published_documents(ingest.uri, s3_client)
+    else:
+        ingest.unpublish_updated_judgment()
 
     ingest.close_tar()
 

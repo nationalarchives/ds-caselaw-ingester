@@ -2,7 +2,7 @@
 
 ## Changes in this PR:
 
-## Trello card / Rollbar error (etc)
+## Jira card / Rollbar error (etc)
 
 <!-- Have you updated the changelog? -->
 

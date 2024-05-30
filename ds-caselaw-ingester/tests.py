@@ -824,16 +824,64 @@ class TestPublicationLogic:
         assert fcl_ingest.will_publish() is True
 
 
-def test_v2_ingest_publish_email(v2_ingest):
-    v2_ingest.inserted = False
-    v2_ingest.updated = True
+class TestEmailLogic:
+    def test_v2_ingest_publish_email_update(self, v2_ingest):
+        v2_ingest.inserted = False
+        v2_ingest.updated = True
 
-    v2_ingest.send_updated_judgment_notification = MagicMock()
-    v2_ingest.send_new_judgment_notification = MagicMock()
-    v2_ingest.send_bulk_judgment_notification = MagicMock()
-    # A standard TDR package will not publish automatically
-    assert not v2_ingest.will_publish()
-    v2_ingest.send_email()
-    v2_ingest.send_updated_judgment_notification.assert_called()
-    v2_ingest.send_new_judgment_notification.assert_not_called()
-    v2_ingest.send_bulk_judgment_notification.assert_not_called()
+        v2_ingest.send_updated_judgment_notification = MagicMock()
+        v2_ingest.send_new_judgment_notification = MagicMock()
+        v2_ingest.send_bulk_judgment_notification = MagicMock()
+        v2_ingest.send_email()
+        v2_ingest.send_updated_judgment_notification.assert_called()
+        v2_ingest.send_new_judgment_notification.assert_not_called()
+        v2_ingest.send_bulk_judgment_notification.assert_not_called()
+
+    def test_v2_ingest_publish_email_insert(self, v2_ingest):
+        v2_ingest.inserted = True
+        v2_ingest.updated = False
+
+        v2_ingest.send_updated_judgment_notification = MagicMock()
+        v2_ingest.send_new_judgment_notification = MagicMock()
+        v2_ingest.send_bulk_judgment_notification = MagicMock()
+        v2_ingest.send_email()
+        v2_ingest.send_updated_judgment_notification.assert_not_called()
+        v2_ingest.send_new_judgment_notification.assert_called()
+        v2_ingest.send_bulk_judgment_notification.assert_not_called()
+
+    def test_fcl_ingest_no_email(self, fcl_ingest):
+        v2_ingest.inserted = True
+        v2_ingest.updated = False
+        fcl_ingest.send_updated_judgment_notification = MagicMock()
+        fcl_ingest.send_new_judgment_notification = MagicMock()
+        fcl_ingest.send_bulk_judgment_notification = MagicMock()
+        fcl_ingest.send_email()
+        fcl_ingest.send_updated_judgment_notification.assert_not_called()
+        fcl_ingest.send_new_judgment_notification.assert_not_called()
+        fcl_ingest.send_bulk_judgment_notification.assert_not_called()
+
+    def test_s3_ingest_no_email_if_publish(self, s3_ingest):
+        with patch(
+            "lambda_function.Metadata.force_publish", new_callable=PropertyMock
+        ) as mock:
+            mock.return_value = True
+            s3_ingest.send_updated_judgment_notification = MagicMock()
+            s3_ingest.send_new_judgment_notification = MagicMock()
+            s3_ingest.send_bulk_judgment_notification = MagicMock()
+            s3_ingest.send_email()
+            s3_ingest.send_updated_judgment_notification.assert_not_called()
+            s3_ingest.send_new_judgment_notification.assert_not_called()
+            s3_ingest.send_bulk_judgment_notification.assert_not_called()
+
+    def test_s3_ingest_email_if_not_publish(self, s3_ingest):
+        with patch(
+            "lambda_function.Metadata.force_publish", new_callable=PropertyMock
+        ) as mock:
+            mock.return_value = False
+            s3_ingest.send_updated_judgment_notification = MagicMock()
+            s3_ingest.send_new_judgment_notification = MagicMock()
+            s3_ingest.send_bulk_judgment_notification = MagicMock()
+            s3_ingest.send_email()
+            s3_ingest.send_updated_judgment_notification.assert_not_called()
+            s3_ingest.send_new_judgment_notification.assert_not_called()
+            s3_ingest.send_bulk_judgment_notification.assert_called()

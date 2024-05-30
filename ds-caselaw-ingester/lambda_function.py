@@ -493,7 +493,7 @@ class Ingest:
         )
 
     def send_bulk_judgment_notification(self) -> None:
-        """TODO"""
+        # Not yet implemented. We currently only autopublish judgments sent in bulk.
         pass
 
     def unpublish_updated_judgment(self) -> None:

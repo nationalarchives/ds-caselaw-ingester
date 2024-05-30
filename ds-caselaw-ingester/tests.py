@@ -4,7 +4,7 @@ import os
 import shutil
 import tarfile
 import xml.etree.ElementTree as ET
-from unittest.mock import ANY, MagicMock, call, patch
+from unittest.mock import ANY, MagicMock, PropertyMock, call, patch
 
 import boto3
 import lambda_function
@@ -93,6 +93,19 @@ def v2_ingest(fake_s3):
 def s3_ingest(fake_s3):
     create_fake_bulk_file()
     return lambda_function.Ingest.from_message_dict(s3_message)
+
+
+@pytest.fixture
+@patch(
+    "lambda_function.Ingest.save_tar_file_in_s3",
+    return_value="/tmp/TDR-2022-DNWR.tar.gz",
+)
+def fcl_ingest(fake_s3):
+    "Fake a FCL reparse message (badly)"
+    new_message = copy.deepcopy(v2_message)
+    new_message["parameters"]["originator"] = "FCL"
+
+    return lambda_function.Ingest.from_message_dict(new_message)
 
 
 class TestHandler:
@@ -786,3 +799,41 @@ modify_filename_data = [
 @pytest.mark.parametrize("was, now", modify_filename_data)
 def test_modify_targz_filename(was, now):
     assert lambda_function.modify_filename(was, addition="_") == now
+
+
+class TestPublicationLogic:
+    def test_v2_ingest_publish(self, v2_ingest):
+        assert v2_ingest.will_publish() is False
+
+    def test_s3_ingest_publish(self, s3_ingest):
+        assert s3_ingest.will_publish() is True
+
+    def test_s3_ingest_publish_no_force_publish(self, s3_ingest):
+        with patch(
+            "lambda_function.Metadata.force_publish", new_callable=PropertyMock
+        ) as mock:
+            mock.return_value = False
+            assert s3_ingest.will_publish() is False
+
+    @patch("lambda_function.api_client.get_published", return_value=False)
+    def test_fcl_not_published_if_not_published(self, get_published, fcl_ingest):
+        assert fcl_ingest.will_publish() is False
+
+    @patch("lambda_function.api_client.get_published", return_value=True)
+    def test_fcl_published_if_published(self, get_published, fcl_ingest):
+        assert fcl_ingest.will_publish() is True
+
+
+def test_v2_ingest_publish_email(v2_ingest):
+    v2_ingest.inserted = False
+    v2_ingest.updated = True
+
+    v2_ingest.send_updated_judgment_notification = MagicMock()
+    v2_ingest.send_new_judgment_notification = MagicMock()
+    v2_ingest.send_bulk_judgment_notification = MagicMock()
+    # A standard TDR package will not publish automatically
+    assert not v2_ingest.will_publish()
+    v2_ingest.send_email()
+    v2_ingest.send_updated_judgment_notification.assert_called()
+    v2_ingest.send_new_judgment_notification.assert_not_called()
+    v2_ingest.send_bulk_judgment_notification.assert_not_called()

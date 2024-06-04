@@ -392,7 +392,6 @@ class Ingest:
         return Ingest(Message.from_message(message_dict))
 
     def __init__(self, message: Message):
-        assert isinstance(message, Message), type(message)
         self.message = message
         self.consignment_reference = self.message.get_consignment_reference()
         print(f"Ingester Start: Consignment reference {self.consignment_reference}")

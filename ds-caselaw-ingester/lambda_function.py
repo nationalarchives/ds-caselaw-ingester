@@ -16,6 +16,8 @@ from caselawclient.Client import (
     MarklogicResourceNotFoundError,
 )
 from caselawclient.client_helpers import VersionAnnotation, VersionType
+from caselawclient.errors import DocumentNotFoundError
+from caselawclient.models.documents import Document
 from dotenv import load_dotenv
 from notifications_python_client.notifications import NotificationsAPIClient
 
@@ -156,6 +158,10 @@ class InvalidMessageException(ReportableException):
 
 
 class DocumentInsertionError(ReportableException):
+    pass
+
+
+class ErrorLogWouldOverwritePublishedDocument(ReportableException):
     pass
 
 
@@ -487,6 +493,22 @@ def process_message(message):
     uri = extract_uri(metadata, consignment_reference)
     print(f"Ingesting document {uri}")
     xml = get_best_xml(uri, tar, xml_file_name, consignment_reference)
+    is_akoma = xml.tag == "{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}akomaNtoso"
+
+    try:
+        target_published = Document(uri, api_client).get_published()
+    except DocumentNotFoundError:  # the target does not exist
+        target_published = False
+
+    # forbid publication if it's a parser error log
+    # allow publication if it's looks like an akoma ntosa document
+    allow_publish = is_akoma
+
+    if target_published and not allow_publish:
+        """Do not publish: there is an existing published document, and we do not have a real document"""
+        raise ErrorLogWouldOverwritePublishedDocument(
+            f"XML for {uri} is a {xml.tag}; a published document already exists there."
+        )
 
     updated = update_document_xml(uri, xml, metadata)
     inserted = False if updated else insert_document_xml(uri, xml, metadata)
@@ -562,12 +584,12 @@ def process_message(message):
                 s3_client,
             )
 
-    force_publish = Metadata(metadata).force_publish
-    if force_publish is True:
+    actually_publish = Metadata(metadata).force_publish and allow_publish
+    if actually_publish is True:
         print(f"auto_publishing {consignment_reference} at {uri}")
         api_client.set_published(uri, True)
 
-    if api_client.get_published(uri) or force_publish:
+    if api_client.get_published(uri) or actually_publish:
         update_published_documents(uri, s3_client)
 
     tar.close()

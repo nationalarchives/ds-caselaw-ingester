@@ -181,6 +181,10 @@ class DocumentInsertionError(ReportableException):
     pass
 
 
+class ErrorLogWouldOverwritePublishedDocument(ReportableException):
+    pass
+
+
 def modify_filename(original: str, addition: str) -> str:
     "Add an addition after the filename, so TRE-2024-A.tar.gz becomes TRE-2024-A_nodocx.tar.gz"
     path, basename = os.path.split(original)

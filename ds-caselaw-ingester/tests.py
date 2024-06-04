@@ -78,6 +78,17 @@ def create_fake_bulk_file(*args, **kwargs):
     shutil.copyfile(BULK_TARBALL_PATH, "/tmp/BULK-0.tar.gz")
 
 
+def assert_log_sensible(log):
+    assert "Ingester Start: Consignment reference" in log
+    assert "tar.gz saved locally as" in log
+    assert "Ingesting document" in log
+    assert "Updated judgment xml" in log
+    assert "Upload Successful" in log
+    assert "Ingestion complete" in log
+    assert "Invalid XML file" not in log
+    assert "No XML file found" not in log
+
+
 @pytest.fixture
 @patch(
     "lambda_function.Ingest.save_tar_file_in_s3",
@@ -131,6 +142,7 @@ class TestHandler:
         apiclient,
         capsys,
     ):
+
         boto_session.return_value.client.return_value.download_file = (
             create_fake_tdr_file
         )
@@ -142,15 +154,8 @@ class TestHandler:
         lambda_function.handler(event=event, context=None)
 
         log = capsys.readouterr().out
-        assert "Ingester Start: Consignment reference TDR-2022-DNWR" in log
-        assert "tar.gz saved locally as /tmp/TDR-2022-DNWR.tar.gz" in log
-        assert "Ingesting document" in log
-        assert "Updated judgment xml" in log
-        assert "Upload Successful" in log
-        assert "Ingestion complete" in log
+        assert_log_sensible(log)
         assert "publishing" not in log
-        assert "Invalid XML file" not in log
-        assert "No XML file found" not in log
         assert "image1.png" in log
         notify_update.assert_called()
         assert notify_update.call_count == 2

@@ -17,7 +17,6 @@ from caselawclient.Client import (
 )
 from caselawclient.client_helpers import VersionAnnotation, VersionType
 from caselawclient.errors import DocumentNotFoundError
-from caselawclient.models.documents import Document
 from dotenv import load_dotenv
 from notifications_python_client.notifications import NotificationsAPIClient
 
@@ -496,7 +495,7 @@ def process_message(message):
     is_akoma = xml.tag == "{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}akomaNtoso"
 
     try:
-        target_published = Document(uri, api_client).get_published()
+        target_published = api_client.get_published(uri)
     except DocumentNotFoundError:  # the target does not exist
         target_published = False
 

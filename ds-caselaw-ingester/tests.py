@@ -1,13 +1,15 @@
+import copy
 import json
 import os
 import shutil
 import tarfile
 import xml.etree.ElementTree as ET
-from unittest.mock import ANY, MagicMock, call, patch
+from unittest.mock import ANY, MagicMock, PropertyMock, call, patch
 
 import boto3
 import lambda_function
 import pytest
+import rollbar
 from botocore.exceptions import NoCredentialsError
 from callee import Contains
 from caselawclient.Client import (
@@ -16,6 +18,7 @@ from caselawclient.Client import (
 )
 from notifications_python_client.notifications import NotificationsAPIClient
 
+rollbar.init(access_token=None, enabled=False)
 TDR_TARBALL_PATH = os.path.join(
     os.path.dirname(__file__),
     "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
@@ -40,7 +43,7 @@ v2_message_raw = """
         "parameters": {
             "status": "JUDGMENT_PARSE_NO_ERRORS",
             "reference": "TDR-2022-DNWR",
-            "originator": "FCL",
+            "originator": "TDR",
             "bundleFileURI": "http://172.17.0.2:4566/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
             "metadataFilePath": "/metadata.json",
             "metadataFileType": "Json"
@@ -86,17 +89,51 @@ def assert_log_sensible(log):
     assert "No XML file found" not in log
 
 
+@pytest.fixture
+@patch(
+    "lambda_function.Ingest.save_tar_file_in_s3",
+    return_value="/tmp/TDR-2022-DNWR.tar.gz",
+)
+def v2_ingest(fake_s3):
+    create_fake_tdr_file()
+    return lambda_function.Ingest.from_message_dict(v2_message)
+
+
+@pytest.fixture
+@patch("lambda_function.Ingest.save_tar_file_in_s3", return_value="/tmp/BULK-0.tar.gz")
+def s3_ingest(fake_s3):
+    create_fake_bulk_file()
+    return lambda_function.Ingest.from_message_dict(s3_message)
+
+
+@pytest.fixture
+@patch(
+    "lambda_function.Ingest.save_tar_file_in_s3",
+    return_value="/tmp/TDR-2022-DNWR.tar.gz",
+)
+def fcl_ingest(fake_s3):
+    "Fake a FCL reparse message (badly)"
+    new_message = copy.deepcopy(v2_message)
+    new_message["parameters"]["originator"] = "FCL"
+
+    return lambda_function.Ingest.from_message_dict(new_message)
+
+
 class TestHandler:
+
+    def test_fixture_works(self, v2_ingest, s3_ingest):
+        """We get the XML of the data and extract the URI from it successfully using the fixtures"""
+        assert v2_ingest.uri == "ewca/civ/2022/111"
+        assert s3_ingest.uri == "ukut/iac/2012/82"
+
     @patch("lambda_function.api_client", autospec=True)
     @patch("lambda_function.boto3.session.Session")
-    @patch("lambda_function.send_updated_judgment_notification")
-    @patch("lambda_function.send_new_judgment_notification")
+    @patch("lambda_function.Ingest.send_updated_judgment_notification")
+    @patch("lambda_function.Ingest.send_new_judgment_notification")
     @patch("lambda_function.VersionAnnotation")
     @patch("lambda_function.modify_filename")
-    @patch("lambda_function.Document")
     def test_handler_messages_v2(
         self,
-        document,
         modify_filename,
         annotation,
         notify_new,
@@ -106,7 +143,6 @@ class TestHandler:
         capsys,
     ):
 
-        document.return_value.get_published.return_value = False
         boto_session.return_value.client.return_value.download_file = (
             create_fake_tdr_file
         )
@@ -119,7 +155,7 @@ class TestHandler:
 
         log = capsys.readouterr().out
         assert_log_sensible(log)
-        assert "auto_publish" not in log
+        assert "publishing" not in log
         assert "image1.png" in log
         notify_update.assert_called()
         assert notify_update.call_count == 2
@@ -136,14 +172,12 @@ class TestHandler:
 
     @patch("lambda_function.api_client", autospec=True)
     @patch("lambda_function.boto3.session.Session")
-    @patch("lambda_function.send_new_judgment_notification")
-    @patch("lambda_function.send_updated_judgment_notification")
+    @patch("lambda_function.Ingest.send_new_judgment_notification")
+    @patch("lambda_function.Ingest.send_updated_judgment_notification")
     @patch("lambda_function.VersionAnnotation")
     @patch("lambda_function.modify_filename")
-    @patch("lambda_function.Document")
     def test_handler_messages_s3(
         self,
-        document,
         modify_filename,
         annotation,
         notify_new,
@@ -156,7 +190,6 @@ class TestHandler:
         boto_session.return_value.client.return_value.download_file = (
             create_fake_bulk_file
         )
-        document.return_value.get_published.return_value = False
 
         message = s3_message_raw
         event = {
@@ -165,7 +198,15 @@ class TestHandler:
         lambda_function.handler(event=event, context=None)
 
         log = capsys.readouterr().out
-        assert "auto_publish" in log
+        assert "Ingester Start: Consignment reference BULK-0" in log
+        assert "tar.gz saved locally as /tmp/BULK-0.tar.gz" in log
+        assert "Ingesting document" in log
+        assert "Updated judgment xml" in log
+        assert "Upload Successful" in log
+        assert "Ingestion complete" in log
+        assert "publishing" in log
+        assert "Invalid XML file" not in log
+        assert "No XML file found" not in log
         apiclient.set_published.assert_called_with("ukut/iac/2012/82", True)
         assert apiclient.set_published.call_count == 2
         notify_new.assert_not_called()
@@ -288,8 +329,8 @@ class TestLambda:
             lambda_function.extract_docx_filename(metadata, "anything")
 
     @patch("lambda_function.api_client", autospec=True)
-    def test_store_metadata(self, api_client):
-        metadata = {
+    def test_store_metadata(self, api_client, v2_ingest):
+        v2_ingest.metadata = {
             "parameters": {
                 "TDR": {
                     "Source-Organization": "Ministry of Justice",
@@ -300,9 +341,10 @@ class TestLambda:
                 }
             }
         }
+        v2_ingest.uri = "uri"
 
         api_client.set_property = MagicMock()
-        lambda_function.store_metadata("uri", metadata)
+        v2_ingest.store_metadata()
         calls = [
             call("uri", name="source-organisation", value="Ministry of Justice"),
             call("uri", name="source-name", value="Tom King"),
@@ -348,18 +390,8 @@ class TestLambda:
         clear=True,
     )
     @patch("builtins.print")
-    def test_send_new_judgment_notification(self, mock_print):
-        metadata = {
-            "parameters": {
-                "TDR": {
-                    "Source-Organization": "Ministry of Justice",
-                    "Contact-Name": "Tom King",
-                    "Internal-Sender-Identifier": "TDR-2021-CF6L",
-                    "Consignment-Completed-Datetime": "2021-12-16T14:54:06Z",
-                    "Contact-Email": "someone@example.com",
-                }
-            }
-        }
+    def test_send_new_judgment_notification(self, mock_print, v2_ingest):
+        v2_ingest.uri = "ewca/2023/1/press-summary/1"
         expected_personalisation = {
             "url": "http://editor.url/detail?judgment_uri=ewca/2023/1/press-summary/1",
             "consignment": "TDR-2021-CF6L",
@@ -368,9 +400,7 @@ class TestLambda:
             "doctype": "Press Summary",
         }
         NotificationsAPIClient.send_email_notification = MagicMock()
-        lambda_function.send_new_judgment_notification(
-            "ewca/2023/1/press-summary/1", metadata
-        )
+        v2_ingest.send_new_judgment_notification()
         NotificationsAPIClient.send_email_notification.assert_called_with(
             email_address="test@notifications.service.gov.uk",
             template_id="template-id",
@@ -392,8 +422,11 @@ class TestLambda:
         clear=True,
     )
     @patch("builtins.print")
-    def test_send_new_judgment_notification_with_no_tdr_section(self, mock_print):
-        metadata = {}
+    def test_send_new_judgment_notification_with_no_tdr_section(
+        self, mock_print, v2_ingest
+    ):
+        v2_ingest.metadata = {}
+        v2_ingest.uri = "ewca/2023/1/press-summary/1"
         expected_personalisation = {
             "url": "http://editor.url/detail?judgment_uri=ewca/2023/1/press-summary/1",
             "consignment": "unknown",
@@ -402,9 +435,7 @@ class TestLambda:
             "doctype": "Press Summary",
         }
         NotificationsAPIClient.send_email_notification = MagicMock()
-        lambda_function.send_new_judgment_notification(
-            "ewca/2023/1/press-summary/1", metadata
-        )
+        v2_ingest.send_new_judgment_notification()
         NotificationsAPIClient.send_email_notification.assert_called_with(
             email_address="test@notifications.service.gov.uk",
             template_id="template-id",
@@ -420,21 +451,11 @@ class TestLambda:
         clear=True,
     )
     @patch("builtins.print")
-    def test_do_not_send_new_judgment_notification_on_staging(self, mock_print):
-        metadata = {
-            "parameters": {
-                "TDR": {
-                    "Source-Organization": "Ministry of Justice",
-                    "Contact-Name": "Tom King",
-                    "Internal-Sender-Identifier": "TDR-2021-CF6L",
-                    "Consignment-Completed-Datetime": "2021-12-16T14:54:06Z",
-                    "Contact-Email": "someone@example.com",
-                }
-            }
-        }
-
+    def test_do_not_send_new_judgment_notification_on_staging(
+        self, mock_print, v2_ingest
+    ):
         NotificationsAPIClient.send_email_notification = MagicMock()
-        lambda_function.send_new_judgment_notification("uri", metadata)
+        v2_ingest.send_new_judgment_notification()
         NotificationsAPIClient.send_email_notification.assert_not_called()
 
     @patch.dict(
@@ -449,8 +470,9 @@ class TestLambda:
         clear=True,
     )
     @patch("builtins.print")
-    def test_send_updated_judgment_notification(self, mock_print):
-        metadata = {
+    def test_send_updated_judgment_notification(self, mock_print, v2_ingest):
+        v2_ingest.uri = "uri"
+        v2_ingest.metadata = {
             "parameters": {
                 "TDR": {
                     "Source-Organization": "Ministry of Justice",
@@ -468,7 +490,7 @@ class TestLambda:
             "submitted_at": "2021-12-16T14:54:06Z",
         }
         NotificationsAPIClient.send_email_notification = MagicMock()
-        lambda_function.send_updated_judgment_notification("uri", metadata)
+        v2_ingest.send_updated_judgment_notification()
         NotificationsAPIClient.send_email_notification.assert_called_with(
             email_address="test@notifications.service.gov.uk",
             template_id="template-id",
@@ -490,8 +512,11 @@ class TestLambda:
         clear=True,
     )
     @patch("builtins.print")
-    def test_send_updated_judgment_notification_with_no_tdr_section(self, mock_print):
-        metadata = {}
+    def test_send_updated_judgment_notification_with_no_tdr_section(
+        self, mock_print, v2_ingest
+    ):
+        v2_ingest.metadata = {}
+        v2_ingest.uri = "uri"
         expected_personalisation = {
             "url": "http://editor.url/detail?judgment_uri=uri",
             "consignment": "unknown",
@@ -499,7 +524,7 @@ class TestLambda:
             "submitted_at": "unknown",
         }
         NotificationsAPIClient.send_email_notification = MagicMock()
-        lambda_function.send_updated_judgment_notification("uri", metadata)
+        v2_ingest.send_updated_judgment_notification()
         NotificationsAPIClient.send_email_notification.assert_called_with(
             email_address="test@notifications.service.gov.uk",
             template_id="template-id",
@@ -576,13 +601,13 @@ class TestLambda:
         s3_client.copy.assert_has_calls(calls)
 
     def test_get_consignment_reference_success_v2(self):
-        message = v2_message
+        message = copy.deepcopy(v2_message)
         message["parameters"]["reference"] = "THIS_REF"
         result = lambda_function.get_consignment_reference(message)
         assert result == "THIS_REF"
 
     def test_get_consignment_reference_empty_v2(self):
-        message = v2_message
+        message = copy.deepcopy(v2_message)
         message["parameters"]["reference"] = ""
         message["parameters"][
             "bundleFileURI"
@@ -591,7 +616,7 @@ class TestLambda:
             lambda_function.get_consignment_reference(message)
 
     def test_get_consignment_reference_missing_v2(self):
-        message = dict(v2_message)
+        message = copy.deepcopy(v2_message)
         del message["parameters"]["reference"]
         message["parameters"][
             "bundleFileURI"
@@ -600,7 +625,7 @@ class TestLambda:
             lambda_function.get_consignment_reference(message)
 
     def test_get_consignment_reference_presigned_url_v2(self):
-        message = v2_message
+        message = copy.deepcopy(v2_message)
         message["parameters"]["reference"] = ""
         message["parameters"][
             "bundleFileURI"
@@ -614,120 +639,53 @@ class TestLambda:
             lambda_function.get_consignment_reference(message)
 
     @patch("lambda_function.api_client", autospec=True)
-    def test_update_document_xml_success(self, api_client):
-        xml = ET.XML("<xml>Here's some xml</xml>")
+    def test_update_document_xml_success(self, api_client, v2_ingest):
         api_client.get_judgment_xml = MagicMock(return_value=True)
         api_client.update_document_xml = MagicMock(return_value=True)
-        result = lambda_function.update_document_xml(
-            "a/fake/uri",
-            xml,
-            {
-                "parameters": {
-                    "TDR": {
-                        "Internal-Sender-Identifier": "TDR-2023-ABC",
-                        "Contact-Name": "Test Contact",
-                        "Contact-Email": "test@example.com",
-                    }
-                }
-            },
-        )
+        assert v2_ingest.update_document_xml() is True
+
+    @patch("lambda_function.api_client", autospec=True)
+    def test_update_document_xml_success_no_tdr(self, api_client, v2_ingest):
+        api_client.get_judgment_xml = MagicMock(return_value=True)
+        api_client.update_document_xml = MagicMock(return_value=True)
+        v2_ingest.metadata = {"parameters": {}}
+        result = v2_ingest.update_document_xml()
         assert result is True
 
     @patch("lambda_function.api_client", autospec=True)
-    def test_update_document_xml_success_no_tdr(self, api_client):
-        xml = ET.XML("<xml>Here's some xml</xml>")
-        api_client.get_judgment_xml = MagicMock(return_value=True)
-        api_client.update_document_xml = MagicMock(return_value=True)
-        result = lambda_function.update_document_xml(
-            "a/fake/uri",
-            xml,
-            {"parameters": {}},
-        )
-        assert result is True
-
-    @patch("lambda_function.api_client", autospec=True)
-    def test_update_document_xml_judgment_does_not_exist(self, api_client):
-        xml = ET.XML("<xml>Here's some xml</xml>")
+    def test_update_document_xml_judgment_does_not_exist(self, api_client, v2_ingest):
         api_client.get_judgment_xml = MagicMock(
             side_effect=MarklogicResourceNotFoundError("error")
         )
         api_client.update_document_xml = MagicMock(return_value=True)
-        result = lambda_function.update_document_xml(
-            "a/fake/uri",
-            xml,
-            {
-                "parameters": {
-                    "TDR": {
-                        "Internal-Sender-Identifier": "TDR-2023-ABC",
-                        "Contact-Name": "Test Contact",
-                        "Contact-Email": "test@example.com",
-                    }
-                }
-            },
-        )
+        result = v2_ingest.update_document_xml()
         assert result is False
 
     @patch("lambda_function.api_client", autospec=True)
-    def test_update_document_xml_judgment_does_not_save(self, api_client):
-        xml = ET.XML("<xml>Here's some xml</xml>")
+    def test_update_document_xml_judgment_does_not_save(self, api_client, v2_ingest):
         api_client.get_judgment_xml = MagicMock(return_value=True)
         api_client.update_document_xml = MagicMock(
             side_effect=MarklogicCommunicationError("error")
         )
         with pytest.raises(MarklogicCommunicationError):
-            lambda_function.update_document_xml(
-                "a/fake/uri",
-                xml,
-                {
-                    "parameters": {
-                        "TDR": {
-                            "Internal-Sender-Identifier": "TDR-2023-ABC",
-                            "Contact-Name": "Test Contact",
-                            "Contact-Email": "test@example.com",
-                        }
-                    }
-                },
-            )
+            v2_ingest.update_document_xml()
 
     @patch("lambda_function.api_client", autospec=True)
-    def test_insert_document_xml_success(self, api_client):
+    def test_insert_document_xml_success(self, api_client, v2_ingest):
         xml = ET.XML("<xml>Here's some xml</xml>")
         api_client.insert_document_xml = MagicMock(return_value=True)
-        result = lambda_function.insert_document_xml(
-            "a/fake/uri",
-            xml,
-            {
-                "parameters": {
-                    "TDR": {
-                        "Internal-Sender-Identifier": "TDR-2023-ABC",
-                        "Contact-Name": "Test Contact",
-                        "Contact-Email": "test@example.com",
-                    }
-                }
-            },
-        )
+        v2_ingest.uri = "a/fake/uri"
+        v2_ingest.xml = xml
+        result = v2_ingest.insert_document_xml()
         assert result is True
 
     @patch("lambda_function.api_client", autospec=True)
-    def test_insert_document_xml_failure(self, api_client):
-        xml = ET.XML("<xml>Here's some xml</xml>")
+    def test_insert_document_xml_failure(self, api_client, v2_ingest):
         api_client.insert_document_xml = MagicMock(
             side_effect=MarklogicCommunicationError("error")
         )
         with pytest.raises(MarklogicCommunicationError):
-            lambda_function.insert_document_xml(
-                "a/fake/uri",
-                xml,
-                {
-                    "parameters": {
-                        "TDR": {
-                            "Internal-Sender-Identifier": "TDR-2023-ABC",
-                            "Contact-Name": "Test Contact",
-                            "Contact-Email": "test@example.com",
-                        }
-                    }
-                },
-            )
+            v2_ingest.insert_document_xml()
 
     def test_get_best_xml_with_valid_xml_file(self):
         filename = "TDR-2022-DNWR.xml"
@@ -805,10 +763,11 @@ class TestLambda:
             assert result.tag == "error"
 
     @patch("lambda_function.api_client", autospec=True)
-    def test_unpublish_updated_judgment(self, api_client):
+    def test_unpublish_updated_judgment(self, api_client, v2_ingest):
         uri = "a/fake/uri"
         api_client.set_published = MagicMock()
-        lambda_function.unpublish_updated_judgment(uri)
+        v2_ingest.uri = uri
+        v2_ingest.unpublish_updated_judgment()
         api_client.set_published.assert_called_with(uri, False)
 
     def test_user_agent(self):
@@ -845,3 +804,82 @@ modify_filename_data = [
 @pytest.mark.parametrize("was, now", modify_filename_data)
 def test_modify_targz_filename(was, now):
     assert lambda_function.modify_filename(was, addition="_") == now
+
+
+class TestPublicationLogic:
+    def test_v2_ingest_publish(self, v2_ingest):
+        assert v2_ingest.will_publish() is False
+
+    def test_s3_ingest_publish(self, s3_ingest):
+        assert s3_ingest.will_publish() is True
+
+    def test_s3_ingest_publish_no_force_publish(self, s3_ingest):
+        with patch(
+            "lambda_function.Metadata.force_publish", new_callable=PropertyMock
+        ) as mock:
+            mock.return_value = False
+            assert s3_ingest.will_publish() is False
+
+    @patch("lambda_function.api_client.get_published", return_value=False)
+    def test_fcl_not_published_if_not_published(self, get_published, fcl_ingest):
+        assert fcl_ingest.will_publish() is False
+
+    @patch("lambda_function.api_client.get_published", return_value=True)
+    def test_fcl_published_if_published(self, get_published, fcl_ingest):
+        assert fcl_ingest.will_publish() is True
+
+
+@patch("lambda_function.Ingest.send_updated_judgment_notification")
+@patch("lambda_function.Ingest.send_new_judgment_notification")
+@patch("lambda_function.Ingest.send_bulk_judgment_notification")
+class TestEmailLogic:
+    def test_v2_ingest_publish_email_update(self, bulk, new, updated, v2_ingest):
+        v2_ingest.inserted = False
+        v2_ingest.updated = True
+
+        v2_ingest.send_email()
+
+        updated.assert_called()
+        new.assert_not_called()
+        bulk.assert_not_called()
+
+    def test_v2_ingest_publish_email_insert(self, bulk, new, updated, v2_ingest):
+        v2_ingest.inserted = True
+        v2_ingest.updated = False
+
+        v2_ingest.send_email()
+
+        updated.assert_not_called()
+        new.assert_called()
+        bulk.assert_not_called()
+
+    def test_fcl_ingest_no_email(self, bulk, new, updated, fcl_ingest):
+        v2_ingest.inserted = True
+        v2_ingest.updated = False
+        fcl_ingest.send_email()
+
+        updated.assert_not_called()
+        new.assert_not_called()
+        bulk.assert_not_called()
+
+    @patch("lambda_function.Metadata.force_publish", new_callable=PropertyMock)
+    def test_s3_ingest_no_email_if_publish(
+        self, property, bulk, new, updated, s3_ingest
+    ):
+        property.return_value = True
+        s3_ingest.send_email()
+
+        updated.assert_not_called()
+        new.assert_not_called()
+        bulk.assert_not_called()
+
+    @patch("lambda_function.Metadata.force_publish", new_callable=PropertyMock)
+    def test_s3_ingest_email_if_not_publish(
+        self, property, bulk, new, updated, s3_ingest
+    ):
+        property.return_value = False
+        s3_ingest.send_email()
+
+        updated.assert_not_called()
+        new.assert_not_called()
+        bulk.assert_called()

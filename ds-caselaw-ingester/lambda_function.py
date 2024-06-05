@@ -461,7 +461,7 @@ class Ingest:
             )
             return
 
-        notifications_client = NotificationsAPIClient(os.getenv("NOTIFY_API_KEY"))
+        notifications_client = NotificationsAPIClient(os.environ["NOTIFY_API_KEY"])
         response = notifications_client.send_email_notification(
             email_address=os.getenv("NOTIFY_EDITORIAL_ADDRESS"),
             template_id=os.getenv("NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID"),
@@ -485,7 +485,7 @@ class Ingest:
                 f"Would send a notification but we're not in production.\n{personalisation}"
             )
             return
-        notifications_client = NotificationsAPIClient(os.getenv("NOTIFY_API_KEY"))
+        notifications_client = NotificationsAPIClient(os.environ["NOTIFY_API_KEY"])
         response = notifications_client.send_email_notification(
             email_address=os.getenv("NOTIFY_EDITORIAL_ADDRESS"),
             template_id=os.getenv("NOTIFY_NEW_JUDGMENT_TEMPLATE_ID"),

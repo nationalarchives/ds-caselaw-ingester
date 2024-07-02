@@ -11,3 +11,5 @@ dist
 
 tmp
 volume
+
+node_modules/

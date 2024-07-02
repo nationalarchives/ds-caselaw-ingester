@@ -33,9 +33,9 @@ def test_max_value():
 
 def test_hex_truncation():
     """A large hex value works and is the same value as the truncated version"""
-    assert _hex_digest_to_int(
-        "2597c39e63c20d69dc0cb189a88a8ab127c335cdcbf1d9ee43de3f711002de52"
-    ) == _hex_digest_to_int("2597c39e63c2")
+    assert _hex_digest_to_int("2597c39e63c20d69dc0cb189a88a8ab127c335cdcbf1d9ee43de3f711002de52") == _hex_digest_to_int(
+        "2597c39e63c2"
+    )
 
 
 def test_demo_limit_of_truncation(no_hash_limit):

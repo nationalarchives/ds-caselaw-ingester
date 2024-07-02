@@ -198,9 +198,7 @@ def modify_filename(original: str, addition: str) -> str:
 def all_messages(event) -> List[Message]:
     """All the messages in the SNS event, as Message subclasses"""
     decoder = json.decoder.JSONDecoder()
-    messages_as_decoded_json = [
-        decoder.decode(record["Sns"]["Message"]) for record in event["Records"]
-    ]
+    messages_as_decoded_json = [decoder.decode(record["Sns"]["Message"]) for record in event["Records"]]
     return [Message.from_message(message) for message in messages_as_decoded_json]
 
 
@@ -221,9 +219,7 @@ def extract_metadata(tar: tarfile.TarFile, consignment_reference: str):
             te_metadata_file = tar.extractfile(member)
 
     if te_metadata_file is None:
-        raise FileNotFoundException(
-            f"Metadata file not found. Consignment Ref: {consignment_reference}"
-        )
+        raise FileNotFoundException(f"Metadata file not found. Consignment Ref: {consignment_reference}")
     return decoder.decode(te_metadata_file.read().decode("utf-8"))
 
 
@@ -293,9 +289,7 @@ def copy_file(tarfile, input_filename, output_filename, uri, s3_client: Session.
         file = tarfile.extractfile(input_filename)
         store_file(file, uri, output_filename, s3_client)
     except KeyError:
-        raise FileNotFoundException(
-            f"File was not found: {input_filename}, files were {tarfile.getnames()} "
-        )
+        raise FileNotFoundException(f"File was not found: {input_filename}, files were {tarfile.getnames()} ")
 
 
 def create_parser_log_xml(tar):
@@ -336,9 +330,7 @@ def _build_version_annotation_payload_from_metadata(metadata: dict):
     }
 
     if "TDR" in metadata["parameters"]:
-        payload["tdr_reference"] = metadata["parameters"]["TDR"][
-            "Internal-Sender-Identifier"
-        ]
+        payload["tdr_reference"] = metadata["parameters"]["TDR"]["Internal-Sender-Identifier"]
         payload["submitter"] = {
             "name": metadata["parameters"]["TDR"]["Contact-Name"],
             "email": metadata["parameters"]["TDR"]["Contact-Email"],
@@ -371,11 +363,7 @@ def get_best_xml(uri, tar, xml_file_name, consignment_reference):
 
 
 def aws_clients():
-    if (
-        os.getenv("AWS_ACCESS_KEY_ID")
-        and os.getenv("AWS_SECRET_KEY")
-        and os.getenv("AWS_ENDPOINT_URL")
-    ):
+    if os.getenv("AWS_ACCESS_KEY_ID") and os.getenv("AWS_SECRET_KEY") and os.getenv("AWS_ENDPOINT_URL"):
         session = boto3.session.Session(
             aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
             aws_secret_access_key=os.getenv("AWS_SECRET_KEY"),
@@ -403,16 +391,12 @@ class Ingest:
         self.local_tar_filename = self.save_tar_file_in_s3()
         self.tar = tarfile.open(self.local_tar_filename, mode="r")
         self.metadata = extract_metadata(self.tar, self.consignment_reference)
-        self.message.update_consignment_reference(
-            self.metadata["parameters"]["TRE"]["reference"]
-        )
+        self.message.update_consignment_reference(self.metadata["parameters"]["TRE"]["reference"])
         self.consignment_reference = self.message.get_consignment_reference()
         self.xml_file_name = self.metadata["parameters"]["TRE"]["payload"]["xml"]
         self.uri = extract_uri(self.metadata, self.consignment_reference)
         print(f"Ingesting document {self.uri}")
-        self.xml = get_best_xml(
-            self.uri, self.tar, self.xml_file_name, self.consignment_reference
-        )
+        self.xml = get_best_xml(self.uri, self.tar, self.xml_file_name, self.consignment_reference)
 
     def save_tar_file_in_s3(self):
         """This should be mocked out for testing -- get the tar file from S3 and
@@ -456,9 +440,7 @@ class Ingest:
     def send_updated_judgment_notification(self) -> None:
         personalisation = personalise_email(self.uri, self.metadata)
         if os.getenv("ROLLBAR_ENV") != "prod":
-            print(
-                f"Would send a notification but we're not in production.\n{personalisation}"
-            )
+            print(f"Would send a notification but we're not in production.\n{personalisation}")
             return
 
         notifications_client = NotificationsAPIClient(os.environ["NOTIFY_API_KEY"])
@@ -467,9 +449,7 @@ class Ingest:
             template_id=os.getenv("NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID"),
             personalisation=personalisation,
         )
-        print(
-            f'Sent update notification to {os.getenv("NOTIFY_EDITORIAL_ADDRESS")} (Message ID: {response["id"]})'
-        )
+        print(f'Sent update notification to {os.getenv("NOTIFY_EDITORIAL_ADDRESS")} (Message ID: {response["id"]})')
 
     def send_new_judgment_notification(self) -> None:
         if "/press-summary/" in self.uri:
@@ -481,9 +461,7 @@ class Ingest:
         personalisation["doctype"] = doctype
 
         if os.getenv("ROLLBAR_ENV") != "prod":
-            print(
-                f"Would send a notification but we're not in production.\n{personalisation}"
-            )
+            print(f"Would send a notification but we're not in production.\n{personalisation}")
             return
         notifications_client = NotificationsAPIClient(os.environ["NOTIFY_API_KEY"])
         response = notifications_client.send_email_notification(
@@ -491,9 +469,7 @@ class Ingest:
             template_id=os.getenv("NOTIFY_NEW_JUDGMENT_TEMPLATE_ID"),
             personalisation=personalisation,
         )
-        print(
-            f'Sent new notification to {os.getenv("NOTIFY_EDITORIAL_ADDRESS")} (Message ID: {response["id"]})'
-        )
+        print(f'Sent new notification to {os.getenv("NOTIFY_EDITORIAL_ADDRESS")} (Message ID: {response["id"]})')
 
     def send_bulk_judgment_notification(self) -> None:
         # Not yet implemented. We currently only autopublish judgments sent in bulk.
@@ -511,12 +487,8 @@ class Ingest:
             name="source-organisation",
             value=tdr_metadata["Source-Organization"],
         )
-        api_client.set_property(
-            self.uri, name="source-name", value=tdr_metadata["Contact-Name"]
-        )
-        api_client.set_property(
-            self.uri, name="source-email", value=tdr_metadata["Contact-Email"]
-        )
+        api_client.set_property(self.uri, name="source-name", value=tdr_metadata["Contact-Name"])
+        api_client.set_property(self.uri, name="source-email", value=tdr_metadata["Contact-Email"])
         # Store TDR data
         api_client.set_property(
             self.uri,
@@ -537,9 +509,7 @@ class Ingest:
 
         # Copy original tarfile
         modified_targz_filename = (
-            self.local_tar_filename
-            if docx_filename
-            else modify_filename(self.local_tar_filename, "_nodocx")
+            self.local_tar_filename if docx_filename else modify_filename(self.local_tar_filename, "_nodocx")
         )
         store_file(
             open(self.local_tar_filename, mode="rb"),
@@ -610,18 +580,10 @@ class Ingest:
             return None
 
         if originator == "FCL S3":
-            return (
-                None
-                if self.metadata_object.force_publish
-                else self.send_bulk_judgment_notification()
-            )
+            return None if self.metadata_object.force_publish else self.send_bulk_judgment_notification()
 
         if originator == "TDR":
-            return (
-                self.send_new_judgment_notification()
-                if self.inserted
-                else self.send_updated_judgment_notification()
-            )
+            return self.send_new_judgment_notification() if self.inserted else self.send_updated_judgment_notification()
 
         raise RuntimeError(f"Didn't recognise originator {originator!r}")
 

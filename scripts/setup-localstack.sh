@@ -31,6 +31,8 @@ awslocal s3api create-bucket \
 awslocal s3api create-bucket \
   --bucket public-asset-bucket
 
+awslocal s3api create-bucket \
+  --bucket private-asset-bucket
 
 
 awslocal sns create-topic \

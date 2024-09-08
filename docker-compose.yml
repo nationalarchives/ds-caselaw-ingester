@@ -1,6 +1,6 @@
 services:
   localstack:
-    image: localstack/localstack:3.7.1
+    image: localstack/localstack:3.7.2
     network_mode: bridge
     environment:
       SERVICES: lambda,sns,s3,sqs,iam

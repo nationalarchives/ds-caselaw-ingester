@@ -5,6 +5,8 @@ import xml.etree.ElementTree as ET
 from typing import Dict, List, Tuple
 from urllib.parse import unquote_plus
 from xml.sax.saxutils import escape
+from caselawclient.models.documents import Document
+from caselawclient.models.identifiers.neutral_citation import NeutralCitationNumber
 
 import boto3
 import rollbar
@@ -18,6 +20,10 @@ from caselawclient.Client import (
 from caselawclient.client_helpers import VersionAnnotation, VersionType
 from dotenv import load_dotenv
 from notifications_python_client.notifications import NotificationsAPIClient
+import logging
+
+logger = logging.getLogger("ingester")
+logger.setLevel(logging.DEBUG)
 
 load_dotenv()
 rollbar.init(os.getenv("ROLLBAR_TOKEN"), environment=os.getenv("ROLLBAR_ENV"))
@@ -436,6 +442,16 @@ class Ingest:
         )
         api_client.insert_document_xml(self.uri, self.xml, annotation)
         return True
+    
+    def set_document_identifiers(self) -> None:
+        doc = api_client.models.Document(self.uri)
+        if doc.identifiers:
+            msg = f"Ingesting, but identifiers already present for {self.uri}!"
+            logger.warning(msg)
+        ncn = doc.neutral_citation
+        if ncn:
+            doc.identifiers.add(NeutralCitationNumber(ncn))
+            doc.identifiers.save(doc)
 
     def send_updated_judgment_notification(self) -> None:
         personalisation = personalise_email(self.uri, self.metadata)
@@ -597,6 +613,7 @@ class Ingest:
             raise DocumentInsertionError(
                 f"Judgment {self.uri} failed to insert into Marklogic. Consignment Ref: {self.consignment_reference}"
             )
+        self.set_document_identifiers()
 
     @property
     def upload_state(self):

@@ -2,11 +2,10 @@ import json
 import os
 import tarfile
 import xml.etree.ElementTree as ET
-from typing import Dict, List, Tuple
 from urllib.parse import unquote_plus
 from xml.sax.saxutils import escape
-from caselawclient.models.documents import Document
 from caselawclient.models.identifiers.neutral_citation import NeutralCitationNumber
+from caselawclient.models.documents import DocumentURIString
 
 import boto3
 import rollbar
@@ -21,6 +20,7 @@ from caselawclient.client_helpers import VersionAnnotation, VersionType
 from dotenv import load_dotenv
 from notifications_python_client.notifications import NotificationsAPIClient
 import logging
+from caselawclient.models.documents import Document
 
 logger = logging.getLogger("ingester")
 logger.setLevel(logging.DEBUG)
@@ -43,7 +43,7 @@ class Metadata(object):
         self.parameters = metadata.get("parameters", {})
 
     @property
-    def is_tdr(self):
+    def is_tdr(self) -> bool:
         return "TDR" in self.parameters.keys()
 
     @property
@@ -92,7 +92,7 @@ class V2Message(Message):
         super().__init__(*args, **kwargs)
 
     @property
-    def originator(self):
+    def originator(self) -> str:
         return self.message.get("parameters", {}).get("originator")
 
     def get_consignment_reference(self):
@@ -106,7 +106,7 @@ class V2Message(Message):
 
         raise InvalidMessageException("Malformed v2 message, please supply a reference")
 
-    def save_s3_response(self, sqs_client, s3_client):
+    def save_s3_response(self, sqs_client, s3_client) -> str:
         s3_bucket = self.message.get("parameters", {}).get("s3Bucket")
         s3_key = self.message.get("parameters", {}).get("s3Key")
         reference = self.get_consignment_reference()
@@ -201,7 +201,7 @@ def modify_filename(original: str, addition: str) -> str:
     return os.path.join(path, new_basename)
 
 
-def all_messages(event) -> List[Message]:
+def all_messages(event) -> list[Message]:
     """All the messages in the SNS event, as Message subclasses"""
     decoder = json.decoder.JSONDecoder()
     messages_as_decoded_json = [decoder.decode(record["Sns"]["Message"]) for record in event["Records"]]
@@ -255,7 +255,7 @@ def extract_docx_filename(metadata: dict, consignment_reference: str) -> str:
         )
 
 
-def extract_lambda_versions(versions: List[Dict[str, str]]) -> List[Tuple[str, str]]:
+def extract_lambda_versions(versions: list[dict[str, str]]) -> list[tuple[str, str]]:
     version_tuples = []
     for d in versions:
         version_tuples += list(d.items())
@@ -442,16 +442,23 @@ class Ingest:
         )
         api_client.insert_document_xml(self.uri, self.xml, annotation)
         return True
-    
+
     def set_document_identifiers(self) -> None:
-        doc = api_client.models.Document(self.uri)
+        logging.critical("start set_document_identifiers")
+        doc = api_client.get_document_by_uri(DocumentURIString(self.uri))
         if doc.identifiers:
             msg = f"Ingesting, but identifiers already present for {self.uri}!"
             logger.warning(msg)
-        ncn = doc.neutral_citation
+
+        try:
+            ncn = doc.neutral_citation
+        except AttributeError:
+            return
+
         if ncn:
             doc.identifiers.add(NeutralCitationNumber(ncn))
             doc.identifiers.save(doc)
+            logging.info(f"Ingested document had NCN {ncn}")
 
     def send_updated_judgment_notification(self) -> None:
         personalisation = personalise_email(self.uri, self.metadata)
@@ -517,7 +524,7 @@ class Ingest:
             value=tdr_metadata["Consignment-Completed-Datetime"],
         )
 
-    def save_files_to_s3(self):
+    def save_files_to_s3(self) -> None:
         sqs_client, s3_client = aws_clients()
         # Determine if there's a word document -- we need to know before we save the tar.gz file
         docx_filename = extract_docx_filename(self.metadata, self.consignment_reference)
@@ -571,7 +578,7 @@ class Ingest:
                 )
 
     @property
-    def metadata_object(self):
+    def metadata_object(self) -> Metadata:
         return Metadata(self.metadata)
 
     def will_publish(self) -> bool:
@@ -590,7 +597,7 @@ class Ingest:
 
         raise RuntimeError(f"Didn't recognise originator {originator!r}")
 
-    def send_email(self):
+    def send_email(self) -> None:
         originator = self.message.originator
         if originator == "FCL":
             return None
@@ -603,10 +610,10 @@ class Ingest:
 
         raise RuntimeError(f"Didn't recognise originator {originator!r}")
 
-    def close_tar(self):
+    def close_tar(self) -> None:
         self.tar.close()
 
-    def upload_xml(self):
+    def upload_xml(self) -> None:
         self.updated = self.update_document_xml()
         self.inserted = False if self.updated else self.insert_document_xml()
         if not self.updated and not self.inserted:
@@ -616,7 +623,7 @@ class Ingest:
         self.set_document_identifiers()
 
     @property
-    def upload_state(self):
+    def upload_state(self) -> str:
         return "updated" if self.updated else "inserted"
 
 

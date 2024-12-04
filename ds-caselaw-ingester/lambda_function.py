@@ -444,7 +444,6 @@ class Ingest:
         return True
 
     def set_document_identifiers(self) -> None:
-        logging.critical("start set_document_identifiers")
         doc = api_client.get_document_by_uri(DocumentURIString(self.uri))
         if doc.identifiers:
             msg = f"Ingesting, but identifiers already present for {self.uri}!"
@@ -453,12 +452,14 @@ class Ingest:
         try:
             ncn = doc.neutral_citation
         except AttributeError:
-            return
+            ncn = None
 
         if ncn:
             doc.identifiers.add(NeutralCitationNumber(ncn))
             doc.identifiers.save(doc)
-            logging.info(f"Ingested document had NCN {ncn}")
+            logger.info(f"Ingested document had NCN {ncn}")
+        else:
+            logger.info(f"Ingested document had NCN (NOT FOUND)")
 
     def send_updated_judgment_notification(self) -> None:
         personalisation = personalise_email(self.uri, self.metadata)

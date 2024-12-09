@@ -140,6 +140,8 @@ class TestHandler:
         capsys,
     ):
         boto_session.return_value.client.return_value.download_file = create_fake_tdr_file
+        doc = apiclient.get_document_by_uri.return_value
+        doc.neutral_citation = None
 
         message = v2_message_raw
         event = {"Records": [{"Sns": {"Message": message}}, {"Sns": {"Message": message}}]}
@@ -161,6 +163,8 @@ class TestHandler:
             payload=ANY,
         )
         assert annotation.call_count == 2
+        doc.identifiers.add.assert_not_called()
+        doc.identifiers.save.assert_not_called()
 
     @patch("lambda_function.api_client", autospec=True)
     @patch("lambda_function.boto3.session.Session")
@@ -180,6 +184,8 @@ class TestHandler:
     ):
         """Test that, with appropriate stubs, an S3 message passes through the parsing process"""
         boto_session.return_value.client.return_value.download_file = create_fake_bulk_file
+        doc = apiclient.get_document_by_uri.return_value
+        doc.neutral_citation = "[2012] UKUT 82 (IAC)"
 
         message = s3_message_raw
         event = {"Records": [{"Sns": {"Message": message}}, {"Sns": {"Message": message}}]}
@@ -200,6 +206,7 @@ class TestHandler:
         notify_new.assert_not_called()
         notify_updated.assert_not_called()
         modify_filename.assert_not_called()
+
         annotation.assert_called_with(
             ANY,
             automated=True,
@@ -207,6 +214,8 @@ class TestHandler:
             payload=ANY,
         )
         assert annotation.call_count == 2
+        assert doc.identifiers.add.call_args_list[0].args[0].value == "[2012] UKUT 82 (IAC)"
+        doc.identifiers.save.assert_called()
 
 
 class TestLambda:

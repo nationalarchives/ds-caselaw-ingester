@@ -456,7 +456,7 @@ class Ingest:
 
         if ncn:
             doc.identifiers.add(NeutralCitationNumber(ncn))
-            doc.save_identifiers(doc)
+            doc.save_identifiers()
             logger.info(f"Ingested document had NCN {ncn}")
         else:
             logger.info(f"Ingested document had NCN (NOT FOUND)")

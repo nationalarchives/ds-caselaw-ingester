@@ -215,7 +215,7 @@ class TestHandler:
         )
         assert annotation.call_count == 2
         assert doc.identifiers.add.call_args_list[0].args[0].value == "[2012] UKUT 82 (IAC)"
-        doc.identifiers.save.assert_called()
+        doc.save_identifiers.assert_called()
 
 
 class TestLambda:

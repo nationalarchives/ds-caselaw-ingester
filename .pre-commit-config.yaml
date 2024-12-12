@@ -24,6 +24,8 @@ repos:
     rev: v1.13.0
     hooks:
       - id: mypy
+        additional_dependencies:
+          - ds-caselaw-marklogic-api-client
         files: ^ds-caselaw-ingester/
 
   - repo: https://github.com/pre-commit/mirrors-prettier

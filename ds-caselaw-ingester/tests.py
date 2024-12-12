@@ -164,7 +164,7 @@ class TestHandler:
         )
         assert annotation.call_count == 2
         doc.identifiers.add.assert_not_called()
-        doc.identifiers.save.assert_not_called()
+        doc.save_identifiers.assert_not_called()
 
     @patch("lambda_function.api_client", autospec=True)
     @patch("lambda_function.boto3.session.Session")

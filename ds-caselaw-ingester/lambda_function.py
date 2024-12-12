@@ -29,10 +29,10 @@ load_dotenv()
 rollbar.init(os.getenv("ROLLBAR_TOKEN"), environment=os.getenv("ROLLBAR_ENV"))
 
 api_client = MarklogicApiClient(
-    host=os.getenv("MARKLOGIC_HOST", default=None),
-    username=os.getenv("MARKLOGIC_USER", default=None),
-    password=os.getenv("MARKLOGIC_PASSWORD", default=None),
-    use_https=os.getenv("MARKLOGIC_USE_HTTPS", default=False),
+    host=os.getenv("MARKLOGIC_HOST", default=""),
+    username=os.getenv("MARKLOGIC_USER", default=""),
+    password=os.getenv("MARKLOGIC_PASSWORD", default=""),
+    use_https=bool(os.getenv("MARKLOGIC_USE_HTTPS", default=False)),
     user_agent=f"ds-caselaw-ingester/unknown {DEFAULT_USER_AGENT}",
 )
 
@@ -229,7 +229,7 @@ def extract_metadata(tar: tarfile.TarFile, consignment_reference: str):
     return decoder.decode(te_metadata_file.read().decode("utf-8"))
 
 
-def extract_uri(metadata: dict, consignment_reference: str) -> str:
+def extract_uri(metadata: dict, consignment_reference: str) -> DocumentURIString:
     uri = metadata["parameters"]["PARSER"].get("uri", "")
 
     if uri:
@@ -238,7 +238,7 @@ def extract_uri(metadata: dict, consignment_reference: str) -> str:
     if not uri:
         uri = f"failures/{consignment_reference}"
 
-    return uri
+    return DocumentURIString(uri)
 
 
 # called by tests

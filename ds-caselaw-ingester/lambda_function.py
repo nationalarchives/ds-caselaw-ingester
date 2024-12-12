@@ -2,9 +2,10 @@ import json
 import os
 import tarfile
 import xml.etree.ElementTree as ET
-from typing import Dict, List, Tuple
 from urllib.parse import unquote_plus
 from xml.sax.saxutils import escape
+from caselawclient.models.identifiers.neutral_citation import NeutralCitationNumber
+from caselawclient.models.documents import DocumentURIString
 
 import boto3
 import rollbar
@@ -18,6 +19,11 @@ from caselawclient.Client import (
 from caselawclient.client_helpers import VersionAnnotation, VersionType
 from dotenv import load_dotenv
 from notifications_python_client.notifications import NotificationsAPIClient
+import logging
+from caselawclient.models.documents import Document
+
+logger = logging.getLogger("ingester")
+logger.setLevel(logging.DEBUG)
 
 load_dotenv()
 rollbar.init(os.getenv("ROLLBAR_TOKEN"), environment=os.getenv("ROLLBAR_ENV"))
@@ -437,6 +443,24 @@ class Ingest:
         api_client.insert_document_xml(self.uri, self.xml, annotation)
         return True
 
+    def set_document_identifiers(self) -> None:
+        doc = api_client.get_document_by_uri(DocumentURIString(self.uri))
+        if doc.identifiers:
+            msg = f"Ingesting, but identifiers already present for {self.uri}!"
+            logger.warning(msg)
+
+        try:
+            ncn = doc.neutral_citation
+        except AttributeError:
+            ncn = None
+
+        if ncn:
+            doc.identifiers.add(NeutralCitationNumber(ncn))
+            doc.identifiers.save(doc)
+            logger.info(f"Ingested document had NCN {ncn}")
+        else:
+            logger.info(f"Ingested document had NCN (NOT FOUND)")
+
     def send_updated_judgment_notification(self) -> None:
         personalisation = personalise_email(self.uri, self.metadata)
         if os.getenv("ROLLBAR_ENV") != "prod":
@@ -597,6 +621,7 @@ class Ingest:
             raise DocumentInsertionError(
                 f"Judgment {self.uri} failed to insert into Marklogic. Consignment Ref: {self.consignment_reference}"
             )
+        self.set_document_identifiers()
 
     @property
     def upload_state(self) -> str:

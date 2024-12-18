@@ -4,9 +4,10 @@ import tarfile
 import xml.etree.ElementTree as ET
 from urllib.parse import unquote_plus
 from xml.sax.saxutils import escape
+import boto3.s3
 from caselawclient.models.identifiers.neutral_citation import NeutralCitationNumber
 from caselawclient.models.documents import DocumentURIString
-
+from mypy_boto3_s3.client import S3Client
 import boto3
 import rollbar
 from boto3.session import Session
@@ -26,13 +27,21 @@ logger = logging.getLogger("ingester")
 logger.setLevel(logging.DEBUG)
 
 load_dotenv()
+
 rollbar.init(os.getenv("ROLLBAR_TOKEN"), environment=os.getenv("ROLLBAR_ENV"))
 
+MARKLOGIC_HOST: str = os.environ["MARKLOGIC_HOST"]
+MARKLOGIC_USER: str = os.environ["MARKLOGIC_USER"]
+MARKLOGIC_PASSWORD: str = os.environ["MARKLOGIC_PASSWORD"]
+MARKLOGIC_USE_HTTPS: bool = bool(os.environ["MARKLOGIC_USE_HTTPS"])
+
+AWS_BUCKET_NAME: str = os.environ["AWS_BUCKET_NAME"]
+
 api_client = MarklogicApiClient(
-    host=os.getenv("MARKLOGIC_HOST", default=None),
-    username=os.getenv("MARKLOGIC_USER", default=None),
-    password=os.getenv("MARKLOGIC_PASSWORD", default=None),
-    use_https=os.getenv("MARKLOGIC_USE_HTTPS", default=False),
+    host=MARKLOGIC_HOST,
+    username=MARKLOGIC_USER,
+    password=MARKLOGIC_PASSWORD,
+    use_https=MARKLOGIC_USE_HTTPS,
     user_agent=f"ds-caselaw-ingester/unknown {DEFAULT_USER_AGENT}",
 )
 
@@ -263,10 +272,10 @@ def extract_lambda_versions(versions: list[dict[str, str]]) -> list[tuple[str, s
     return version_tuples
 
 
-def store_file(file, folder, filename, s3_client: Session.client):
+def store_file(file, folder, filename, s3_client: S3Client):
     pathname = f"{folder}/{filename}"
     try:
-        s3_client.upload_fileobj(file, os.getenv("AWS_BUCKET_NAME"), pathname)
+        s3_client.upload_fileobj(file, AWS_BUCKET_NAME, pathname)
         print(f"Upload Successful {pathname}")
     except FileNotFoundError:
         print(f"The file {pathname} was not found")
@@ -290,7 +299,7 @@ def personalise_email(uri: str, metadata: dict) -> dict:
     }
 
 
-def copy_file(tarfile, input_filename, output_filename, uri, s3_client: Session.client):
+def copy_file(tarfile, input_filename, output_filename, uri, s3_client: S3Client):
     try:
         file = tarfile.extractfile(input_filename)
         store_file(file, uri, output_filename, s3_client)
@@ -400,7 +409,7 @@ class Ingest:
         self.message.update_consignment_reference(self.metadata["parameters"]["TRE"]["reference"])
         self.consignment_reference = self.message.get_consignment_reference()
         self.xml_file_name = self.metadata["parameters"]["TRE"]["payload"]["xml"]
-        self.uri = extract_uri(self.metadata, self.consignment_reference)
+        self.uri = DocumentURIString(extract_uri(self.metadata, self.consignment_reference))
         print(f"Ingesting document {self.uri}")
         self.xml = get_best_xml(self.uri, self.tar, self.xml_file_name, self.consignment_reference)
 

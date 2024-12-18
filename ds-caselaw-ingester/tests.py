@@ -92,14 +92,18 @@ def assert_log_sensible(log):
     "lambda_function.Ingest.save_tar_file_in_s3",
     return_value="/tmp/TDR-2022-DNWR.tar.gz",
 )
-def v2_ingest(fake_s3):
+@patch("lambda_function.uuid4")
+def v2_ingest(mock_uuid4, fake_s3):
+    mock_uuid4.return_value = "v2-a1b2-c3d4"
     create_fake_tdr_file()
     return lambda_function.Ingest.from_message_dict(v2_message)
 
 
 @pytest.fixture
 @patch("lambda_function.Ingest.save_tar_file_in_s3", return_value="/tmp/BULK-0.tar.gz")
-def s3_ingest(fake_s3):
+@patch("lambda_function.uuid4")
+def s3_ingest(mock_uuid4, fake_s3):
+    mock_uuid4.return_value = "s3-a1b2-c3d4"
     create_fake_bulk_file()
     return lambda_function.Ingest.from_message_dict(s3_message)
 
@@ -118,10 +122,12 @@ def fcl_ingest(fake_s3):
 
 
 class TestHandler:
+
     def test_fixture_works(self, v2_ingest, s3_ingest):
         """We get the XML of the data and extract the URI from it successfully using the fixtures"""
-        assert v2_ingest.uri == "ewca/civ/2022/111"
-        assert s3_ingest.uri == "ukut/iac/2012/82"
+
+        assert v2_ingest.uri == "d-v2-a1b2-c3d4"
+        assert s3_ingest.uri == "d-s3-a1b2-c3d4"
 
     @patch("lambda_function.api_client", autospec=True)
     @patch("lambda_function.boto3.session.Session")
@@ -172,8 +178,10 @@ class TestHandler:
     @patch("lambda_function.Ingest.send_updated_judgment_notification")
     @patch("lambda_function.VersionAnnotation")
     @patch("lambda_function.modify_filename")
+    @patch("lambda_function.uuid4")
     def test_handler_messages_s3(
         self,
+        mock_uuid4,
         modify_filename,
         annotation,
         notify_new,
@@ -186,6 +194,7 @@ class TestHandler:
         boto_session.return_value.client.return_value.download_file = create_fake_bulk_file
         doc = apiclient.get_document_by_uri.return_value
         doc.neutral_citation = "[2012] UKUT 82 (IAC)"
+        mock_uuid4.return_value = "a1b2-c3d4"
 
         message = s3_message_raw
         event = {"Records": [{"Sns": {"Message": message}}, {"Sns": {"Message": message}}]}
@@ -201,7 +210,7 @@ class TestHandler:
         assert "publishing" in log
         assert "Invalid XML file" not in log
         assert "No XML file found" not in log
-        apiclient.set_published.assert_called_with("ukut/iac/2012/82", True)
+        apiclient.set_published.assert_called_with("d-a1b2-c3d4", True)
         assert apiclient.set_published.call_count == 2
         notify_new.assert_not_called()
         notify_updated.assert_not_called()
@@ -279,22 +288,6 @@ class TestLambda:
         )
         with pytest.raises(lambda_function.FileNotFoundException, match="Consignment Ref:"):
             lambda_function.extract_metadata(tar, consignment_reference)
-
-    def test_extract_uri_success(self):
-        metadata = {"parameters": {"PARSER": {"uri": "https://caselaw.nationalarchives.gov.uk/id/ewca/civ/2022/111"}}}
-        assert lambda_function.extract_uri(metadata, "anything") == "ewca/civ/2022/111"
-
-    def test_extract_uri_incompete(self):
-        metadata = {"parameters": {"PARSER": {"uri": "https://caselaw.nationalarchives.gov.uk/id/"}}}
-        assert lambda_function.extract_uri(metadata, "anything") == "failures/anything"
-
-    def test_extract_uri_missing_key(self):
-        metadata = {"parameters": {"PARSER": {}}}
-        assert lambda_function.extract_uri(metadata, "anything") == "failures/anything"
-
-    def test_extract_uri_none(self):
-        metadata = {"parameters": {"PARSER": {"uri": None}}}
-        assert lambda_function.extract_uri(metadata, "anything") == "failures/anything"
 
     def test_extract_docx_filename_success(self):
         metadata = {"parameters": {"TRE": {"payload": {"filename": "judgment.docx"}}}}

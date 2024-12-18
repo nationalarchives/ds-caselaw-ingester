@@ -22,6 +22,7 @@ from dotenv import load_dotenv
 from notifications_python_client.notifications import NotificationsAPIClient
 import logging
 from caselawclient.models.documents import Document
+from uuid import uuid4
 
 logger = logging.getLogger("ingester")
 logger.setLevel(logging.DEBUG)
@@ -238,18 +239,6 @@ def extract_metadata(tar: tarfile.TarFile, consignment_reference: str):
     return decoder.decode(te_metadata_file.read().decode("utf-8"))
 
 
-def extract_uri(metadata: dict, consignment_reference: str) -> str:
-    uri = metadata["parameters"]["PARSER"].get("uri", "")
-
-    if uri:
-        uri = uri.replace("https://caselaw.nationalarchives.gov.uk/id/", "")
-
-    if not uri:
-        uri = f"failures/{consignment_reference}"
-
-    return uri
-
-
 # called by tests
 def get_consignment_reference(message):
     return Message.from_message(message).get_consignment_reference()
@@ -409,7 +398,7 @@ class Ingest:
         self.message.update_consignment_reference(self.metadata["parameters"]["TRE"]["reference"])
         self.consignment_reference = self.message.get_consignment_reference()
         self.xml_file_name = self.metadata["parameters"]["TRE"]["payload"]["xml"]
-        self.uri = DocumentURIString(extract_uri(self.metadata, self.consignment_reference))
+        self.uri = DocumentURIString("d-" + str(uuid4()))
         print(f"Ingesting document {self.uri}")
         self.xml = get_best_xml(self.uri, self.tar, self.xml_file_name, self.consignment_reference)
 

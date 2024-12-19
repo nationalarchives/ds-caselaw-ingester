@@ -392,7 +392,8 @@ class Ingest:
         print(f"Ingester Start: Consignment reference {self.consignment_reference}")
         print(f"Received Message: {self.message.message}")
         self.local_tar_filename = self.save_tar_file_in_s3()
-        self.tar = tarfile.open(self.local_tar_filename, mode="r")
+        with tarfile.open(self.local_tar_filename, mode="r") as tar:
+            self.tar = tar
         self.metadata = extract_metadata(self.tar, self.consignment_reference)
         self.message.update_consignment_reference(self.metadata["parameters"]["TRE"]["reference"])
         self.consignment_reference = self.message.get_consignment_reference()
@@ -532,12 +533,13 @@ class Ingest:
         modified_targz_filename = (
             self.local_tar_filename if docx_filename else modify_filename(self.local_tar_filename, "_nodocx")
         )
-        store_file(
-            open(self.local_tar_filename, mode="rb"),
-            self.uri,
-            os.path.basename(modified_targz_filename),
-            s3_client,
-        )
+        with open(self.local_tar_filename, mode="rb") as local_tar:
+            store_file(
+                local_tar,
+                self.uri,
+                os.path.basename(modified_targz_filename),
+                s3_client,
+            )
         print(f"saved tar.gz as {modified_targz_filename!r}")
 
         # Store docx and rename

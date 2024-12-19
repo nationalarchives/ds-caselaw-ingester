@@ -24,9 +24,11 @@ jobs:
           SKIP: no-commit-to-branch
   test:
     env:
-      MARKLOGIC_HOST: ""
-      MARKLOGIC_USER: ""
-      MARKLOGIC_PASSWORD: ""
+      MARKLOGIC_HOST: ml-host
+      MARKLOGIC_USER: ml-user
+      MARKLOGIC_PASSWORD: ml-password
+      MARKLOGIC_USE_HTTPS: 0
+      AWS_BUCKET_NAME: judgments-original-versions
     name: Run unit tests
     runs-on: ubuntu-24.04
     steps:

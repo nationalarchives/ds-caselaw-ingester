@@ -92,14 +92,18 @@ def assert_log_sensible(log):
     "lambda_function.Ingest.save_tar_file_in_s3",
     return_value="/tmp/TDR-2022-DNWR.tar.gz",
 )
-def v2_ingest(fake_s3):
+@patch("lambda_function.uuid4")
+def v2_ingest(mock_uuid4, fake_s3):
+    mock_uuid4.return_value = "v2-a1b2-c3d4"
     create_fake_tdr_file()
     return lambda_function.Ingest.from_message_dict(v2_message)
 
 
 @pytest.fixture
 @patch("lambda_function.Ingest.save_tar_file_in_s3", return_value="/tmp/BULK-0.tar.gz")
-def s3_ingest(fake_s3):
+@patch("lambda_function.uuid4")
+def s3_ingest(mock_uuid4, fake_s3):
+    mock_uuid4.return_value = "s3-a1b2-c3d4"
     create_fake_bulk_file()
     return lambda_function.Ingest.from_message_dict(s3_message)
 
@@ -120,8 +124,9 @@ def fcl_ingest(fake_s3):
 class TestHandler:
     def test_fixture_works(self, v2_ingest, s3_ingest):
         """We get the XML of the data and extract the URI from it successfully using the fixtures"""
-        assert v2_ingest.uri == "ewca/civ/2022/111"
-        assert s3_ingest.uri == "ukut/iac/2012/82"
+
+        assert v2_ingest.uri == "d-v2-a1b2-c3d4"
+        assert s3_ingest.uri == "d-s3-a1b2-c3d4"
 
     @patch("lambda_function.api_client", autospec=True)
     @patch("lambda_function.boto3.session.Session")
@@ -172,8 +177,10 @@ class TestHandler:
     @patch("lambda_function.Ingest.send_updated_judgment_notification")
     @patch("lambda_function.VersionAnnotation")
     @patch("lambda_function.modify_filename")
+    @patch("lambda_function.uuid4")
     def test_handler_messages_s3(
         self,
+        mock_uuid4,
         modify_filename,
         annotation,
         notify_new,
@@ -186,6 +193,7 @@ class TestHandler:
         boto_session.return_value.client.return_value.download_file = create_fake_bulk_file
         doc = apiclient.get_document_by_uri.return_value
         doc.neutral_citation = "[2012] UKUT 82 (IAC)"
+        mock_uuid4.return_value = "a1b2-c3d4"
 
         message = s3_message_raw
         event = {"Records": [{"Sns": {"Message": message}}, {"Sns": {"Message": message}}]}
@@ -201,7 +209,7 @@ class TestHandler:
         assert "publishing" in log
         assert "Invalid XML file" not in log
         assert "No XML file found" not in log
-        apiclient.set_published.assert_called_with("ukut/iac/2012/82", True)
+        apiclient.set_published.assert_called_with("d-a1b2-c3d4", True)
         assert apiclient.set_published.call_count == 2
         notify_new.assert_not_called()
         notify_updated.assert_not_called()
@@ -235,66 +243,50 @@ class TestLambda:
     )
 
     def test_extract_xml_file_success_tdr(self):
-        filename = "TDR-2022-DNWR.xml"
-        tar = tarfile.open(
+        with tarfile.open(
             self.TDR_TARBALL_PATH,
             mode="r",
-        )
-        result = lambda_function.extract_xml_file(tar, filename)
-        xml = ET.XML(result.read())
-        assert xml.tag == "{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}akomaNtoso"
+        ) as tar:
+            filename = "TDR-2022-DNWR.xml"
+            result = lambda_function.extract_xml_file(tar, filename)
+            xml = ET.XML(result.read())
+            assert xml.tag == "{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}akomaNtoso"
 
     def test_extract_xml_file_not_found_tdr(self):
-        filename = "unknown.xml"
-        tar = tarfile.open(
+        with tarfile.open(
             self.TDR_TARBALL_PATH,
             mode="r",
-        )
-        result = lambda_function.extract_xml_file(tar, filename)
-        assert result is None
+        ) as tar:
+            filename = "unknown.xml"
+            result = lambda_function.extract_xml_file(tar, filename)
+            assert result is None
 
     def test_extract_xml_file_name_empty(self):
-        filename = ""
-        tar = tarfile.open(
+        with tarfile.open(
             self.TDR_TARBALL_PATH,
             mode="r",
-        )
-        result = lambda_function.extract_xml_file(tar, filename)
-        assert result is None
+        ) as tar:
+            filename = ""
+            result = lambda_function.extract_xml_file(tar, filename)
+            assert result is None
 
     def test_extract_metadata_success_tdr(self):
-        consignment_reference = "TDR-2022-DNWR"
-        tar = tarfile.open(
+        with tarfile.open(
             self.TDR_TARBALL_PATH,
             mode="r",
-        )
-        result = lambda_function.extract_metadata(tar, consignment_reference)
-        assert result["parameters"]["TRE"]["payload"] is not None
+        ) as tar:
+            consignment_reference = "TDR-2022-DNWR"
+            result = lambda_function.extract_metadata(tar, consignment_reference)
+            assert result["parameters"]["TRE"]["payload"] is not None
 
     def test_extract_metadata_not_found_tdr(self):
-        consignment_reference = "unknown_consignment_reference"
-        tar = tarfile.open(
+        with tarfile.open(
             self.TARBALL_MISSING_METADATA_PATH,
             mode="r",
-        )
-        with pytest.raises(lambda_function.FileNotFoundException, match="Consignment Ref:"):
-            lambda_function.extract_metadata(tar, consignment_reference)
-
-    def test_extract_uri_success(self):
-        metadata = {"parameters": {"PARSER": {"uri": "https://caselaw.nationalarchives.gov.uk/id/ewca/civ/2022/111"}}}
-        assert lambda_function.extract_uri(metadata, "anything") == "ewca/civ/2022/111"
-
-    def test_extract_uri_incompete(self):
-        metadata = {"parameters": {"PARSER": {"uri": "https://caselaw.nationalarchives.gov.uk/id/"}}}
-        assert lambda_function.extract_uri(metadata, "anything") == "failures/anything"
-
-    def test_extract_uri_missing_key(self):
-        metadata = {"parameters": {"PARSER": {}}}
-        assert lambda_function.extract_uri(metadata, "anything") == "failures/anything"
-
-    def test_extract_uri_none(self):
-        metadata = {"parameters": {"PARSER": {"uri": None}}}
-        assert lambda_function.extract_uri(metadata, "anything") == "failures/anything"
+        ) as tar:
+            consignment_reference = "unknown_consignment_reference"
+            with pytest.raises(lambda_function.FileNotFoundException, match="Consignment Ref:"):
+                lambda_function.extract_metadata(tar, consignment_reference)
 
     def test_extract_docx_filename_success(self):
         metadata = {"parameters": {"TRE": {"payload": {"filename": "judgment.docx"}}}}
@@ -504,43 +496,43 @@ class TestLambda:
 
     @patch.object(lambda_function, "store_file")
     def test_copy_file_success(self, mock_store_file):
-        tar = tarfile.open(
+        with tarfile.open(
             self.TDR_TARBALL_PATH,
             mode="r",
-        )
-        filename = "TDR-2022-DNWR/TDR-2022-DNWR.xml"
-        session = boto3.Session
-        lambda_function.store_file = MagicMock()
-        lambda_function.copy_file(tar, filename, "new_filename", "uri", session)
-        lambda_function.store_file.assert_called_with(ANY, ANY, ANY, ANY)
+        ) as tar:
+            filename = "TDR-2022-DNWR/TDR-2022-DNWR.xml"
+            session = boto3.Session
+            lambda_function.store_file = MagicMock()
+            lambda_function.copy_file(tar, filename, "new_filename", "uri", session)
+            lambda_function.store_file.assert_called_with(ANY, ANY, ANY, ANY)
 
     def test_copy_file_not_found(self):
-        tar = tarfile.open(
+        with tarfile.open(
             self.TDR_TARBALL_PATH,
             mode="r",
-        )
-        filename = "does_not_exist.txt"
-        session = boto3.Session
-        with pytest.raises(lambda_function.FileNotFoundException):
-            lambda_function.copy_file(tar, filename, "new_filename", "uri", session)
+        ) as tar:
+            filename = "does_not_exist.txt"
+            session = boto3.Session
+            with pytest.raises(lambda_function.FileNotFoundException):
+                lambda_function.copy_file(tar, filename, "new_filename", "uri", session)
 
     def test_create_xml_contents_success(self):
-        tar = tarfile.open(
+        with tarfile.open(
             self.TDR_TARBALL_PATH,
             mode="r",
-        )
-        result = lambda_function.create_parser_log_xml(tar)
-        assert result == "<error>This is the parser error log.</error>"
+        ) as tar:
+            result = lambda_function.create_parser_log_xml(tar)
+            assert result == "<error>This is the parser error log.</error>"
 
     @patch.object(tarfile, "open")
     def test_create_xml_contents_failure(self, mock_open_tarfile):
-        tar = tarfile.open(
+        with tarfile.open(
             self.TDR_TARBALL_PATH,
             mode="r",
-        )
-        tar.extractfile = MagicMock(side_effect=KeyError)
-        result = lambda_function.create_parser_log_xml(tar)
-        assert result == "<error>parser.log not found</error>"
+        ) as tar:
+            tar.extractfile = MagicMock(side_effect=KeyError)
+            result = lambda_function.create_parser_log_xml(tar)
+            assert result == "<error>parser.log not found</error>"
 
     @patch.dict(
         os.environ,

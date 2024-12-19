@@ -53,7 +53,7 @@ class Metadata(object):
 
     @property
     def is_tdr(self) -> bool:
-        return "TDR" in self.parameters.keys()
+        return "TDR" in self.parameters
 
     @property
     def force_publish(self):
@@ -640,7 +640,7 @@ def process_message(message):
     ingest.send_email()
 
     # Store metadata in Marklogic
-    has_TDR_data = "TDR" in ingest.metadata["parameters"].keys()
+    has_TDR_data = "TDR" in ingest.metadata["parameters"]
     if has_TDR_data:
         ingest.store_metadata()
 

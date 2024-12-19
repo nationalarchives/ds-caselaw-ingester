@@ -3,6 +3,7 @@ import logging
 import os
 import tarfile
 import xml.etree.ElementTree as ET
+from contextlib import suppress
 from urllib.parse import unquote_plus
 from uuid import uuid4
 from xml.sax.saxutils import escape
@@ -551,7 +552,7 @@ class Ingest:
             )
 
         # Store parser log
-        try:
+        with suppress(FileNotFoundException):
             copy_file(
                 self.tar,
                 f"{self.consignment_reference}/parser.log",
@@ -559,8 +560,6 @@ class Ingest:
                 self.uri,
                 s3_client,
             )
-        except FileNotFoundException:
-            pass
 
         # Store images
         image_list = self.metadata["parameters"]["TRE"]["payload"]["images"]

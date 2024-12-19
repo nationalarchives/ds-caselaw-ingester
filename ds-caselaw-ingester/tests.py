@@ -122,7 +122,6 @@ def fcl_ingest(fake_s3):
 
 
 class TestHandler:
-
     def test_fixture_works(self, v2_ingest, s3_ingest):
         """We get the XML of the data and extract the URI from it successfully using the fixtures"""
 

@@ -1,16 +1,15 @@
 import json
+import logging
 import os
 import tarfile
 import xml.etree.ElementTree as ET
 from urllib.parse import unquote_plus
+from uuid import uuid4
 from xml.sax.saxutils import escape
-import boto3.s3
-from caselawclient.models.identifiers.neutral_citation import NeutralCitationNumber
-from caselawclient.models.documents import DocumentURIString
-from mypy_boto3_s3.client import S3Client
+
 import boto3
+import boto3.s3
 import rollbar
-from boto3.session import Session
 from botocore.exceptions import NoCredentialsError
 from caselawclient.Client import (
     DEFAULT_USER_AGENT,
@@ -18,11 +17,11 @@ from caselawclient.Client import (
     MarklogicResourceNotFoundError,
 )
 from caselawclient.client_helpers import VersionAnnotation, VersionType
+from caselawclient.models.documents import DocumentURIString
+from caselawclient.models.identifiers.neutral_citation import NeutralCitationNumber
 from dotenv import load_dotenv
+from mypy_boto3_s3.client import S3Client
 from notifications_python_client.notifications import NotificationsAPIClient
-import logging
-from caselawclient.models.documents import Document
-from uuid import uuid4
 
 logger = logging.getLogger("ingester")
 logger.setLevel(logging.DEBUG)
@@ -73,7 +72,7 @@ class Message(object):
     def from_message(cls, message: dict):
         if message.get("Records", [{}])[0].get("eventSource") == "aws:s3":
             return S3Message(message["Records"][0])
-        elif "parameters" in message.keys():
+        elif "parameters" in message:
             return V2Message(message)
         else:
             raise InvalidMessageException(f"Did not recognise message type. {message}")
@@ -457,7 +456,7 @@ class Ingest:
             doc.save_identifiers()
             logger.info(f"Ingested document had NCN {ncn}")
         else:
-            logger.info(f"Ingested document had NCN (NOT FOUND)")
+            logger.info("Ingested document had NCN (NOT FOUND)")
 
     def send_updated_judgment_notification(self) -> None:
         personalisation = personalise_email(self.uri, self.metadata)

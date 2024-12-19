@@ -393,15 +393,14 @@ class Ingest:
         print(f"Ingester Start: Consignment reference {self.consignment_reference}")
         print(f"Received Message: {self.message.message}")
         self.local_tar_filename = self.save_tar_file_in_s3()
-        with tarfile.open(self.local_tar_filename, mode="r") as tar:
-            self.tar = tar
-        self.metadata = extract_metadata(self.tar, self.consignment_reference)
-        self.message.update_consignment_reference(self.metadata["parameters"]["TRE"]["reference"])
         self.consignment_reference = self.message.get_consignment_reference()
-        self.xml_file_name = self.metadata["parameters"]["TRE"]["payload"]["xml"]
         self.uri = DocumentURIString("d-" + str(uuid4()))
+        with tarfile.open(self.local_tar_filename, mode="r") as tar:
+            self.metadata = extract_metadata(tar, self.consignment_reference)
+            self.message.update_consignment_reference(self.metadata["parameters"]["TRE"]["reference"])
+            self.xml_file_name = self.metadata["parameters"]["TRE"]["payload"]["xml"]
+            self.xml = get_best_xml(self.uri, tar, self.xml_file_name, self.consignment_reference)
         print(f"Ingesting document {self.uri}")
-        self.xml = get_best_xml(self.uri, self.tar, self.xml_file_name, self.consignment_reference)
 
     def save_tar_file_in_s3(self):
         """This should be mocked out for testing -- get the tar file from S3 and
@@ -543,18 +542,19 @@ class Ingest:
         # Store docx and rename
         # The docx_filename is None for files which have been reparsed.
         if docx_filename is not None:
-            copy_file(
-                self.tar,
-                f"{self.consignment_reference}/{docx_filename}",
-                f'{self.uri.replace("/", "_")}.docx',
-                self.uri,
-                s3_client,
-            )
+            with tarfile.open(self.local_tar_filename, mode="r") as tar:
+                copy_file(
+                    tar,
+                    f"{self.consignment_reference}/{docx_filename}",
+                    f'{self.uri.replace("/", "_")}.docx',
+                    self.uri,
+                    s3_client,
+                )
 
         # Store parser log
-        with suppress(FileNotFoundException):
+        with suppress(FileNotFoundException), tarfile.open(self.local_tar_filename, mode="r") as tar:
             copy_file(
-                self.tar,
+                tar,
                 f"{self.consignment_reference}/parser.log",
                 "parser.log",
                 self.uri,
@@ -565,13 +565,14 @@ class Ingest:
         image_list = self.metadata["parameters"]["TRE"]["payload"]["images"]
         if image_list:
             for image_filename in image_list:
-                copy_file(
-                    self.tar,
-                    f"{self.consignment_reference}/{image_filename}",
-                    image_filename,
-                    self.uri,
-                    s3_client,
-                )
+                with tarfile.open(self.local_tar_filename, mode="r") as tar:
+                    copy_file(
+                        tar,
+                        f"{self.consignment_reference}/{image_filename}",
+                        image_filename,
+                        self.uri,
+                        s3_client,
+                    )
 
     @property
     def metadata_object(self) -> Metadata:
@@ -605,9 +606,6 @@ class Ingest:
             return self.send_new_judgment_notification() if self.inserted else self.send_updated_judgment_notification()
 
         raise RuntimeError(f"Didn't recognise originator {originator!r}")
-
-    def close_tar(self) -> None:
-        self.tar.close()
 
     def upload_xml(self) -> None:
         self.updated = self.update_document_xml()
@@ -649,8 +647,6 @@ def process_message(message):
         update_published_documents(ingest.uri, s3_client)
     else:
         ingest.unpublish_updated_judgment()
-
-    ingest.close_tar()
 
     print("Ingestion complete")
     return message.message

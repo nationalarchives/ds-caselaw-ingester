@@ -474,10 +474,7 @@ class Ingest:
         print(f'Sent update notification to {os.getenv("NOTIFY_EDITORIAL_ADDRESS")} (Message ID: {response["id"]})')
 
     def send_new_judgment_notification(self) -> None:
-        if "/press-summary/" in self.uri:
-            doctype = "Press Summary"
-        else:
-            doctype = "Judgment"
+        doctype = "Press Summary" if "/press-summary/" in self.uri else "Judgment"
 
         personalisation = personalise_email(self.uri, self.metadata)
         personalisation["doctype"] = doctype

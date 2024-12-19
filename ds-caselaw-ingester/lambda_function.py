@@ -34,7 +34,7 @@ rollbar.init(os.getenv("ROLLBAR_TOKEN"), environment=os.getenv("ROLLBAR_ENV"))
 MARKLOGIC_HOST: str = os.environ["MARKLOGIC_HOST"]
 MARKLOGIC_USER: str = os.environ["MARKLOGIC_USER"]
 MARKLOGIC_PASSWORD: str = os.environ["MARKLOGIC_PASSWORD"]
-MARKLOGIC_USE_HTTPS: bool = bool(os.environ["MARKLOGIC_USE_HTTPS"])
+MARKLOGIC_USE_HTTPS: bool = bool(os.getenv("MARKLOGIC_USE_HTTPS", default=False))
 
 AWS_BUCKET_NAME: str = os.environ["AWS_BUCKET_NAME"]
 

@@ -247,10 +247,10 @@ def get_consignment_reference(message):
 def extract_docx_filename(metadata: dict, consignment_reference: str) -> str:
     try:
         return metadata["parameters"]["TRE"]["payload"]["filename"]
-    except KeyError:
+    except KeyError as err:
         raise DocxFilenameNotFoundException(
             f"No .docx filename was found in metadata. Consignment Ref: {consignment_reference}, metadata: {metadata}"
-        )
+        ) from err
 
 
 def extract_lambda_versions(versions: list[dict[str, str]]) -> list[tuple[str, str]]:
@@ -292,8 +292,8 @@ def copy_file(tarfile, input_filename, output_filename, uri, s3_client: S3Client
     try:
         file = tarfile.extractfile(input_filename)
         store_file(file, uri, output_filename, s3_client)
-    except KeyError:
-        raise FileNotFoundException(f"File was not found: {input_filename}, files were {tarfile.getnames()} ")
+    except KeyError as err:
+        raise FileNotFoundException(f"File was not found: {input_filename}, files were {tarfile.getnames()} ") from err
 
 
 def create_parser_log_xml(tar):

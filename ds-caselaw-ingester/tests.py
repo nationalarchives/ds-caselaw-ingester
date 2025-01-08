@@ -799,8 +799,8 @@ class TestEmailLogic:
         bulk.assert_not_called()
 
     @patch("lambda_function.Metadata.force_publish", new_callable=PropertyMock)
-    def test_s3_ingest_no_email_if_publish(self, property, bulk, new, updated, s3_ingest):
-        property.return_value = True
+    def test_s3_ingest_no_email_if_publish(self, mock_property, bulk, new, updated, s3_ingest):
+        mock_property.return_value = True
         s3_ingest.send_email()
 
         updated.assert_not_called()
@@ -808,8 +808,8 @@ class TestEmailLogic:
         bulk.assert_not_called()
 
     @patch("lambda_function.Metadata.force_publish", new_callable=PropertyMock)
-    def test_s3_ingest_email_if_not_publish(self, property, bulk, new, updated, s3_ingest):
-        property.return_value = False
+    def test_s3_ingest_email_if_not_publish(self, mock_property, bulk, new, updated, s3_ingest):
+        mock_property.return_value = False
         s3_ingest.send_email()
 
         updated.assert_not_called()

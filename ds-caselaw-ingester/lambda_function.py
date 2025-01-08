@@ -249,7 +249,7 @@ def extract_docx_filename(metadata: dict, consignment_reference: str) -> str:
         return metadata["parameters"]["TRE"]["payload"]["filename"]
     except KeyError as err:
         raise DocxFilenameNotFoundException(
-            f"No .docx filename was found in metadata. Consignment Ref: {consignment_reference}, metadata: {metadata}"
+            f"No .docx filename was found in metadata. Consignment Ref: {consignment_reference}, metadata: {metadata}",
         ) from err
 
 
@@ -352,7 +352,7 @@ def get_best_xml(uri, tar, xml_file_name, consignment_reference):
         except ET.ParseError:
             print(
                 f"Invalid XML file for uri: {uri}, consignment reference: {consignment_reference}."
-                f" Falling back to parser.log contents."
+                f" Falling back to parser.log contents.",
             )
             contents = create_parser_log_xml(tar)
             return parse_xml(contents)
@@ -360,7 +360,7 @@ def get_best_xml(uri, tar, xml_file_name, consignment_reference):
         print(
             f"No XML file found in tarfile for uri: {uri}, filename: {xml_file_name},"
             f"consignment reference: {consignment_reference}."
-            f" Falling back to parser.log contents."
+            f" Falling back to parser.log contents.",
         )
         contents = create_parser_log_xml(tar)
         return parse_xml(contents)
@@ -612,7 +612,7 @@ class Ingest:
         self.inserted = False if self.updated else self.insert_document_xml()
         if not self.updated and not self.inserted:
             raise DocumentInsertionError(
-                f"Judgment {self.uri} failed to insert into Marklogic. Consignment Ref: {self.consignment_reference}"
+                f"Judgment {self.uri} failed to insert into Marklogic. Consignment Ref: {self.consignment_reference}",
             )
         self.set_document_identifiers()
 

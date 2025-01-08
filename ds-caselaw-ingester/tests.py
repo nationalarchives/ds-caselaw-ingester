@@ -61,8 +61,8 @@ s3_message = {
                     "key": "QX/e31b117f-ff09-49b6-a697-7952c7a67384/BULK-0.tar.gz",
                 },
             },
-        }
-    ]
+        },
+    ],
 }
 v2_message = json.loads(v2_message_raw)
 s3_message_raw = json.dumps(s3_message)
@@ -312,8 +312,8 @@ class TestLambda:
                     "Internal-Sender-Identifier": "TDR-2021-CF6L",
                     "Consignment-Completed-Datetime": "2021-12-16T14:54:06Z",
                     "Contact-Email": "someone@example.com",
-                }
-            }
+                },
+            },
         }
         v2_ingest.uri = "uri"
 
@@ -446,8 +446,8 @@ class TestLambda:
                     "Internal-Sender-Identifier": "TDR-2021-CF6L",
                     "Consignment-Completed-Datetime": "2021-12-16T14:54:06Z",
                     "Contact-Email": "someone@example.com",
-                }
-            }
+                },
+            },
         }
         expected_personalisation = {
             "url": "http://editor.url/detail?judgment_uri=uri",

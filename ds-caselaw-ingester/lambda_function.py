@@ -47,7 +47,7 @@ api_client = MarklogicApiClient(
 )
 
 
-class Metadata(object):
+class Metadata:
     def __init__(self, metadata):
         self.metadata = metadata
         self.parameters = metadata.get("parameters", {})
@@ -61,7 +61,7 @@ class Metadata(object):
         return self.parameters.get("INGESTER_OPTIONS", {}).get("auto_publish", False)
 
 
-class Message(object):
+class Message:
     @classmethod
     def from_event(cls, event):
         decoder = json.decoder.JSONDecoder()

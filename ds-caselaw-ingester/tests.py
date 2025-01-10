@@ -61,8 +61,8 @@ s3_message = {
                     "key": "QX/e31b117f-ff09-49b6-a697-7952c7a67384/BULK-0.tar.gz",
                 },
             },
-        }
-    ]
+        },
+    ],
 }
 v2_message = json.loads(v2_message_raw)
 s3_message_raw = json.dumps(s3_message)
@@ -312,8 +312,8 @@ class TestLambda:
                     "Internal-Sender-Identifier": "TDR-2021-CF6L",
                     "Consignment-Completed-Datetime": "2021-12-16T14:54:06Z",
                     "Contact-Email": "someone@example.com",
-                }
-            }
+                },
+            },
         }
         v2_ingest.uri = "uri"
 
@@ -446,8 +446,8 @@ class TestLambda:
                     "Internal-Sender-Identifier": "TDR-2021-CF6L",
                     "Consignment-Completed-Datetime": "2021-12-16T14:54:06Z",
                     "Contact-Email": "someone@example.com",
-                }
-            }
+                },
+            },
         }
         expected_personalisation = {
             "url": "http://editor.url/detail?judgment_uri=uri",
@@ -799,8 +799,8 @@ class TestEmailLogic:
         bulk.assert_not_called()
 
     @patch("lambda_function.Metadata.force_publish", new_callable=PropertyMock)
-    def test_s3_ingest_no_email_if_publish(self, property, bulk, new, updated, s3_ingest):
-        property.return_value = True
+    def test_s3_ingest_no_email_if_publish(self, mock_property, bulk, new, updated, s3_ingest):
+        mock_property.return_value = True
         s3_ingest.send_email()
 
         updated.assert_not_called()
@@ -808,8 +808,8 @@ class TestEmailLogic:
         bulk.assert_not_called()
 
     @patch("lambda_function.Metadata.force_publish", new_callable=PropertyMock)
-    def test_s3_ingest_email_if_not_publish(self, property, bulk, new, updated, s3_ingest):
-        property.return_value = False
+    def test_s3_ingest_email_if_not_publish(self, mock_property, bulk, new, updated, s3_ingest):
+        mock_property.return_value = False
         s3_ingest.send_email()
 
         updated.assert_not_called()

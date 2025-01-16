@@ -279,11 +279,11 @@ def personalise_email(uri: str, metadata: dict) -> dict:
     except KeyError:
         tdr_metadata = {}
     return {
-        "url": f'{os.getenv("EDITORIAL_UI_BASE_URL")}detail?judgment_uri={uri}',
+        "url": f"{os.getenv('EDITORIAL_UI_BASE_URL')}detail?judgment_uri={uri}",
         "consignment": tdr_metadata.get("Internal-Sender-Identifier", "unknown"),
-        "submitter": f'{tdr_metadata.get("Contact-Name", "unknown")}, '
-        f'{tdr_metadata.get("Source-Organization", "unknown")}'
-        f' <{tdr_metadata.get("Contact-Email", "unknown")}>',
+        "submitter": f"{tdr_metadata.get('Contact-Name', 'unknown')}, "
+        f"{tdr_metadata.get('Source-Organization', 'unknown')}"
+        f" <{tdr_metadata.get('Contact-Email', 'unknown')}>",
         "submitted_at": tdr_metadata.get("Consignment-Completed-Datetime", "unknown"),
     }
 
@@ -471,7 +471,7 @@ class Ingest:
             template_id=os.getenv("NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID"),
             personalisation=personalisation,
         )
-        print(f'Sent update notification to {os.getenv("NOTIFY_EDITORIAL_ADDRESS")} (Message ID: {response["id"]})')
+        print(f"Sent update notification to {os.getenv('NOTIFY_EDITORIAL_ADDRESS')} (Message ID: {response['id']})")
 
     def send_new_judgment_notification(self) -> None:
         doctype = "Press Summary" if "/press-summary/" in self.uri else "Judgment"
@@ -488,7 +488,7 @@ class Ingest:
             template_id=os.getenv("NOTIFY_NEW_JUDGMENT_TEMPLATE_ID"),
             personalisation=personalisation,
         )
-        print(f'Sent new notification to {os.getenv("NOTIFY_EDITORIAL_ADDRESS")} (Message ID: {response["id"]})')
+        print(f"Sent new notification to {os.getenv('NOTIFY_EDITORIAL_ADDRESS')} (Message ID: {response['id']})")
 
     def send_bulk_judgment_notification(self) -> None:
         # Not yet implemented. We currently only autopublish judgments sent in bulk.
@@ -546,7 +546,7 @@ class Ingest:
                 copy_file(
                     tar,
                     f"{self.consignment_reference}/{docx_filename}",
-                    f'{self.uri.replace("/", "_")}.docx',
+                    f"{self.uri.replace('/', '_')}.docx",
                     self.uri,
                     s3_client,
                 )

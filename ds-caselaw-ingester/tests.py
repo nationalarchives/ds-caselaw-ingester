@@ -19,6 +19,7 @@ from caselawclient.Client import (
 from caselawclient.factories import JudgmentFactory, PressSummaryFactory
 from caselawclient.models.identifiers.neutral_citation import NeutralCitationNumber
 from caselawclient.models.identifiers.press_summary_ncn import PressSummaryRelatedNCNIdentifier
+from caselawclient.models.utilities.aws import S3PrefixString
 from notifications_python_client.notifications import NotificationsAPIClient
 
 rollbar.init(access_token=None, enabled=False)
@@ -336,7 +337,12 @@ class TestLambda:
     def test_store_file_success(self, mock_print):
         session = boto3.Session
         session.upload_fileobj = MagicMock()
-        lambda_function.store_file(None, "folder", "filename.ext", session)
+        lambda_function.store_file(
+            file=None,
+            destination_folder=S3PrefixString("folder/"),
+            destination_filename="filename.ext",
+            s3_client=session,
+        )
         mock_print.assert_called_with("Upload Successful folder/filename.ext")
         session.upload_fileobj.assert_called_with(None, ANY, "folder/filename.ext")
 
@@ -344,7 +350,12 @@ class TestLambda:
     def test_store_file_file_not_found(self, mock_print):
         session = boto3.Session
         session.upload_fileobj = MagicMock(side_effect=FileNotFoundError)
-        lambda_function.store_file(None, "folder", "filename.ext", session)
+        lambda_function.store_file(
+            file=None,
+            destination_folder=S3PrefixString("folder/"),
+            destination_filename="filename.ext",
+            s3_client=session,
+        )
         mock_print.assert_called_with("The file folder/filename.ext was not found")
         session.upload_fileobj.assert_called_with(None, ANY, "folder/filename.ext")
 
@@ -352,7 +363,12 @@ class TestLambda:
     def test_store_file_file_no_credentials(self, mock_print):
         session = boto3.Session
         session.upload_fileobj = MagicMock(side_effect=NoCredentialsError)
-        lambda_function.store_file(None, "folder", "filename.ext", session)
+        lambda_function.store_file(
+            file=None,
+            destination_folder=S3PrefixString("folder/"),
+            destination_filename="filename.ext",
+            s3_client=session,
+        )
         mock_print.assert_called_with("Credentials not available")
         session.upload_fileobj.assert_called_with(None, ANY, "folder/filename.ext")
 
@@ -508,7 +524,12 @@ class TestLambda:
             session = boto3.Session
             lambda_function.store_file = MagicMock()
             lambda_function.copy_file(tar, filename, "new_filename", "uri", session)
-            lambda_function.store_file.assert_called_with(ANY, ANY, ANY, ANY)
+            lambda_function.store_file.assert_called_with(
+                file=ANY,
+                destination_folder="uri",
+                destination_filename="new_filename",
+                s3_client=session,
+            )
 
     def test_copy_file_not_found(self):
         with tarfile.open(
@@ -526,7 +547,7 @@ class TestLambda:
             mode="r",
         ) as tar:
             result = lambda_function.create_parser_log_xml(tar)
-            assert result == "<error>This is the parser error log.</error>"
+            assert result == b"<error>This is the parser error log.</error>"
 
     @patch.object(tarfile, "open")
     def test_create_xml_contents_failure(self, mock_open_tarfile):
@@ -536,7 +557,7 @@ class TestLambda:
         ) as tar:
             tar.extractfile = MagicMock(side_effect=KeyError)
             result = lambda_function.create_parser_log_xml(tar)
-            assert result == "<error>parser.log not found</error>"
+            assert result == b"<error>parser.log not found</error>"
 
     @patch.dict(
         os.environ,
@@ -726,8 +747,8 @@ class TestLambda:
         )
         assert "2010+Reported" in my_raw
 
-        event = {"Records": [{"Sns": {"Message": my_raw}}]}
-        message = lambda_function.Message.from_event(event)
+        decoder = json.decoder.JSONDecoder()
+        message = lambda_function.Message.from_message(decoder.decode(my_raw))
         mock_s3_client = MagicMock()
         message.save_s3_response(None, mock_s3_client)
         mock_s3_client.download_file.assert_called_with(ANY, "2010 Reported/[2010]/1.tar.gz", ANY)

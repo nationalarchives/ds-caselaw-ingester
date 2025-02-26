@@ -4,9 +4,11 @@ import os
 import shutil
 import tarfile
 import xml.etree.ElementTree as ET
-from unittest.mock import ANY, MagicMock, PropertyMock, call, patch
+from unittest.mock import ANY, MagicMock, Mock, PropertyMock, call, patch
 
 import boto3
+import exceptions
+import ingester
 import lambda_function
 import pytest
 import rollbar
@@ -96,20 +98,30 @@ def assert_log_sensible(log):
     "lambda_function.Ingest.save_tar_file_in_s3",
     return_value="/tmp/TDR-2022-DNWR.tar.gz",
 )
-@patch("lambda_function.uuid4")
+@patch("ingester.uuid4")
 def v2_ingest(mock_uuid4, fake_s3):
     mock_uuid4.return_value = "v2-a1b2-c3d4"
     create_fake_tdr_file()
-    return lambda_function.Ingest.from_message_dict(v2_message)
+    return ingester.Ingest(
+        message=lambda_function.Message.from_message(v2_message),
+        destination_bucket="bucket",
+        api_client=Mock(),
+        s3_client=Mock(),
+    )
 
 
 @pytest.fixture
 @patch("lambda_function.Ingest.save_tar_file_in_s3", return_value="/tmp/BULK-0.tar.gz")
-@patch("lambda_function.uuid4")
+@patch("ingester.uuid4")
 def s3_ingest(mock_uuid4, fake_s3):
     mock_uuid4.return_value = "s3-a1b2-c3d4"
     create_fake_bulk_file()
-    return lambda_function.Ingest.from_message_dict(s3_message)
+    return ingester.Ingest(
+        message=lambda_function.Message.from_message(s3_message),
+        destination_bucket="bucket",
+        api_client=Mock(),
+        s3_client=Mock(),
+    )
 
 
 @pytest.fixture
@@ -122,7 +134,12 @@ def fcl_ingest(fake_s3):
     new_message = copy.deepcopy(v2_message)
     new_message["parameters"]["originator"] = "FCL"
 
-    return lambda_function.Ingest.from_message_dict(new_message)
+    return ingester.Ingest(
+        message=lambda_function.Message.from_message(new_message),
+        destination_bucket="bucket",
+        api_client=Mock(),
+        s3_client=Mock(),
+    )
 
 
 class TestHandler:
@@ -136,8 +153,8 @@ class TestHandler:
     @patch("lambda_function.boto3.session.Session")
     @patch("lambda_function.Ingest.send_updated_judgment_notification")
     @patch("lambda_function.Ingest.send_new_judgment_notification")
-    @patch("lambda_function.VersionAnnotation")
-    @patch("lambda_function.modify_filename")
+    @patch("ingester.VersionAnnotation")
+    @patch("ingester.modify_filename")
     def test_handler_messages_v2(
         self,
         modify_filename,
@@ -179,9 +196,9 @@ class TestHandler:
     @patch("lambda_function.boto3.session.Session")
     @patch("lambda_function.Ingest.send_new_judgment_notification")
     @patch("lambda_function.Ingest.send_updated_judgment_notification")
-    @patch("lambda_function.VersionAnnotation")
-    @patch("lambda_function.modify_filename")
-    @patch("lambda_function.uuid4")
+    @patch("ingester.VersionAnnotation")
+    @patch("ingester.modify_filename")
+    @patch("ingester.uuid4")
     def test_handler_messages_s3(
         self,
         mock_uuid4,
@@ -253,7 +270,7 @@ class TestLambda:
             mode="r",
         ) as tar:
             filename = "TDR-2022-DNWR.xml"
-            result = lambda_function.extract_xml_file(tar, filename)
+            result = ingester.extract_xml_file(tar, filename)
             xml = ET.XML(result.read())
             assert xml.tag == "{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}akomaNtoso"
 
@@ -263,7 +280,7 @@ class TestLambda:
             mode="r",
         ) as tar:
             filename = "unknown.xml"
-            result = lambda_function.extract_xml_file(tar, filename)
+            result = ingester.extract_xml_file(tar, filename)
             assert result is None
 
     def test_extract_xml_file_name_empty(self):
@@ -272,7 +289,7 @@ class TestLambda:
             mode="r",
         ) as tar:
             filename = ""
-            result = lambda_function.extract_xml_file(tar, filename)
+            result = ingester.extract_xml_file(tar, filename)
             assert result is None
 
     def test_extract_metadata_success_tdr(self):
@@ -281,7 +298,7 @@ class TestLambda:
             mode="r",
         ) as tar:
             consignment_reference = "TDR-2022-DNWR"
-            result = lambda_function.extract_metadata(tar, consignment_reference)
+            result = ingester.extract_metadata(tar, consignment_reference)
             assert result["parameters"]["TRE"]["payload"] is not None
 
     def test_extract_metadata_not_found_tdr(self):
@@ -290,25 +307,24 @@ class TestLambda:
             mode="r",
         ) as tar:
             consignment_reference = "unknown_consignment_reference"
-            with pytest.raises(lambda_function.FileNotFoundException, match="Consignment Ref:"):
-                lambda_function.extract_metadata(tar, consignment_reference)
+            with pytest.raises(exceptions.FileNotFoundException, match="Consignment Ref:"):
+                ingester.extract_metadata(tar, consignment_reference)
 
     def test_extract_docx_filename_success(self):
         metadata = {"parameters": {"TRE": {"payload": {"filename": "judgment.docx"}}}}
-        assert lambda_function.extract_docx_filename(metadata, "anything") == "judgment.docx"
+        assert ingester.extract_docx_filename(metadata, "anything") == "judgment.docx"
 
     def test_extract_docx_filename_no_docx_provided(self):
         """Reparsed documents do not have a docx file and have the metadata set to None"""
         metadata = {"parameters": {"TRE": {"payload": {"filename": None}}}}
-        assert lambda_function.extract_docx_filename(metadata, "anything") is None
+        assert ingester.extract_docx_filename(metadata, "anything") is None
 
     def test_extract_docx_filename_failure(self):
         metadata = {"parameters": {"TRE": {"payload": {}}}}
-        with pytest.raises(lambda_function.DocxFilenameNotFoundException):
-            lambda_function.extract_docx_filename(metadata, "anything")
+        with pytest.raises(exceptions.DocxFilenameNotFoundException):
+            ingester.extract_docx_filename(metadata, "anything")
 
-    @patch("lambda_function.api_client", autospec=True)
-    def test_store_metadata(self, api_client, v2_ingest):
+    def test_store_metadata(self, v2_ingest):
         v2_ingest.metadata = {
             "parameters": {
                 "TDR": {
@@ -322,7 +338,7 @@ class TestLambda:
         }
         v2_ingest.uri = "uri"
 
-        api_client.set_property = MagicMock()
+        v2_ingest.api_client.set_property = MagicMock()
         v2_ingest.store_metadata()
         calls = [
             call("uri", name="source-organisation", value="Ministry of Justice"),
@@ -331,14 +347,15 @@ class TestLambda:
             call("uri", name="transfer-consignment-reference", value="TDR-2021-CF6L"),
             call("uri", name="transfer-received-at", value="2021-12-16T14:54:06Z"),
         ]
-        api_client.set_property.assert_has_calls(calls)
+        v2_ingest.api_client.set_property.assert_has_calls(calls)
 
     @patch("builtins.print")
     def test_store_file_success(self, mock_print):
         session = boto3.Session
         session.upload_fileobj = MagicMock()
-        lambda_function.store_file(
+        ingester.store_file(
             file=None,
+            destination_bucket="bucket",
             destination_folder=S3PrefixString("folder/"),
             destination_filename="filename.ext",
             s3_client=session,
@@ -350,8 +367,9 @@ class TestLambda:
     def test_store_file_file_not_found(self, mock_print):
         session = boto3.Session
         session.upload_fileobj = MagicMock(side_effect=FileNotFoundError)
-        lambda_function.store_file(
+        ingester.store_file(
             file=None,
+            destination_bucket="bucket",
             destination_folder=S3PrefixString("folder/"),
             destination_filename="filename.ext",
             s3_client=session,
@@ -363,8 +381,9 @@ class TestLambda:
     def test_store_file_file_no_credentials(self, mock_print):
         session = boto3.Session
         session.upload_fileobj = MagicMock(side_effect=NoCredentialsError)
-        lambda_function.store_file(
+        ingester.store_file(
             file=None,
+            destination_bucket="bucket",
             destination_folder=S3PrefixString("folder/"),
             destination_filename="filename.ext",
             s3_client=session,
@@ -514,7 +533,7 @@ class TestLambda:
         )
         mock_print.assert_called_with(Contains("Sent update notification to test@notifications.service.gov.uk"))
 
-    @patch.object(lambda_function, "store_file")
+    @patch.object(ingester, "store_file")
     def test_copy_file_success(self, mock_store_file):
         with tarfile.open(
             self.TDR_TARBALL_PATH,
@@ -522,10 +541,11 @@ class TestLambda:
         ) as tar:
             filename = "TDR-2022-DNWR/TDR-2022-DNWR.xml"
             session = boto3.Session
-            lambda_function.store_file = MagicMock()
-            lambda_function.copy_file(tar, filename, "new_filename", "uri", session)
-            lambda_function.store_file.assert_called_with(
+            ingester.store_file = MagicMock()
+            ingester.copy_file(tar, filename, "bucket", "new_filename", "uri", session)
+            ingester.store_file.assert_called_with(
                 file=ANY,
+                destination_bucket="bucket",
                 destination_folder="uri",
                 destination_filename="new_filename",
                 s3_client=session,
@@ -538,15 +558,15 @@ class TestLambda:
         ) as tar:
             filename = "does_not_exist.txt"
             session = boto3.Session
-            with pytest.raises(lambda_function.FileNotFoundException):
-                lambda_function.copy_file(tar, filename, "new_filename", "uri", session)
+            with pytest.raises(exceptions.FileNotFoundException):
+                ingester.copy_file(tar, filename, "bucket", "new_filename", "uri", session)
 
     def test_create_xml_contents_success(self):
         with tarfile.open(
             self.TDR_TARBALL_PATH,
             mode="r",
         ) as tar:
-            result = lambda_function.create_parser_log_xml(tar)
+            result = ingester.create_parser_log_xml(tar)
             assert result == b"<error>This is the parser error log.</error>"
 
     @patch.object(tarfile, "open")
@@ -556,13 +576,11 @@ class TestLambda:
             mode="r",
         ) as tar:
             tar.extractfile = MagicMock(side_effect=KeyError)
-            result = lambda_function.create_parser_log_xml(tar)
+            result = ingester.create_parser_log_xml(tar)
             assert result == b"<error>parser.log not found</error>"
 
-    @patch.dict(
-        os.environ,
-        {"PUBLIC_ASSET_BUCKET": "public-bucket", "AWS_BUCKET_NAME": "private-bucket"},
-    )
+    @patch("lambda_function.PUBLIC_ASSET_BUCKET", "public-bucket")
+    @patch("lambda_function.AWS_BUCKET_NAME", "private-bucket")
     def test_update_published_documents(self):
         contents = {"Contents": [{"Key": "file1.ext"}, {"Key": "file2.ext"}]}
         s3_client = boto3.Session
@@ -595,14 +613,14 @@ class TestLambda:
         message = copy.deepcopy(v2_message)
         message["parameters"]["reference"] = ""
         message["parameters"]["bundleFileURI"] = "http://172.17.0.2:4566/te-editorial-out-int/ewca_civ_2021_1881.tar.gz"
-        with pytest.raises(lambda_function.InvalidMessageException):
+        with pytest.raises(exceptions.InvalidMessageException):
             lambda_function.get_consignment_reference(message)
 
     def test_get_consignment_reference_missing_v2(self):
         message = copy.deepcopy(v2_message)
         del message["parameters"]["reference"]
         message["parameters"]["bundleFileURI"] = "http://172.17.0.2:4566/te-editorial-out-int/ewca_civ_2021_1881.tar.gz"
-        with pytest.raises(lambda_function.InvalidMessageException):
+        with pytest.raises(exceptions.InvalidMessageException):
             lambda_function.get_consignment_reference(message)
 
     def test_get_consignment_reference_presigned_url_v2(self):
@@ -611,54 +629,48 @@ class TestLambda:
         message["parameters"]["bundleFileURI"] = (
             "http://172.17.0.2:4566/te-editorial-out-int/ewca_civ_2021_1881.tar.gz?randomstuffafterthefilename"
         )
-        with pytest.raises(lambda_function.InvalidMessageException):
+        with pytest.raises(exceptions.InvalidMessageException):
             lambda_function.get_consignment_reference(message)
 
     def test_malformed_message(self):
         message = {"something-unexpected": "???"}
-        with pytest.raises(lambda_function.InvalidMessageException):
+        with pytest.raises(exceptions.InvalidMessageException):
             lambda_function.get_consignment_reference(message)
 
-    @patch("lambda_function.api_client", autospec=True)
-    def test_update_document_xml_success(self, api_client, v2_ingest):
-        api_client.get_judgment_xml = MagicMock(return_value=True)
-        api_client.update_document_xml = MagicMock(return_value=True)
+    def test_update_document_xml_success(self, v2_ingest):
+        v2_ingest.api_client.get_judgment_xml = MagicMock(return_value=True)
+        v2_ingest.api_client.update_document_xml = MagicMock(return_value=True)
         assert v2_ingest.update_document_xml() is True
 
-    @patch("lambda_function.api_client", autospec=True)
-    def test_update_document_xml_success_no_tdr(self, api_client, v2_ingest):
-        api_client.get_judgment_xml = MagicMock(return_value=True)
-        api_client.update_document_xml = MagicMock(return_value=True)
+    def test_update_document_xml_success_no_tdr(self, v2_ingest):
+        v2_ingest.api_client.get_judgment_xml = MagicMock(return_value=True)
+        v2_ingest.api_client.update_document_xml = MagicMock(return_value=True)
         v2_ingest.metadata = {"parameters": {}}
         result = v2_ingest.update_document_xml()
         assert result is True
 
-    @patch("lambda_function.api_client", autospec=True)
-    def test_update_document_xml_judgment_does_not_exist(self, api_client, v2_ingest):
-        api_client.get_judgment_xml = MagicMock(side_effect=MarklogicResourceNotFoundError("error"))
-        api_client.update_document_xml = MagicMock(return_value=True)
+    def test_update_document_xml_judgment_does_not_exist(self, v2_ingest):
+        v2_ingest.api_client.get_judgment_xml = MagicMock(side_effect=MarklogicResourceNotFoundError("error"))
+        v2_ingest.api_client.update_document_xml = MagicMock(return_value=True)
         result = v2_ingest.update_document_xml()
         assert result is False
 
-    @patch("lambda_function.api_client", autospec=True)
-    def test_update_document_xml_judgment_does_not_save(self, api_client, v2_ingest):
-        api_client.get_judgment_xml = MagicMock(return_value=True)
-        api_client.update_document_xml = MagicMock(side_effect=MarklogicCommunicationError("error"))
+    def test_update_document_xml_judgment_does_not_save(self, v2_ingest):
+        v2_ingest.api_client.get_judgment_xml = MagicMock(return_value=True)
+        v2_ingest.api_client.update_document_xml = MagicMock(side_effect=MarklogicCommunicationError("error"))
         with pytest.raises(MarklogicCommunicationError):
             v2_ingest.update_document_xml()
 
-    @patch("lambda_function.api_client", autospec=True)
-    def test_insert_document_xml_success(self, api_client, v2_ingest):
+    def test_insert_document_xml_success(self, v2_ingest):
         xml = ET.XML("<xml>Here's some xml</xml>")
-        api_client.insert_document_xml = MagicMock(return_value=True)
+        v2_ingest.api_client.insert_document_xml = MagicMock(return_value=True)
         v2_ingest.uri = "a/fake/uri"
         v2_ingest.xml = xml
         result = v2_ingest.insert_document_xml()
         assert result is True
 
-    @patch("lambda_function.api_client", autospec=True)
-    def test_insert_document_xml_failure(self, api_client, v2_ingest):
-        api_client.insert_document_xml = MagicMock(side_effect=MarklogicCommunicationError("error"))
+    def test_insert_document_xml_failure(self, v2_ingest):
+        v2_ingest.api_client.insert_document_xml = MagicMock(side_effect=MarklogicCommunicationError("error"))
         with pytest.raises(MarklogicCommunicationError):
             v2_ingest.insert_document_xml()
 
@@ -668,7 +680,7 @@ class TestLambda:
             self.TDR_TARBALL_PATH,
             mode="r",
         ) as tar:
-            result = lambda_function.get_best_xml("a/valid/uri", tar, filename, "a_consignment_reference")
+            result = ingester.get_best_xml("a/valid/uri", tar, filename, "a_consignment_reference")
             assert result.__class__ == ET.Element
             assert result.tag == "{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}akomaNtoso"
 
@@ -678,7 +690,7 @@ class TestLambda:
             self.TARBALL_INVALID_XML_PATH,
             mode="r",
         ) as tar:
-            result = lambda_function.get_best_xml("a/valid/uri", tar, filename, "a_consignment_reference")
+            result = ingester.get_best_xml("a/valid/uri", tar, filename, "a_consignment_reference")
             assert result.__class__ == ET.Element
             assert result.tag == "error"
 
@@ -688,7 +700,7 @@ class TestLambda:
             self.TDR_TARBALL_PATH,
             mode="r",
         ) as tar:
-            result = lambda_function.get_best_xml(
+            result = ingester.get_best_xml(
                 "failures/consignment_reference",
                 tar,
                 filename,
@@ -703,7 +715,7 @@ class TestLambda:
             self.TDR_TARBALL_PATH,
             mode="r",
         ) as tar:
-            result = lambda_function.get_best_xml(
+            result = ingester.get_best_xml(
                 "failures/consignment_reference",
                 tar,
                 filename,
@@ -718,7 +730,7 @@ class TestLambda:
             self.TDR_TARBALL_PATH,
             mode="r",
         ) as tar:
-            result = lambda_function.get_best_xml(
+            result = ingester.get_best_xml(
                 "failures/consignment_reference",
                 tar,
                 filename,
@@ -727,13 +739,12 @@ class TestLambda:
             assert result.__class__ == ET.Element
             assert result.tag == "error"
 
-    @patch("lambda_function.api_client", autospec=True)
-    def test_unpublish_updated_judgment(self, api_client, v2_ingest):
+    def test_unpublish_updated_judgment(self, v2_ingest):
         uri = "a/fake/uri"
-        api_client.set_published = MagicMock()
+        v2_ingest.api_client.set_published = MagicMock()
         v2_ingest.uri = uri
         v2_ingest.unpublish_updated_judgment()
-        api_client.set_published.assert_called_with(uri, False)
+        v2_ingest.api_client.set_published.assert_called_with(uri, False)
 
     def test_user_agent(self):
         assert "ingester" in lambda_function.api_client.session.headers["User-Agent"]
@@ -750,7 +761,7 @@ class TestLambda:
         decoder = json.decoder.JSONDecoder()
         message = lambda_function.Message.from_message(decoder.decode(my_raw))
         mock_s3_client = MagicMock()
-        message.save_s3_response(None, mock_s3_client)
+        message.save_s3_response(mock_s3_client)
         mock_s3_client.download_file.assert_called_with(ANY, "2010 Reported/[2010]/1.tar.gz", ANY)
 
 
@@ -766,7 +777,7 @@ modify_filename_data = [
 
 @pytest.mark.parametrize("was, now", modify_filename_data)
 def test_modify_targz_filename(was, now):
-    assert lambda_function.modify_filename(was, addition="_") == now
+    assert ingester.modify_filename(was, addition="_") == now
 
 
 class TestPublicationLogic:
@@ -777,16 +788,16 @@ class TestPublicationLogic:
         assert s3_ingest.will_publish() is True
 
     def test_s3_ingest_publish_no_force_publish(self, s3_ingest):
-        with patch("lambda_function.Metadata.force_publish", new_callable=PropertyMock) as mock:
+        with patch("ingester.Metadata.force_publish", new_callable=PropertyMock) as mock:
             mock.return_value = False
             assert s3_ingest.will_publish() is False
 
-    @patch("lambda_function.api_client.get_published", return_value=False)
-    def test_fcl_not_published_if_not_published(self, get_published, fcl_ingest):
+    def test_fcl_not_published_if_not_published(self, fcl_ingest):
+        fcl_ingest.api_client.get_published.return_value = False
         assert fcl_ingest.will_publish() is False
 
-    @patch("lambda_function.api_client.get_published", return_value=True)
-    def test_fcl_published_if_published(self, get_published, fcl_ingest):
+    def test_fcl_published_if_published(self, fcl_ingest):
+        fcl_ingest.api_client.get_published.return_value = True
         assert fcl_ingest.will_publish() is True
 
 
@@ -823,7 +834,7 @@ class TestEmailLogic:
         new.assert_not_called()
         bulk.assert_not_called()
 
-    @patch("lambda_function.Metadata.force_publish", new_callable=PropertyMock)
+    @patch("ingester.Metadata.force_publish", new_callable=PropertyMock)
     def test_s3_ingest_no_email_if_publish(self, mock_property, bulk, new, updated, s3_ingest):
         mock_property.return_value = True
         s3_ingest.send_email()
@@ -832,7 +843,7 @@ class TestEmailLogic:
         new.assert_not_called()
         bulk.assert_not_called()
 
-    @patch("lambda_function.Metadata.force_publish", new_callable=PropertyMock)
+    @patch("ingester.Metadata.force_publish", new_callable=PropertyMock)
     def test_s3_ingest_email_if_not_publish(self, mock_property, bulk, new, updated, s3_ingest):
         mock_property.return_value = False
         s3_ingest.send_email()
@@ -841,9 +852,8 @@ class TestEmailLogic:
         new.assert_not_called()
 
 
-@patch("lambda_function.api_client", autospec=True)
 class TestDocIdentifiers:
-    def test_select_type_press_summary(self, api_client):
+    def test_select_type_press_summary(self):
         ingest = MagicMock()
         ingest.uri = "jam/1/ps/1"
 
@@ -851,13 +861,13 @@ class TestDocIdentifiers:
         doc.identifiers = MagicMock()
         doc.save_identifiers = MagicMock()
         doc.neutral_citation = "[2013] UKSC 1"
-        api_client.get_document_by_uri.return_value = doc
+        ingest.api_client.get_document_by_uri.return_value = doc
 
-        lambda_function.Ingest.set_document_identifiers(ingest)
+        ingester.Ingest.set_document_identifiers(ingest)
         assert type(doc.identifiers.add.call_args_list[0].args[0]) is PressSummaryRelatedNCNIdentifier
         doc.save_identifiers.assert_called()
 
-    def test_select_type_judgment(self, api_client):
+    def test_select_type_judgment(self):
         ingest = MagicMock()
         ingest.uri = "jam/1"
 
@@ -865,8 +875,8 @@ class TestDocIdentifiers:
         doc.identifiers = MagicMock()
         doc.save_identifiers = MagicMock()
         doc.neutral_citation = "[2013] UKSC 1"
-        api_client.get_document_by_uri.return_value = doc
+        ingest.api_client.get_document_by_uri.return_value = doc
 
-        lambda_function.Ingest.set_document_identifiers(ingest)
+        ingester.Ingest.set_document_identifiers(ingest)
         assert type(doc.identifiers.add.call_args_list[0].args[0]) is NeutralCitationNumber
         doc.save_identifiers.assert_called()

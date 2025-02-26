@@ -319,7 +319,7 @@ def copy_file(
         raise FileNotFoundException(f"File was not found: {input_filename}, files were {tarfile.getnames()} ") from err
 
 
-def create_parser_log_xml(tar: tarfile.TarFile) -> str:
+def create_parser_log_xml(tar: tarfile.TarFile) -> bytes:
     parser_log_value = "<error>parser.log not found</error>"
     for member in tar.getmembers():
         if "parser.log" in member.name:
@@ -329,7 +329,7 @@ def create_parser_log_xml(tar: tarfile.TarFile) -> str:
             else:
                 parser_log_contents = "Unable to read parser log file!"
             parser_log_value = f"<error>{parser_log_contents}</error>"
-    return parser_log_value
+    return parser_log_value.encode("utf-8")
 
 
 def update_published_documents(uri, s3_client: S3Client) -> None:
@@ -347,7 +347,7 @@ def update_published_documents(uri, s3_client: S3Client) -> None:
             s3_client.copy(source, public_bucket, key, extra_args)
 
 
-def parse_xml(xml: str) -> ET.Element:
+def parse_xml(xml: bytes) -> ET.Element:
     ET.register_namespace("", "http://docs.oasis-open.org/legaldocml/ns/akn/3.0")
     ET.register_namespace("uk", "https://caselaw.nationalarchives.gov.uk/akn")
     return ET.XML(xml)
@@ -372,7 +372,7 @@ def _build_version_annotation_payload_from_metadata(metadata: TREMetadataDict) -
 def get_best_xml(uri, tar: tarfile.TarFile, xml_file_name: str, consignment_reference: str) -> ET.Element:
     xml_file = extract_xml_file(tar, xml_file_name)
     if xml_file:
-        contents = xml_file.read().decode("utf-8")  # We assume here that our XML is in UTF-8
+        contents = xml_file.read()
         try:
             return parse_xml(contents)
         except ET.ParseError:

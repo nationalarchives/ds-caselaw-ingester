@@ -547,7 +547,7 @@ class TestLambda:
             mode="r",
         ) as tar:
             result = lambda_function.create_parser_log_xml(tar)
-            assert result == "<error>This is the parser error log.</error>"
+            assert result == b"<error>This is the parser error log.</error>"
 
     @patch.object(tarfile, "open")
     def test_create_xml_contents_failure(self, mock_open_tarfile):
@@ -557,7 +557,7 @@ class TestLambda:
         ) as tar:
             tar.extractfile = MagicMock(side_effect=KeyError)
             result = lambda_function.create_parser_log_xml(tar)
-            assert result == "<error>parser.log not found</error>"
+            assert result == b"<error>parser.log not found</error>"
 
     @patch.dict(
         os.environ,

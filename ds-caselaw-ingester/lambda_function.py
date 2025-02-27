@@ -19,7 +19,6 @@ from exceptions import InvalidMessageException
 from ingester import Ingest
 from mypy_boto3_s3.client import S3Client
 from mypy_boto3_s3.type_defs import CopySourceTypeDef
-from mypy_boto3_sqs.client import SQSClient
 
 logger = logging.getLogger("ingester")
 logger.setLevel(logging.DEBUG)
@@ -170,26 +169,22 @@ def update_published_documents(uri, s3_client: S3Client) -> None:
             s3_client.copy(source, public_bucket, key, extra_args)
 
 
-def aws_clients() -> tuple[SQSClient, S3Client]:
+def get_s3_client() -> S3Client:
     if os.getenv("AWS_ACCESS_KEY_ID") and os.getenv("AWS_SECRET_KEY") and os.getenv("AWS_ENDPOINT_URL"):
         session = boto3.session.Session(
             aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
             aws_secret_access_key=os.getenv("AWS_SECRET_KEY"),
         )
-        sqs_client = session.client("sqs", endpoint_url=os.getenv("AWS_ENDPOINT_URL"))
-        s3_client = session.client("s3", endpoint_url=os.getenv("AWS_ENDPOINT_URL"))
+        return session.client("s3", endpoint_url=os.getenv("AWS_ENDPOINT_URL"))
 
-    else:
-        session = boto3.session.Session()
-        sqs_client = session.client("sqs")
-        s3_client = session.client("s3")
-    return sqs_client, s3_client
+    session = boto3.session.Session()
+    return session.client("s3")
 
 
 def process_message(message):
     """This is the core function -- take a message and ingest the referred-to contents"""
 
-    sqs_client, s3_client = aws_clients()
+    s3_client = get_s3_client()
     ingest = Ingest(message=message, destination_bucket=AWS_BUCKET_NAME, api_client=api_client, s3_client=s3_client)
 
     # Extract and parse the judgment XML

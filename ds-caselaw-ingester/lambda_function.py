@@ -4,7 +4,7 @@ import json
 import logging
 import os
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Optional
 from urllib.parse import unquote_plus
 
 import boto3
@@ -16,9 +16,8 @@ from caselawclient.Client import (
 )
 from dotenv import load_dotenv
 from exceptions import InvalidMessageException
-from ingester import Ingest
+from ingester import Ingest, perform_ingest
 from mypy_boto3_s3.client import S3Client
-from mypy_boto3_s3.type_defs import CopySourceTypeDef
 
 logger = logging.getLogger("ingester")
 logger.setLevel(logging.DEBUG)
@@ -33,7 +32,6 @@ MARKLOGIC_PASSWORD: str = os.environ["MARKLOGIC_PASSWORD"]
 MARKLOGIC_USE_HTTPS: bool = bool(os.getenv("MARKLOGIC_USE_HTTPS", default=False))
 
 AWS_BUCKET_NAME: str = os.environ["AWS_BUCKET_NAME"]
-PUBLIC_ASSET_BUCKET: str = os.environ["PUBLIC_ASSET_BUCKET"]
 
 api_client = MarklogicApiClient(
     host=MARKLOGIC_HOST,
@@ -154,21 +152,6 @@ def extract_lambda_versions(versions: list[dict[str, str]]) -> list[tuple[str, s
     return version_tuples
 
 
-def update_published_documents(uri, s3_client: S3Client) -> None:
-    public_bucket = PUBLIC_ASSET_BUCKET
-    private_bucket = AWS_BUCKET_NAME
-
-    response = s3_client.list_objects(Bucket=private_bucket, Prefix=uri)
-
-    for result in response.get("Contents", []):
-        key = result["Key"]
-
-        if "parser.log" not in key and not str(key).endswith(".tar.gz"):
-            source: CopySourceTypeDef = {"Bucket": private_bucket, "Key": key}
-            extra_args: dict[str, Any] = {}
-            s3_client.copy(source, public_bucket, key, extra_args)
-
-
 def get_s3_client() -> S3Client:
     if os.getenv("AWS_ACCESS_KEY_ID") and os.getenv("AWS_SECRET_KEY") and os.getenv("AWS_ENDPOINT_URL"):
         session = boto3.session.Session(
@@ -181,38 +164,15 @@ def get_s3_client() -> S3Client:
     return session.client("s3")
 
 
-def process_message(message):
-    """This is the core function -- take a message and ingest the referred-to contents"""
-
-    s3_client = get_s3_client()
-    ingest = Ingest(message=message, destination_bucket=AWS_BUCKET_NAME, api_client=api_client, s3_client=s3_client)
-
-    # Extract and parse the judgment XML
-    ingest.upload_xml()
-    print(f"{ingest.upload_state.title()} judgment xml for {ingest.uri}")
-
-    ingest.send_email()
-
-    # Store metadata in Marklogic
-    has_TDR_data = "TDR" in ingest.metadata["parameters"]
-    if has_TDR_data:
-        ingest.store_metadata()
-
-    # save files to S3
-    ingest.save_files_to_s3()
-
-    if ingest.will_publish():
-        print(f"publishing {ingest.consignment_reference} at {ingest.uri}")
-        api_client.set_published(ingest.uri, True)
-        update_published_documents(ingest.uri, s3_client)
-    else:
-        ingest.unpublish_updated_judgment()
-
-    print("Ingestion complete")
-    return message.message
-
-
 @rollbar.lambda_function
 def handler(event, context):
+    s3_client = get_s3_client()
     for message in all_messages(event):
-        process_message(message)
+        ingest = Ingest(
+            message=message,
+            destination_bucket=AWS_BUCKET_NAME,
+            api_client=api_client,
+            s3_client=s3_client,
+        )
+
+        perform_ingest(ingest)

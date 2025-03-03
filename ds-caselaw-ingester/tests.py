@@ -579,13 +579,13 @@ class TestLambda:
             result = ingester.create_parser_log_xml(tar)
             assert result == b"<error>parser.log not found</error>"
 
-    @patch("lambda_function.PUBLIC_ASSET_BUCKET", "public-bucket")
-    @patch("lambda_function.AWS_BUCKET_NAME", "private-bucket")
-    def test_update_published_documents(self):
+    @patch("ingester.AWS_BUCKET_NAME", "private-bucket")
+    def test_update_published_documents(self, v2_ingest):
         contents = {"Contents": [{"Key": "file1.ext"}, {"Key": "file2.ext"}]}
-        s3_client = boto3.Session
-        s3_client.list_objects = MagicMock(return_value=contents)
-        s3_client.copy = MagicMock()
+
+        v2_ingest.s3_client.list_objects = MagicMock(return_value=contents)
+        v2_ingest.s3_client.copy = MagicMock()
+
         calls = [
             call(
                 {"Bucket": "private-bucket", "Key": "file1.ext"},
@@ -600,8 +600,8 @@ class TestLambda:
                 {},
             ),
         ]
-        lambda_function.update_published_documents("uri", s3_client)
-        s3_client.copy.assert_has_calls(calls)
+        v2_ingest.update_published_documents("public-bucket")
+        v2_ingest.s3_client.copy.assert_has_calls(calls)
 
     def test_get_consignment_reference_success_v2(self):
         message = copy.deepcopy(v2_message)

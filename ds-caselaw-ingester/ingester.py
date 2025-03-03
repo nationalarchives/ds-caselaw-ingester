@@ -20,6 +20,7 @@ from caselawclient.models.press_summaries import PressSummary
 from caselawclient.models.utilities.aws import S3PrefixString
 from exceptions import DocumentInsertionError, DocxFilenameNotFoundException, FileNotFoundException
 from mypy_boto3_s3.client import S3Client
+from mypy_boto3_s3.type_defs import CopySourceTypeDef
 from notifications_python_client.notifications import NotificationsAPIClient
 
 if TYPE_CHECKING:
@@ -27,6 +28,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("ingester")
 logger.setLevel(logging.DEBUG)
+
+AWS_BUCKET_NAME: str = os.environ["AWS_BUCKET_NAME"]
+PUBLIC_ASSET_BUCKET: str = os.environ["PUBLIC_ASSET_BUCKET"]
 
 
 class TREMetadataDict(TypedDict):
@@ -432,6 +436,9 @@ class Ingest:
 
         raise RuntimeError(f"Didn't recognise originator {originator!r}")
 
+    def publish(self) -> None:
+        self.api_client.set_published(self.uri, True)
+
     def send_email(self) -> None:
         originator = self.message.originator
         if originator == "FCL":
@@ -457,3 +464,44 @@ class Ingest:
     @property
     def upload_state(self) -> str:
         return "updated" if self.updated else "inserted"
+
+    def update_published_documents(self, public_bucket: str) -> None:
+        """Copy all assets (except .tar.gz and parser.log) from the private bucket which have the prefix of this document's URI to the public bucket."""
+        private_bucket = AWS_BUCKET_NAME
+
+        response = self.s3_client.list_objects(Bucket=private_bucket, Prefix=self.uri)
+
+        for result in response.get("Contents", []):
+            key = result["Key"]
+
+            if "parser.log" not in key and not str(key).endswith(".tar.gz"):
+                source: CopySourceTypeDef = {"Bucket": private_bucket, "Key": key}
+                extra_args: dict[str, Any] = {}
+                self.s3_client.copy(source, public_bucket, key, extra_args)
+
+
+def perform_ingest(ingest: Ingest) -> None:
+    """Given an Ingest object, perform the necessary tasks to put it in MarkLogic and tell people about it."""
+
+    # Extract and parse the judgment XML
+    ingest.upload_xml()
+    print(f"{ingest.upload_state.title()} judgment xml for {ingest.uri}")
+
+    ingest.send_email()
+
+    # Store metadata in Marklogic
+    has_TDR_data = "TDR" in ingest.metadata["parameters"]
+    if has_TDR_data:
+        ingest.store_metadata()
+
+    # save files to S3
+    ingest.save_files_to_s3()
+
+    if ingest.will_publish():
+        print(f"publishing {ingest.consignment_reference} at {ingest.uri}")
+        ingest.publish()
+        ingest.update_published_documents(PUBLIC_ASSET_BUCKET)
+    else:
+        ingest.unpublish_updated_judgment()
+
+    print("Ingestion complete")

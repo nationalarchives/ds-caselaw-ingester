@@ -477,6 +477,7 @@ class Ingest:
             if "parser.log" not in key and not str(key).endswith(".tar.gz"):
                 source: CopySourceTypeDef = {"Bucket": private_bucket, "Key": key}
                 extra_args: dict[str, Any] = {}
+                print(f"copying {private_bucket} / {key} to {public_bucket} / {key}")
                 self.s3_client.copy(source, public_bucket, key, extra_args)
 
 

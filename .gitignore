@@ -13,3 +13,5 @@ tmp
 volume
 
 node_modules/
+
+.coverage

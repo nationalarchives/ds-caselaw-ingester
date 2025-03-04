@@ -15,9 +15,10 @@ from caselawclient.Client import (
     MarklogicApiClient,
 )
 from dotenv import load_dotenv
-from exceptions import InvalidMessageException
-from ingester import Ingest, perform_ingest
 from mypy_boto3_s3.client import S3Client
+
+from .exceptions import InvalidMessageException
+from .ingester import Ingest, perform_ingest
 
 logger = logging.getLogger("ingester")
 logger.setLevel(logging.DEBUG)

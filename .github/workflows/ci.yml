@@ -39,4 +39,17 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -r requirements/local.txt
-      - run: python -m pytest ds-caselaw-ingester/tests.py
+
+      - name: Install coverage
+        run: pip install coverage
+
+      - name: Run tests with coverage
+        run: coverage run -m pytest tests/*
+
+      - name: Generate coverage XML
+        run: coverage xml
+
+      - name: Upload coverage to CodeClimate
+        uses: paambaati/codeclimate-action@v9.0.0
+        env:
+          CC_TEST_REPORTER_ID: ${{secrets.CC_TEST_REPORTER_ID}}

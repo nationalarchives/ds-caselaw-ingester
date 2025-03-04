@@ -28,7 +28,7 @@ repos:
     rev: v1.15.0
     hooks:
       - id: mypy
-        files: ^ds-caselaw-ingester/
+        files: ^ds_caselaw_ingester/
         language_version: "3.12"
         additional_dependencies:
           - types-requests

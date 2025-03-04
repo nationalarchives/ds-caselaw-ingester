@@ -39,4 +39,4 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -r requirements/local.txt
-      - run: python -m pytest ds_caselaw_ingester/tests.py
+      - run: python -m pytest tests/*

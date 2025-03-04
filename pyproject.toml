@@ -10,7 +10,7 @@ extend-select = ["W", "I", "SLF", "SIM", "B", "Q", "A", "COM", "C90", "UP", "YTT
 unfixable = ["ERA"]
 
 [tool.ruff.lint.extend-per-file-ignores]
-"tests.py" = ["S101"]  # `assert` is fine in tests
+"tests/*" = ["S101"]  # `assert` is fine in tests
 
 # things skipped:
 # N: naming, possibly good

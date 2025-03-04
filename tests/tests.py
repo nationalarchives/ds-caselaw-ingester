@@ -7,9 +7,6 @@ import xml.etree.ElementTree as ET
 from unittest.mock import ANY, MagicMock, Mock, PropertyMock, call, patch
 
 import boto3
-import exceptions
-import ingester
-import lambda_function
 import pytest
 import rollbar
 from botocore.exceptions import NoCredentialsError
@@ -23,6 +20,8 @@ from caselawclient.models.identifiers.neutral_citation import NeutralCitationNum
 from caselawclient.models.identifiers.press_summary_ncn import PressSummaryRelatedNCNIdentifier
 from caselawclient.models.utilities.aws import S3PrefixString
 from notifications_python_client.notifications import NotificationsAPIClient
+
+from ds_caselaw_ingester import exceptions, ingester, lambda_function
 
 rollbar.init(access_token=None, enabled=False)
 TDR_TARBALL_PATH = os.path.join(
@@ -95,10 +94,10 @@ def assert_log_sensible(log):
 
 @pytest.fixture
 @patch(
-    "lambda_function.Ingest.save_tar_file_in_s3",
+    "ds_caselaw_ingester.lambda_function.Ingest.save_tar_file_in_s3",
     return_value="/tmp/TDR-2022-DNWR.tar.gz",
 )
-@patch("ingester.uuid4")
+@patch("ds_caselaw_ingester.ingester.uuid4")
 def v2_ingest(mock_uuid4, fake_s3):
     mock_uuid4.return_value = "v2-a1b2-c3d4"
     create_fake_tdr_file()
@@ -111,8 +110,8 @@ def v2_ingest(mock_uuid4, fake_s3):
 
 
 @pytest.fixture
-@patch("lambda_function.Ingest.save_tar_file_in_s3", return_value="/tmp/BULK-0.tar.gz")
-@patch("ingester.uuid4")
+@patch("ds_caselaw_ingester.lambda_function.Ingest.save_tar_file_in_s3", return_value="/tmp/BULK-0.tar.gz")
+@patch("ds_caselaw_ingester.ingester.uuid4")
 def s3_ingest(mock_uuid4, fake_s3):
     mock_uuid4.return_value = "s3-a1b2-c3d4"
     create_fake_bulk_file()
@@ -126,7 +125,7 @@ def s3_ingest(mock_uuid4, fake_s3):
 
 @pytest.fixture
 @patch(
-    "lambda_function.Ingest.save_tar_file_in_s3",
+    "ds_caselaw_ingester.lambda_function.Ingest.save_tar_file_in_s3",
     return_value="/tmp/TDR-2022-DNWR.tar.gz",
 )
 def fcl_ingest(fake_s3):
@@ -149,12 +148,12 @@ class TestHandler:
         assert v2_ingest.uri == "d-v2-a1b2-c3d4"
         assert s3_ingest.uri == "d-s3-a1b2-c3d4"
 
-    @patch("lambda_function.api_client", autospec=True)
-    @patch("lambda_function.boto3.session.Session")
-    @patch("lambda_function.Ingest.send_updated_judgment_notification")
-    @patch("lambda_function.Ingest.send_new_judgment_notification")
-    @patch("ingester.VersionAnnotation")
-    @patch("ingester.modify_filename")
+    @patch("ds_caselaw_ingester.lambda_function.api_client", autospec=True)
+    @patch("ds_caselaw_ingester.lambda_function.boto3.session.Session")
+    @patch("ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
+    @patch("ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
+    @patch("ds_caselaw_ingester.ingester.VersionAnnotation")
+    @patch("ds_caselaw_ingester.ingester.modify_filename")
     def test_handler_messages_v2(
         self,
         modify_filename,
@@ -192,13 +191,13 @@ class TestHandler:
         doc.identifiers.add.assert_not_called()
         doc.identifiers.save.assert_not_called()
 
-    @patch("lambda_function.api_client", autospec=True)
-    @patch("lambda_function.boto3.session.Session")
-    @patch("lambda_function.Ingest.send_new_judgment_notification")
-    @patch("lambda_function.Ingest.send_updated_judgment_notification")
-    @patch("ingester.VersionAnnotation")
-    @patch("ingester.modify_filename")
-    @patch("ingester.uuid4")
+    @patch("ds_caselaw_ingester.lambda_function.api_client", autospec=True)
+    @patch("ds_caselaw_ingester.lambda_function.boto3.session.Session")
+    @patch("ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
+    @patch("ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
+    @patch("ds_caselaw_ingester.ingester.VersionAnnotation")
+    @patch("ds_caselaw_ingester.ingester.modify_filename")
+    @patch("ds_caselaw_ingester.ingester.uuid4")
     def test_handler_messages_s3(
         self,
         mock_uuid4,
@@ -579,7 +578,7 @@ class TestLambda:
             result = ingester.create_parser_log_xml(tar)
             assert result == b"<error>parser.log not found</error>"
 
-    @patch("ingester.AWS_BUCKET_NAME", "private-bucket")
+    @patch("ds_caselaw_ingester.ingester.AWS_BUCKET_NAME", "private-bucket")
     def test_update_published_documents(self, v2_ingest):
         contents = {"Contents": [{"Key": "file1.ext"}, {"Key": "file2.ext"}]}
 
@@ -788,7 +787,7 @@ class TestPublicationLogic:
         assert s3_ingest.will_publish() is True
 
     def test_s3_ingest_publish_no_force_publish(self, s3_ingest):
-        with patch("ingester.Metadata.force_publish", new_callable=PropertyMock) as mock:
+        with patch("ds_caselaw_ingester.ingester.Metadata.force_publish", new_callable=PropertyMock) as mock:
             mock.return_value = False
             assert s3_ingest.will_publish() is False
 
@@ -801,9 +800,9 @@ class TestPublicationLogic:
         assert fcl_ingest.will_publish() is True
 
 
-@patch("lambda_function.Ingest.send_updated_judgment_notification")
-@patch("lambda_function.Ingest.send_new_judgment_notification")
-@patch("lambda_function.Ingest.send_bulk_judgment_notification")
+@patch("ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
+@patch("ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
+@patch("ds_caselaw_ingester.lambda_function.Ingest.send_bulk_judgment_notification")
 class TestEmailLogic:
     def test_v2_ingest_publish_email_update(self, bulk, new, updated, v2_ingest):
         v2_ingest.inserted = False
@@ -834,7 +833,7 @@ class TestEmailLogic:
         new.assert_not_called()
         bulk.assert_not_called()
 
-    @patch("ingester.Metadata.force_publish", new_callable=PropertyMock)
+    @patch("ds_caselaw_ingester.ingester.Metadata.force_publish", new_callable=PropertyMock)
     def test_s3_ingest_no_email_if_publish(self, mock_property, bulk, new, updated, s3_ingest):
         mock_property.return_value = True
         s3_ingest.send_email()
@@ -843,7 +842,7 @@ class TestEmailLogic:
         new.assert_not_called()
         bulk.assert_not_called()
 
-    @patch("ingester.Metadata.force_publish", new_callable=PropertyMock)
+    @patch("ds_caselaw_ingester.ingester.Metadata.force_publish", new_callable=PropertyMock)
     def test_s3_ingest_email_if_not_publish(self, mock_property, bulk, new, updated, s3_ingest):
         mock_property.return_value = False
         s3_ingest.send_email()

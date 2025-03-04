@@ -18,13 +18,14 @@ from caselawclient.models.identifiers.neutral_citation import NeutralCitationNum
 from caselawclient.models.identifiers.press_summary_ncn import PressSummaryRelatedNCNIdentifier
 from caselawclient.models.press_summaries import PressSummary
 from caselawclient.models.utilities.aws import S3PrefixString
-from exceptions import DocumentInsertionError, DocxFilenameNotFoundException, FileNotFoundException
 from mypy_boto3_s3.client import S3Client
 from mypy_boto3_s3.type_defs import CopySourceTypeDef
 from notifications_python_client.notifications import NotificationsAPIClient
 
+from .exceptions import DocumentInsertionError, DocxFilenameNotFoundException, FileNotFoundException
+
 if TYPE_CHECKING:
-    from lambda_function import Message
+    from .lambda_function import Message
 
 logger = logging.getLogger("ingester")
 logger.setLevel(logging.DEBUG)

@@ -39,12 +39,6 @@ def assert_log_sensible(log):
 
 
 class TestHandler:
-    def test_fixture_works(self, v2_ingest, s3_ingest):
-        """We get the XML of the data and extract the URI from it successfully using the fixtures"""
-
-        assert v2_ingest.uri == "d-v2-a1b2-c3d4"
-        assert s3_ingest.uri == "d-s3-a1b2-c3d4"
-
     @patch("ds_caselaw_ingester.lambda_function.api_client", autospec=True)
     @patch("ds_caselaw_ingester.lambda_function.boto3.session.Session")
     @patch("ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")

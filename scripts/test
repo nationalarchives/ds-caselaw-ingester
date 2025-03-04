@@ -1,1 +1,1 @@
-python -m pytest ds-caselaw-ingester/tests.py $*
+python -m pytest ds_caselaw_ingester/tests.py $*

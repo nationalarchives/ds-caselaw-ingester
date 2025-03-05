@@ -7,7 +7,7 @@ dist
 *.zip
 .DS_Store
 .aws-sam
-*/__pycache__
+__pycache__
 
 tmp
 volume

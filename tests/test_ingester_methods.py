@@ -8,7 +8,7 @@ import pytest
 from botocore.exceptions import NoCredentialsError
 from caselawclient.models.utilities.aws import S3PrefixString
 
-from ds_caselaw_ingester import exceptions, ingester
+from src.ds_caselaw_ingester import exceptions, ingester
 
 TDR_TARBALL_PATH = os.path.join(
     os.path.dirname(__file__),

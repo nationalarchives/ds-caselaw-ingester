@@ -4,7 +4,7 @@ from caselawclient.factories import JudgmentFactory, PressSummaryFactory
 from caselawclient.models.identifiers.neutral_citation import NeutralCitationNumber
 from caselawclient.models.identifiers.press_summary_ncn import PressSummaryRelatedNCNIdentifier
 
-from ds_caselaw_ingester import ingester
+from src.ds_caselaw_ingester import ingester
 
 
 class TestDocumentIdentifiers:

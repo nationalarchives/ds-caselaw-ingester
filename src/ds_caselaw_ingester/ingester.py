@@ -12,8 +12,8 @@ from xml.sax.saxutils import escape
 
 from botocore.exceptions import NoCredentialsError
 from caselawclient.Client import MarklogicApiClient, MarklogicResourceNotFoundError
-from caselawclient.client_helpers import VersionAnnotation, VersionType
-from caselawclient.models.documents import DocumentURIString
+from caselawclient.client_helpers import VersionAnnotation, VersionType, get_document_type_class
+from caselawclient.models.documents import Document, DocumentURIString
 from caselawclient.models.identifiers.neutral_citation import NeutralCitationNumber
 from caselawclient.models.identifiers.press_summary_ncn import PressSummaryRelatedNCNIdentifier
 from caselawclient.models.press_summaries import PressSummary
@@ -22,7 +22,11 @@ from mypy_boto3_s3.client import S3Client
 from mypy_boto3_s3.type_defs import CopySourceTypeDef
 from notifications_python_client.notifications import NotificationsAPIClient
 
-from .exceptions import DocumentInsertionError, DocxFilenameNotFoundException, FileNotFoundException
+from .exceptions import (
+    DocumentInsertionError,
+    DocxFilenameNotFoundException,
+    FileNotFoundException,
+)
 
 if TYPE_CHECKING:
     from .lambda_function import Message
@@ -245,6 +249,11 @@ class Ingest:
         """This should be mocked out for testing -- get the tar file from S3 and
         save locally, returning the filename it was saved at"""
         return self.message.save_s3_response(self.s3_client)
+
+    @property
+    def ingested_document_type(self) -> type[Document]:
+        """Get the type of the ingested document."""
+        return get_document_type_class(ET.tostring(self.xml))
 
     def update_document_xml(self) -> bool:
         if self.metadata_object.is_tdr:

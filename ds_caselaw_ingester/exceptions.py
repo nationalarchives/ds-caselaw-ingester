@@ -37,3 +37,7 @@ class DocxFilenameNotFoundException(ReportableException):
 
 class DocumentInsertionError(ReportableException):
     pass
+
+
+class CannotDetermineDocumentType(ReportableException):
+    pass

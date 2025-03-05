@@ -13,16 +13,22 @@ from xml.sax.saxutils import escape
 from botocore.exceptions import NoCredentialsError
 from caselawclient.Client import MarklogicApiClient, MarklogicResourceNotFoundError
 from caselawclient.client_helpers import VersionAnnotation, VersionType
-from caselawclient.models.documents import DocumentURIString
+from caselawclient.models.documents import Document, DocumentURIString
 from caselawclient.models.identifiers.neutral_citation import NeutralCitationNumber
 from caselawclient.models.identifiers.press_summary_ncn import PressSummaryRelatedNCNIdentifier
+from caselawclient.models.judgments import Judgment
 from caselawclient.models.press_summaries import PressSummary
 from caselawclient.models.utilities.aws import S3PrefixString
 from mypy_boto3_s3.client import S3Client
 from mypy_boto3_s3.type_defs import CopySourceTypeDef
 from notifications_python_client.notifications import NotificationsAPIClient
 
-from .exceptions import DocumentInsertionError, DocxFilenameNotFoundException, FileNotFoundException
+from .exceptions import (
+    CannotDetermineDocumentType,
+    DocumentInsertionError,
+    DocxFilenameNotFoundException,
+    FileNotFoundException,
+)
 
 if TYPE_CHECKING:
     from .lambda_function import Message
@@ -245,6 +251,23 @@ class Ingest:
         """This should be mocked out for testing -- get the tar file from S3 and
         save locally, returning the filename it was saved at"""
         return self.message.save_s3_response(self.s3_client)
+
+    @property
+    def ingested_document_type(self) -> type[Document]:
+        """Attempt to get the type of the ingested document."""
+
+        # If the document's root element is `judgment` it's a `Judgment`, regardless of the presence of a `name`.
+        if self.xml.tag == "judgment":
+            return Judgment
+
+        # If the document's root element has a `name` attribute with a value of `pressSummary` we can assume it's a `PressSummary`
+        if self.xml.tag == "doc" and self.xml.attrib.get("name") == "pressSummary":
+            return PressSummary
+
+        # Otherwise, we don't know for sure. Fail out.
+        raise CannotDetermineDocumentType(
+            "Unable to accurately determine the type of this document based on the root XML node.",
+        )
 
     def update_document_xml(self) -> bool:
         if self.metadata_object.is_tdr:

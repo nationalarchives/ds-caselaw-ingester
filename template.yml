@@ -70,8 +70,8 @@ Resources:
   TNACaselawIngesterFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
-      CodeUri: ds_caselaw_ingester/
-      Handler: lambda_function.handler
+      CodeUri: src/
+      Handler: ds_caselaw_ingester.lambda_function.handler
       Runtime: python3.12
       Architectures:
         - x86_64

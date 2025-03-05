@@ -16,7 +16,7 @@ from conftest import s3_message_raw, v2_message, v2_message_raw
 from helpers import create_fake_bulk_file, create_fake_tdr_file
 from notifications_python_client.notifications import NotificationsAPIClient
 
-from ds_caselaw_ingester import exceptions, ingester, lambda_function
+from src.ds_caselaw_ingester import exceptions, ingester, lambda_function
 
 rollbar.init(access_token=None, enabled=False)
 
@@ -33,12 +33,12 @@ def assert_log_sensible(log):
 
 
 class TestHandler:
-    @patch("ds_caselaw_ingester.lambda_function.api_client", autospec=True)
-    @patch("ds_caselaw_ingester.lambda_function.boto3.session.Session")
-    @patch("ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
-    @patch("ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
-    @patch("ds_caselaw_ingester.ingester.VersionAnnotation")
-    @patch("ds_caselaw_ingester.ingester.modify_filename")
+    @patch("src.ds_caselaw_ingester.lambda_function.api_client", autospec=True)
+    @patch("src.ds_caselaw_ingester.lambda_function.boto3.session.Session")
+    @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
+    @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
+    @patch("src.ds_caselaw_ingester.ingester.VersionAnnotation")
+    @patch("src.ds_caselaw_ingester.ingester.modify_filename")
     def test_handler_messages_v2(
         self,
         modify_filename,
@@ -76,13 +76,13 @@ class TestHandler:
         doc.identifiers.add.assert_not_called()
         doc.identifiers.save.assert_not_called()
 
-    @patch("ds_caselaw_ingester.lambda_function.api_client", autospec=True)
-    @patch("ds_caselaw_ingester.lambda_function.boto3.session.Session")
-    @patch("ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
-    @patch("ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
-    @patch("ds_caselaw_ingester.ingester.VersionAnnotation")
-    @patch("ds_caselaw_ingester.ingester.modify_filename")
-    @patch("ds_caselaw_ingester.ingester.uuid4")
+    @patch("src.ds_caselaw_ingester.lambda_function.api_client", autospec=True)
+    @patch("src.ds_caselaw_ingester.lambda_function.boto3.session.Session")
+    @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
+    @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
+    @patch("src.ds_caselaw_ingester.ingester.VersionAnnotation")
+    @patch("src.ds_caselaw_ingester.ingester.modify_filename")
+    @patch("src.ds_caselaw_ingester.ingester.uuid4")
     def test_handler_messages_s3(
         self,
         mock_uuid4,
@@ -300,7 +300,7 @@ class TestLambda:
         )
         mock_print.assert_called_with(Contains("Sent update notification to test@notifications.service.gov.uk"))
 
-    @patch("ds_caselaw_ingester.ingester.AWS_BUCKET_NAME", "private-bucket")
+    @patch("src.ds_caselaw_ingester.ingester.AWS_BUCKET_NAME", "private-bucket")
     def test_update_published_documents(self, v2_ingest):
         contents = {"Contents": [{"Key": "file1.ext"}, {"Key": "file2.ext"}]}
 
@@ -444,7 +444,7 @@ class TestPublicationLogic:
         assert s3_ingest.will_publish() is True
 
     def test_s3_ingest_publish_no_force_publish(self, s3_ingest):
-        with patch("ds_caselaw_ingester.ingester.Metadata.force_publish", new_callable=PropertyMock) as mock:
+        with patch("src.ds_caselaw_ingester.ingester.Metadata.force_publish", new_callable=PropertyMock) as mock:
             mock.return_value = False
             assert s3_ingest.will_publish() is False
 
@@ -457,9 +457,9 @@ class TestPublicationLogic:
         assert fcl_ingest.will_publish() is True
 
 
-@patch("ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
-@patch("ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
-@patch("ds_caselaw_ingester.lambda_function.Ingest.send_bulk_judgment_notification")
+@patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
+@patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
+@patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_bulk_judgment_notification")
 class TestEmailLogic:
     def test_v2_ingest_publish_email_update(self, bulk, new, updated, v2_ingest):
         v2_ingest.inserted = False
@@ -490,7 +490,7 @@ class TestEmailLogic:
         new.assert_not_called()
         bulk.assert_not_called()
 
-    @patch("ds_caselaw_ingester.ingester.Metadata.force_publish", new_callable=PropertyMock)
+    @patch("src.ds_caselaw_ingester.ingester.Metadata.force_publish", new_callable=PropertyMock)
     def test_s3_ingest_no_email_if_publish(self, mock_property, bulk, new, updated, s3_ingest):
         mock_property.return_value = True
         s3_ingest.send_email()
@@ -499,7 +499,7 @@ class TestEmailLogic:
         new.assert_not_called()
         bulk.assert_not_called()
 
-    @patch("ds_caselaw_ingester.ingester.Metadata.force_publish", new_callable=PropertyMock)
+    @patch("src.ds_caselaw_ingester.ingester.Metadata.force_publish", new_callable=PropertyMock)
     def test_s3_ingest_email_if_not_publish(self, mock_property, bulk, new, updated, s3_ingest):
         mock_property.return_value = False
         s3_ingest.send_email()

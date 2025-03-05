@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 from helpers import create_fake_bulk_file, create_fake_tdr_file
 from pytest import fixture
 
-from ds_caselaw_ingester import ingester, lambda_function
+from src.ds_caselaw_ingester import ingester, lambda_function
 
 v2_message_raw = """
     {
@@ -50,10 +50,10 @@ s3_message_raw = json.dumps(s3_message)
 
 @fixture
 @patch(
-    "ds_caselaw_ingester.lambda_function.Ingest.save_tar_file_in_s3",
+    "src.ds_caselaw_ingester.lambda_function.Ingest.save_tar_file_in_s3",
     return_value="/tmp/TDR-2022-DNWR.tar.gz",
 )
-@patch("ds_caselaw_ingester.ingester.uuid4")
+@patch("src.ds_caselaw_ingester.ingester.uuid4")
 def v2_ingest(mock_uuid4, fake_s3):
     mock_uuid4.return_value = "v2-a1b2-c3d4"
     create_fake_tdr_file()
@@ -66,8 +66,8 @@ def v2_ingest(mock_uuid4, fake_s3):
 
 
 @fixture
-@patch("ds_caselaw_ingester.lambda_function.Ingest.save_tar_file_in_s3", return_value="/tmp/BULK-0.tar.gz")
-@patch("ds_caselaw_ingester.ingester.uuid4")
+@patch("src.ds_caselaw_ingester.lambda_function.Ingest.save_tar_file_in_s3", return_value="/tmp/BULK-0.tar.gz")
+@patch("src.ds_caselaw_ingester.ingester.uuid4")
 def s3_ingest(mock_uuid4, fake_s3):
     mock_uuid4.return_value = "s3-a1b2-c3d4"
     create_fake_bulk_file()
@@ -81,7 +81,7 @@ def s3_ingest(mock_uuid4, fake_s3):
 
 @fixture
 @patch(
-    "ds_caselaw_ingester.lambda_function.Ingest.save_tar_file_in_s3",
+    "src.ds_caselaw_ingester.lambda_function.Ingest.save_tar_file_in_s3",
     return_value="/tmp/TDR-2022-DNWR.tar.gz",
 )
 def fcl_ingest(fake_s3):

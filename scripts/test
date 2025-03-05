@@ -1,1 +1,1 @@
-python -m pytest tests/* $*
+AWS_BUCKET_NAME=x PUBLIC_ASSET_BUCKET=y python -m pytest tests/* $*

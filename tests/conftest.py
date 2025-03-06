@@ -2,10 +2,11 @@ import copy
 import json
 from unittest.mock import Mock, patch
 
-from helpers import create_fake_bulk_file, create_fake_tdr_file
 from pytest import fixture
 
 from src.ds_caselaw_ingester import ingester, lambda_function
+
+from .helpers import create_fake_bulk_file, create_fake_tdr_file
 
 v2_message_raw = """
     {

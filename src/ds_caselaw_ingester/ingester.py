@@ -214,10 +214,14 @@ class Metadata:
 
     @property
     def is_tdr(self) -> bool:
+        """Does the metadata say this document came from TDR?"""
         return "TDR" in self.parameters
 
     @property
     def force_publish(self) -> bool:
+        """
+        Does the metadata say to automatically publish this document?
+        """
         return self.parameters.get("INGESTER_OPTIONS", {}).get("auto_publish", False)
 
 
@@ -289,7 +293,12 @@ class Ingest:
                 _build_version_annotation_payload_from_metadata(self.metadata),
             ),  # We cast this to a dict here because VersionAnnotation doesn't yet have a TypedDict as its payload argument.
         )
-        self.api_client.insert_document_xml(self.uri, self.xml, annotation)
+        self.api_client.insert_document_xml(
+            document_uri=self.uri,
+            document_xml=self.xml,
+            annotation=annotation,
+            document_type=self.ingested_document_type,
+        )
         return True
 
     def set_document_identifiers(self) -> None:

@@ -242,6 +242,7 @@ class Ingest:
         print(f"Received Message: {self.message.message}")
         self.local_tar_filename = self.save_tar_file_in_s3()
         self.uri = DocumentURIString("d-" + str(uuid4()))
+        self.document = Document(self.uri, self.api_client)
         with tarfile.open(self.local_tar_filename, mode="r") as tar:
             self.metadata = extract_metadata(tar, self.consignment_reference)
             self.message.update_consignment_reference(self.metadata["parameters"]["TRE"]["reference"])
@@ -353,7 +354,7 @@ class Ingest:
         pass
 
     def unpublish_updated_judgment(self) -> None:
-        self.api_client.set_published(self.uri, False)
+        self.document.unpublish()
 
     def store_metadata(self) -> None:
         tdr_metadata = self.metadata["parameters"]["TDR"]
@@ -456,7 +457,7 @@ class Ingest:
         raise RuntimeError(f"Didn't recognise originator {originator!r}")
 
     def publish(self) -> None:
-        self.api_client.set_published(self.uri, True)
+        self.document.publish()
 
     def send_email(self) -> None:
         originator = self.message.originator

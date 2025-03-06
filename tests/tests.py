@@ -12,11 +12,12 @@ from caselawclient.Client import (
     MarklogicResourceNotFoundError,
 )
 from caselawclient.models.identifiers.neutral_citation import NeutralCitationNumber
-from conftest import s3_message_raw, v2_message, v2_message_raw
-from helpers import create_fake_bulk_file, create_fake_tdr_file
 from notifications_python_client.notifications import NotificationsAPIClient
 
 from src.ds_caselaw_ingester import exceptions, ingester, lambda_function
+
+from .conftest import s3_message_raw, v2_message, v2_message_raw
+from .helpers import create_fake_bulk_file, create_fake_tdr_file
 
 rollbar.init(access_token=None, enabled=False)
 

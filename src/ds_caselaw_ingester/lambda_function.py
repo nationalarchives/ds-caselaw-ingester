@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 from mypy_boto3_s3.client import S3Client
 
 from .exceptions import InvalidMessageException
-from .ingester import Ingest, perform_ingest
+from .ingester import process_message
 
 logger = logging.getLogger("ingester")
 logger.setLevel(logging.DEBUG)
@@ -140,19 +140,6 @@ def all_messages(event) -> list[Message]:
     return [Message.from_message(message) for message in messages_as_decoded_json]
 
 
-# called by tests
-def get_consignment_reference(message):
-    return Message.from_message(message).get_consignment_reference()
-
-
-def extract_lambda_versions(versions: list[dict[str, str]]) -> list[tuple[str, str]]:
-    version_tuples = []
-    for d in versions:
-        version_tuples += list(d.items())
-
-    return version_tuples
-
-
 def get_s3_client() -> S3Client:
     if os.getenv("AWS_ACCESS_KEY_ID") and os.getenv("AWS_SECRET_KEY") and os.getenv("AWS_ENDPOINT_URL"):
         session = boto3.session.Session(
@@ -169,11 +156,4 @@ def get_s3_client() -> S3Client:
 def handler(event, context):
     s3_client = get_s3_client()
     for message in all_messages(event):
-        ingest = Ingest(
-            message=message,
-            destination_bucket=AWS_BUCKET_NAME,
-            api_client=api_client,
-            s3_client=s3_client,
-        )
-
-        perform_ingest(ingest)
+        process_message(message, AWS_BUCKET_NAME, s3_client, api_client)

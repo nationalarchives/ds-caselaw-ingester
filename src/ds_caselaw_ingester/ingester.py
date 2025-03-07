@@ -16,6 +16,7 @@ from caselawclient.client_helpers import VersionAnnotation, VersionType, get_doc
 from caselawclient.models.documents import Document, DocumentURIString
 from caselawclient.models.identifiers.neutral_citation import NeutralCitationNumber
 from caselawclient.models.identifiers.press_summary_ncn import PressSummaryRelatedNCNIdentifier
+from caselawclient.models.judgments import Judgment
 from caselawclient.models.press_summaries import PressSummary
 from caselawclient.models.utilities.aws import S3PrefixString
 from mypy_boto3_s3.client import S3Client
@@ -259,6 +260,16 @@ class Ingest:
         """Get the type of the ingested document."""
         return get_document_type_class(ET.tostring(self.xml))
 
+    @property
+    def ingested_document_type_string(self) -> str:
+        """The type of the ingested document as a string, for humans"""
+        lookup = {
+            Document: "Parser Error",
+            Judgment: "Judgment",
+            PressSummary: "Press Summary",
+        }
+        return lookup[self.ingested_document_type]
+
     def update_document_xml(self) -> bool:
         if self.metadata_object.is_tdr:
             message = "Updated document submitted by TDR user"
@@ -308,14 +319,24 @@ class Ingest:
             logger.warning(msg)
 
         ncn = doc.neutral_citation
-        identifier_class = PressSummaryRelatedNCNIdentifier if isinstance(doc, PressSummary) else NeutralCitationNumber
+        identifier_class_lookup = {
+            PressSummary: PressSummaryRelatedNCNIdentifier,
+            Judgment: NeutralCitationNumber,
+            Document: None,
+        }
+        identifier_class = identifier_class_lookup[self.ingested_document_type]
+
+        if not identifier_class:
+            return
 
         if ncn:
             doc.identifiers.add(identifier_class(ncn))
             doc.save_identifiers()
-            logger.info(f"Ingested document had identifier {identifier_class.__name__} {ncn}")
+            logger.info(
+                f"Ingested {self.ingested_document_type_string} had identifier {identifier_class.__name__} {ncn}",
+            )
         else:
-            logger.info("Ingested document had NCN (NOT FOUND)")
+            logger.info(f"Ingested {self.ingested_document_type_string} did not have an NCN")
 
     def send_updated_judgment_notification(self) -> None:
         personalisation = personalise_email(self.uri, self.metadata)
@@ -332,10 +353,8 @@ class Ingest:
         print(f"Sent update notification to {os.getenv('NOTIFY_EDITORIAL_ADDRESS')} (Message ID: {response['id']})")
 
     def send_new_judgment_notification(self) -> None:
-        doctype = "Press Summary" if "/press-summary/" in self.uri else "Judgment"
-
         personalisation = personalise_email(self.uri, self.metadata)
-        personalisation["doctype"] = doctype
+        personalisation["doctype"] = self.ingested_document_type_string
 
         if os.getenv("ROLLBAR_ENV") != "prod":
             print(f"Would send a notification but we're not in production.\n{personalisation}")

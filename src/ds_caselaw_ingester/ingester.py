@@ -19,12 +19,10 @@ from caselawclient.models.identifiers.press_summary_ncn import PressSummaryRelat
 from caselawclient.models.press_summaries import PressSummary
 from caselawclient.models.utilities.aws import S3PrefixString
 from mypy_boto3_s3.client import S3Client
-from mypy_boto3_s3.type_defs import CopySourceTypeDef
 from notifications_python_client.notifications import NotificationsAPIClient
 
 from .exceptions import (
     DocumentInsertionError,
-    DocxFilenameNotFoundException,
     FileNotFoundException,
 )
 
@@ -162,22 +160,20 @@ def _build_version_annotation_payload_from_metadata(metadata: TREMetadataDict) -
         "tre_raw_metadata": metadata,
     }
 
-    if "TDR" in metadata["parameters"]:
-        payload["tdr_reference"] = metadata["parameters"]["TDR"]["Internal-Sender-Identifier"]
+    tdr_metadata = metadata.get("parameters", {}).get("TDR")
+
+    if tdr_metadata:
+        payload["tdr_reference"] = tdr_metadata["Internal-Sender-Identifier"]
         payload["submitter"] = {
-            "name": metadata["parameters"]["TDR"]["Contact-Name"],
-            "email": metadata["parameters"]["TDR"]["Contact-Email"],
+            "name": tdr_metadata["Contact-Name"],
+            "email": tdr_metadata["Contact-Email"],
         }
 
     return payload
 
 
-def personalise_email(uri: str, metadata: TREMetadataDict) -> dict:
+def personalise_email(uri: str, tdr_metadata) -> dict:
     """Doesn't contain 'doctype', re-add for new judgment notification"""
-    try:
-        tdr_metadata = metadata["parameters"]["TDR"]
-    except KeyError:
-        tdr_metadata = {}
     return {
         "url": f"{os.getenv('EDITORIAL_UI_BASE_URL')}detail?judgment_uri={uri}",
         "consignment": tdr_metadata.get("Internal-Sender-Identifier", "unknown"),
@@ -186,15 +182,6 @@ def personalise_email(uri: str, metadata: TREMetadataDict) -> dict:
         f" <{tdr_metadata.get('Contact-Email', 'unknown')}>",
         "submitted_at": tdr_metadata.get("Consignment-Completed-Datetime", "unknown"),
     }
-
-
-def extract_docx_filename(metadata: TREMetadataDict, consignment_reference: str) -> str:
-    try:
-        return metadata["parameters"]["TRE"]["payload"]["filename"]
-    except KeyError as err:
-        raise DocxFilenameNotFoundException(
-            f"No .docx filename was found in metadata. Consignment Ref: {consignment_reference}, metadata: {metadata}",
-        ) from err
 
 
 def modify_filename(original: str, addition: str) -> str:
@@ -225,35 +212,28 @@ class Metadata:
         return self.parameters.get("INGESTER_OPTIONS", {}).get("auto_publish", False)
 
 
-class Ingest:
+class MarklogicIngester:
     def __init__(
         self,
         message: "Message",
-        destination_bucket: str,
+        xml: ET.Element,
+        uri: DocumentURIString,
+        metadata: TREMetadataDict,
         api_client: MarklogicApiClient,
-        s3_client: S3Client,
     ) -> None:
         self.message = message
-        self.destination_bucket = destination_bucket
+        self.xml = xml
+        self.uri = uri
+        self.metadata = metadata
         self.api_client = api_client
-        self.s3_client = s3_client
-        self.consignment_reference: str = self.message.get_consignment_reference()
-        print(f"Ingester Start: Consignment reference {self.consignment_reference}")
-        print(f"Received Message: {self.message.message}")
-        self.local_tar_filename = self.save_tar_file_in_s3()
-        self.uri = DocumentURIString("d-" + str(uuid4()))
-        self.document = Document(self.uri, self.api_client)
-        with tarfile.open(self.local_tar_filename, mode="r") as tar:
-            self.metadata = extract_metadata(tar, self.consignment_reference)
-            self.message.update_consignment_reference(self.metadata["parameters"]["TRE"]["reference"])
-            self.xml_file_name = self.metadata["parameters"]["TRE"]["payload"]["xml"]
-            self.xml = get_best_xml(self.uri, tar, self.xml_file_name, self.consignment_reference)
-        print(f"Ingesting document {self.uri}")
 
-    def save_tar_file_in_s3(self) -> str:
-        """This should be mocked out for testing -- get the tar file from S3 and
-        save locally, returning the filename it was saved at"""
-        return self.message.save_s3_response(self.s3_client)
+    def store_data(self) -> bool:
+        inserted = self.upload_xml()
+        # Store metadata in Marklogic
+        has_tdr_metadata = "TDR" in self.metadata_object.parameters
+        if has_tdr_metadata:
+            self.store_metadata()
+        return inserted
 
     @property
     def ingested_document_type(self) -> type[Document]:
@@ -318,44 +298,6 @@ class Ingest:
         else:
             logger.info("Ingested document had NCN (NOT FOUND)")
 
-    def send_updated_judgment_notification(self) -> None:
-        personalisation = personalise_email(self.uri, self.metadata)
-        if os.getenv("ROLLBAR_ENV") != "prod":
-            print(f"Would send a notification but we're not in production.\n{personalisation}")
-            return
-
-        notifications_client = NotificationsAPIClient(os.environ["NOTIFY_API_KEY"])
-        response = notifications_client.send_email_notification(
-            email_address=os.getenv("NOTIFY_EDITORIAL_ADDRESS"),
-            template_id=os.getenv("NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID"),
-            personalisation=personalisation,
-        )
-        print(f"Sent update notification to {os.getenv('NOTIFY_EDITORIAL_ADDRESS')} (Message ID: {response['id']})")
-
-    def send_new_judgment_notification(self) -> None:
-        doctype = "Press Summary" if "/press-summary/" in self.uri else "Judgment"
-
-        personalisation = personalise_email(self.uri, self.metadata)
-        personalisation["doctype"] = doctype
-
-        if os.getenv("ROLLBAR_ENV") != "prod":
-            print(f"Would send a notification but we're not in production.\n{personalisation}")
-            return
-        notifications_client = NotificationsAPIClient(os.environ["NOTIFY_API_KEY"])
-        response = notifications_client.send_email_notification(
-            email_address=os.getenv("NOTIFY_EDITORIAL_ADDRESS"),
-            template_id=os.getenv("NOTIFY_NEW_JUDGMENT_TEMPLATE_ID"),
-            personalisation=personalisation,
-        )
-        print(f"Sent new notification to {os.getenv('NOTIFY_EDITORIAL_ADDRESS')} (Message ID: {response['id']})")
-
-    def send_bulk_judgment_notification(self) -> None:
-        # Not yet implemented. We currently only autopublish judgments sent in bulk.
-        pass
-
-    def unpublish_updated_judgment(self) -> None:
-        self.document.unpublish()
-
     def store_metadata(self) -> None:
         tdr_metadata = self.metadata["parameters"]["TDR"]
 
@@ -379,14 +321,50 @@ class Ingest:
             value=tdr_metadata["Consignment-Completed-Datetime"],
         )
 
-    def save_files_to_s3(self) -> None:
-        # Determine if there's a word document -- we need to know before we save the tar.gz file
-        docx_filename = extract_docx_filename(self.metadata, self.consignment_reference)
-        print(f"extracted docx filename is {docx_filename!r}")
+    @property
+    def metadata_object(self) -> Metadata:
+        return Metadata(self.metadata)
 
+    def upload_xml(self) -> bool:
+        self.updated = self.update_document_xml()
+        inserted = False if self.updated else self.insert_document_xml()
+        if not self.updated and not inserted:
+            raise DocumentInsertionError(
+                f"Judgment {self.uri} failed to insert into Marklogic.",
+            )
+        self.set_document_identifiers()
+        print(f"{self.upload_state.title()} judgment xml for {self.uri}")
+        return inserted
+
+    @property
+    def upload_state(self) -> str:
+        return "updated" if self.updated else "inserted"
+
+
+class S3Ingester:
+    def __init__(
+        self,
+        uri: DocumentURIString,
+        docx_filename: str,
+        consignment_reference: str,
+        image_list: list[str],
+        local_tar_filename: str,
+        destination_bucket: str,
+        s3_client: S3Client,
+    ) -> None:
+        self.uri = uri
+        self.docx_filename = docx_filename
+        self.consignment_reference = consignment_reference
+        self.image_list = image_list
+        self.local_tar_filename = local_tar_filename
+        self.destination_bucket = destination_bucket
+        self.s3_client = s3_client
+
+    def save_files_to_unpublished_bucket(self) -> None:
+        # Determine if there's a word document -- we need to know before we save the tar.gz file
         # Copy original tarfile
         modified_targz_filename = (
-            self.local_tar_filename if docx_filename else modify_filename(self.local_tar_filename, "_nodocx")
+            self.local_tar_filename if self.docx_filename else modify_filename(self.local_tar_filename, "_nodocx")
         )
         with open(self.local_tar_filename, mode="rb") as local_tar:
             store_file(
@@ -400,11 +378,11 @@ class Ingest:
 
         # Store docx and rename
         # The docx_filename is None for files which have been reparsed.
-        if docx_filename is not None:
+        if self.docx_filename is not None:
             with tarfile.open(self.local_tar_filename, mode="r") as tar:
                 copy_file(
                     tar,
-                    f"{self.consignment_reference}/{docx_filename}",
+                    f"{self.consignment_reference}/{self.docx_filename}",
                     self.destination_bucket,
                     f"{self.uri.replace('/', '_')}.docx",
                     S3PrefixString(self.uri + "/"),
@@ -423,9 +401,8 @@ class Ingest:
             )
 
         # Store images
-        image_list = self.metadata["parameters"]["TRE"]["payload"]["images"]
-        if image_list:
-            for image_filename in image_list:
+        if self.image_list:
+            for image_filename in self.image_list:
                 with tarfile.open(self.local_tar_filename, mode="r") as tar:
                     copy_file(
                         tar,
@@ -436,93 +413,173 @@ class Ingest:
                         self.s3_client,
                     )
 
-    @property
-    def metadata_object(self) -> Metadata:
-        return Metadata(self.metadata)
 
-    def will_publish(self) -> bool:
-        originator = self.message.originator
-        # TDR
-        if originator == "TDR":
-            return False
-
-        # Bulk
-        if originator == "FCL S3":
-            return self.metadata_object.force_publish is True
-
-        # reparse
-        if originator == "FCL":
-            return self.api_client.get_published(self.uri) is True
-
-        raise RuntimeError(f"Didn't recognise originator {originator!r}")
-
-    def publish(self) -> None:
-        self.document.publish()
+class IngesterNotifer:
+    def __init__(self, uri, originator, inserted, force_publish, tdr_metadata):
+        self.uri = uri
+        self.originator = originator
+        self.inserted = inserted
+        self.force_publish = force_publish
+        self.tdr_metadata = tdr_metadata
 
     def send_email(self) -> None:
-        originator = self.message.originator
+        originator = self.originator
         if originator == "FCL":
             return None
 
         if originator == "FCL S3":
-            return None if self.metadata_object.force_publish else self.send_bulk_judgment_notification()
+            return None if self.force_publish else self._send_bulk_judgment_notification()
 
         if originator == "TDR":
-            return self.send_new_judgment_notification() if self.inserted else self.send_updated_judgment_notification()
+            return (
+                self._send_new_judgment_notification() if self.inserted else self._send_updated_judgment_notification()
+            )
 
         raise RuntimeError(f"Didn't recognise originator {originator!r}")
 
-    def upload_xml(self) -> None:
-        self.updated = self.update_document_xml()
-        self.inserted = False if self.updated else self.insert_document_xml()
-        if not self.updated and not self.inserted:
-            raise DocumentInsertionError(
-                f"Judgment {self.uri} failed to insert into Marklogic. Consignment Ref: {self.consignment_reference}",
-            )
-        self.set_document_identifiers()
+    def _send_new_judgment_notification(self) -> None:
+        doctype = "Press Summary" if "/press-summary/" in self.uri else "Judgment"
 
-    @property
-    def upload_state(self) -> str:
-        return "updated" if self.updated else "inserted"
+        personalisation = personalise_email(self.uri, self.tdr_metadata)
+        personalisation["doctype"] = doctype
 
-    def update_published_documents(self, public_bucket: str) -> None:
-        """Copy all assets (except .tar.gz and parser.log) from the private bucket which have the prefix of this document's URI to the public bucket."""
-        private_bucket = AWS_BUCKET_NAME
+        if os.getenv("ROLLBAR_ENV") != "prod":
+            print(f"Would send a notification but we're not in production.\n{personalisation}")
+            return
+        notifications_client = NotificationsAPIClient(os.environ["NOTIFY_API_KEY"])
+        response = notifications_client.send_email_notification(
+            email_address=os.getenv("NOTIFY_EDITORIAL_ADDRESS"),
+            template_id=os.getenv("NOTIFY_NEW_JUDGMENT_TEMPLATE_ID"),
+            personalisation=personalisation,
+        )
+        print(f"Sent new notification to {os.getenv('NOTIFY_EDITORIAL_ADDRESS')} (Message ID: {response['id']})")
 
-        response = self.s3_client.list_objects(Bucket=private_bucket, Prefix=self.uri)
+    def _send_bulk_judgment_notification(self) -> None:
+        # Not yet implemented. We currently only autopublish judgments sent in bulk.
+        pass
 
-        for result in response.get("Contents", []):
-            key = result["Key"]
+    def _send_updated_judgment_notification(self) -> None:
+        personalisation = personalise_email(self.uri, self.tdr_metadata)
+        if os.getenv("ROLLBAR_ENV") != "prod":
+            print(f"Would send a notification but we're not in production.\n{personalisation}")
+            return
 
-            if "parser.log" not in key and not str(key).endswith(".tar.gz"):
-                source: CopySourceTypeDef = {"Bucket": private_bucket, "Key": key}
-                extra_args: dict[str, Any] = {}
-                print(f"copying {private_bucket} / {key} to {public_bucket} / {key}")
-                self.s3_client.copy(source, public_bucket, key, extra_args)
+        notifications_client = NotificationsAPIClient(os.environ["NOTIFY_API_KEY"])
+        response = notifications_client.send_email_notification(
+            email_address=os.getenv("NOTIFY_EDITORIAL_ADDRESS"),
+            template_id=os.getenv("NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID"),
+            personalisation=personalisation,
+        )
+        print(f"Sent update notification to {os.getenv('NOTIFY_EDITORIAL_ADDRESS')} (Message ID: {response['id']})")
 
 
-def perform_ingest(ingest: Ingest) -> None:
-    """Given an Ingest object, perform the necessary tasks to put it in MarkLogic and tell people about it."""
+class IngesterPublisher:
+    def __init__(self, document: Document, originator: str, force_publish: bool = False):
+        self.document = document
+        self.originator = originator
+        self.force_publish = force_publish
 
-    # Extract and parse the judgment XML
-    ingest.upload_xml()
-    print(f"{ingest.upload_state.title()} judgment xml for {ingest.uri}")
+    def process(self):
+        if self.will_publish():
+            print(f"publishing {self.document.consignment_reference} at {self.document.uri}")
+            self.document.publish()
+        else:
+            self.document.unpublish()
 
-    ingest.send_email()
+    def will_publish(self) -> bool:
+        # TDR
+        if self.originator == "TDR":
+            return False
 
-    # Store metadata in Marklogic
-    has_TDR_data = "TDR" in ingest.metadata["parameters"]
-    if has_TDR_data:
-        ingest.store_metadata()
+        # Bulk
+        if self.originator == "FCL S3":
+            return self.force_publish is True
 
-    # save files to S3
-    ingest.save_files_to_s3()
+        # reparse
+        if self.originator == "FCL":
+            return self.document.api_client.get_published(self.document.uri) is True
 
-    if ingest.will_publish():
-        print(f"publishing {ingest.consignment_reference} at {ingest.uri}")
-        ingest.publish()
-        ingest.update_published_documents(PUBLIC_ASSET_BUCKET)
+        raise RuntimeError(f"Didn't recognise originator {self.originator!r}")
+
+
+def process_message(
+    message: "Message",
+    destination_bucket: str,
+    s3_client: S3Client,
+    api_client: MarklogicApiClient,
+) -> None:
+    print(f"Received Message: {message.message}")
+
+    # Extract consignment reference
+    consignment_reference: str = message.get_consignment_reference()
+
+    if consignment_reference:
+        print(f"Ingester Start: Consignment reference {consignment_reference}")
     else:
-        ingest.unpublish_updated_judgment()
+        print("Ingester Start: Consignment reference not available in message")
+
+    # Build Document URI
+    uri = DocumentURIString("d-" + str(uuid4()))
+    print(f"Ingesting document {uri}")
+
+    # Save tar.gz file locally
+    local_tar_filename = message.save_s3_response(s3_client)
+
+    # Extract metadata and XML
+    with tarfile.open(local_tar_filename, mode="r") as tar:
+        metadata = extract_metadata(tar, consignment_reference)
+        metadata_parameters = metadata["parameters"]
+        tdr_metadata = metadata_parameters.get("TDR", {})
+        tre_metadata = metadata_parameters.get("TRE", {})
+        tre_metadata_payload = tre_metadata["payload"]
+        xml_file_name = tre_metadata_payload["xml"]
+        xml = get_best_xml(uri, tar, xml_file_name, consignment_reference)
+
+    # Update consignment reference in message with reference passed in metadata
+    # This is a strange quirk: the consignment reference is not available in the message
+    # when it orginates from the S3 bucket, but in this scenario we can extract an equivalent
+    # reference from the metadata in the s3 bucket itself.
+    tre_consignment_reference = tre_metadata["reference"]
+    message.update_consignment_reference(tre_consignment_reference)
+
+    # Store data in Marklogic
+    marklogic_ingester = MarklogicIngester(
+        message=message,
+        xml=xml,
+        uri=uri,
+        metadata=metadata,
+        api_client=api_client,
+    )
+    inserted = marklogic_ingester.store_data()
+
+    docx_filename = tre_metadata["filename"]
+    print(f"extracted docx filename is {docx_filename!r}")
+
+    image_list = tre_metadata_payload["images"]
+
+    # Save files to unpublished s3 bucket
+    s3_ingester = S3Ingester(
+        uri=uri,
+        docx_filename=docx_filename,
+        consignment_reference=message.get_consignment_reference(),
+        image_list=image_list,
+        local_tar_filename=local_tar_filename,
+        destination_bucket=destination_bucket,
+        s3_client=s3_client,
+    )
+    s3_ingester.save_files_to_unpublished_bucket()
+
+    originator = message.originator
+    metadata_object = Metadata(metadata)
+    force_publish = metadata_object.force_publish
+
+    # publish or unpublish the document
+    document = Document(uri, api_client)
+    ingester_publisher = IngesterPublisher(document, originator, force_publish)
+    ingester_publisher.process()
+
+    # send email notification
+    ingester_notifier = IngesterNotifer(uri, originator, inserted, force_publish, tdr_metadata)
+    ingester_notifier.send_email()
 
     print("Ingestion complete")

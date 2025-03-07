@@ -175,13 +175,13 @@ class TestLambda:
     )
     @patch("builtins.print")
     def test_send_new_judgment_notification(self, mock_print, v2_ingest):
-        v2_ingest.uri = "ewca/2023/1/press-summary/1"
+        v2_ingest.uri = "d-4444"
         expected_personalisation = {
-            "url": "http://editor.url/detail?judgment_uri=ewca/2023/1/press-summary/1",
+            "url": "http://editor.url/detail?judgment_uri=d-4444",
             "consignment": "TDR-2021-CF6L",
             "submitter": "Tom King, Ministry of Justice <someone@example.com>",
             "submitted_at": "2021-12-16T14:54:06Z",
-            "doctype": "Press Summary",
+            "doctype": "Judgment",
         }
         NotificationsAPIClient.send_email_notification = MagicMock()
         v2_ingest.send_new_judgment_notification()
@@ -206,13 +206,13 @@ class TestLambda:
     @patch("builtins.print")
     def test_send_new_judgment_notification_with_no_tdr_section(self, mock_print, v2_ingest):
         v2_ingest.metadata = {}
-        v2_ingest.uri = "ewca/2023/1/press-summary/1"
+        v2_ingest.uri = "d-444"
         expected_personalisation = {
-            "url": "http://editor.url/detail?judgment_uri=ewca/2023/1/press-summary/1",
+            "url": "http://editor.url/detail?judgment_uri=d-444",
             "consignment": "unknown",
             "submitter": "unknown, unknown <unknown>",
             "submitted_at": "unknown",
-            "doctype": "Press Summary",
+            "doctype": "Judgment",
         }
         NotificationsAPIClient.send_email_notification = MagicMock()
         v2_ingest.send_new_judgment_notification()

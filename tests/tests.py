@@ -2,7 +2,7 @@ import copy
 import json
 import os
 import xml.etree.ElementTree as ET
-from unittest.mock import ANY, MagicMock, PropertyMock, call, patch
+from unittest.mock import ANY, MagicMock, call, patch
 
 import pytest
 import rollbar
@@ -12,15 +12,13 @@ from caselawclient.Client import (
     MarklogicResourceNotFoundError,
 )
 from caselawclient.models.documents import Document
-from caselawclient.models.identifiers.neutral_citation import NeutralCitationNumber
 from caselawclient.models.judgments import Judgment
 from caselawclient.models.press_summaries import PressSummary
 from notifications_python_client.notifications import NotificationsAPIClient
 
 from src.ds_caselaw_ingester import exceptions, ingester, lambda_function
 
-from .conftest import s3_message_raw, v2_message, v2_message_raw
-from .helpers import create_fake_bulk_file, create_fake_tdr_file
+from .conftest import s3_message_raw, v2_message
 
 rollbar.init(access_token=None, enabled=False)
 
@@ -34,106 +32,6 @@ def assert_log_sensible(log):
     assert "Ingestion complete" in log
     assert "Invalid XML file" not in log
     assert "No XML file found" not in log
-
-
-class TestHandler:
-    @patch("src.ds_caselaw_ingester.lambda_function.api_client", autospec=True)
-    @patch("src.ds_caselaw_ingester.lambda_function.boto3.session.Session")
-    @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
-    @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
-    @patch("src.ds_caselaw_ingester.ingester.VersionAnnotation")
-    @patch("src.ds_caselaw_ingester.ingester.modify_filename")
-    def test_handler_messages_v2(
-        self,
-        modify_filename,
-        annotation,
-        notify_new,
-        notify_update,
-        boto_session,
-        apiclient,
-        capsys,
-    ):
-        boto_session.return_value.client.return_value.download_file = create_fake_tdr_file
-        doc = apiclient.get_document_by_uri.return_value
-        doc.neutral_citation = None
-
-        message = v2_message_raw
-        event = {"Records": [{"Sns": {"Message": message}}, {"Sns": {"Message": message}}]}
-        lambda_function.handler(event=event, context=None)
-
-        log = capsys.readouterr().out
-        assert_log_sensible(log)
-        assert "publishing" not in log
-        assert "image1.png" in log
-        notify_update.assert_called()
-        assert notify_update.call_count == 2
-        notify_new.assert_not_called()
-        modify_filename.assert_not_called()
-
-        annotation.assert_called_with(
-            ANY,
-            automated=False,
-            message="Updated document submitted by TDR user",
-            payload=ANY,
-        )
-        assert annotation.call_count == 2
-        doc.identifiers.add.assert_not_called()
-        doc.identifiers.save.assert_not_called()
-
-    @patch("src.ds_caselaw_ingester.lambda_function.api_client", autospec=True)
-    @patch("src.ds_caselaw_ingester.lambda_function.boto3.session.Session")
-    @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
-    @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
-    @patch("src.ds_caselaw_ingester.ingester.VersionAnnotation")
-    @patch("src.ds_caselaw_ingester.ingester.modify_filename")
-    @patch("src.ds_caselaw_ingester.ingester.uuid4")
-    def test_handler_messages_s3(
-        self,
-        mock_uuid4,
-        modify_filename,
-        annotation,
-        notify_new,
-        notify_updated,
-        boto_session,
-        apiclient,
-        capsys,
-    ):
-        """Test that, with appropriate stubs, an S3 message passes through the parsing process"""
-        boto_session.return_value.client.return_value.download_file = create_fake_bulk_file
-        doc = apiclient.get_document_by_uri.return_value
-        doc.neutral_citation = "[2012] UKUT 82 (IAC)"
-        mock_uuid4.return_value = "a1b2-c3d4"
-
-        message = s3_message_raw
-        event = {"Records": [{"Sns": {"Message": message}}, {"Sns": {"Message": message}}]}
-        lambda_function.handler(event=event, context=None)
-
-        log = capsys.readouterr().out
-        assert "Ingester Start: Consignment reference BULK-0" in log
-        assert "tar.gz saved locally as /tmp/BULK-0.tar.gz" in log
-        assert "Ingesting document" in log
-        assert "Updated judgment xml" in log
-        assert "Upload Successful" in log
-        assert "Ingestion complete" in log
-        assert "publishing" in log
-        assert "Invalid XML file" not in log
-        assert "No XML file found" not in log
-        apiclient.set_published.assert_called_with("d-a1b2-c3d4", True)
-        assert apiclient.set_published.call_count == 2
-        notify_new.assert_not_called()
-        notify_updated.assert_not_called()
-        modify_filename.assert_not_called()
-
-        annotation.assert_called_with(
-            ANY,
-            automated=True,
-            message="Updated document uploaded by Find Case Law",
-            payload=ANY,
-        )
-        assert annotation.call_count == 2
-        assert doc.identifiers.add.call_args_list[0].args[0].value == "[2012] UKUT 82 (IAC)"
-        assert type(doc.identifiers.add.call_args_list[0].args[0]) is NeutralCitationNumber
-        doc.save_identifiers.assert_called()
 
 
 class TestLambda:
@@ -479,75 +377,3 @@ modify_filename_data = [
 @pytest.mark.parametrize("was, now", modify_filename_data)
 def test_modify_targz_filename(was, now):
     assert ingester.modify_filename(was, addition="_") == now
-
-
-class TestPublicationLogic:
-    def test_v2_ingest_publish(self, v2_ingest):
-        assert v2_ingest.will_publish() is False
-
-    def test_s3_ingest_publish(self, s3_ingest):
-        assert s3_ingest.will_publish() is True
-
-    def test_s3_ingest_publish_no_force_publish(self, s3_ingest):
-        with patch("src.ds_caselaw_ingester.ingester.Metadata.force_publish", new_callable=PropertyMock) as mock:
-            mock.return_value = False
-            assert s3_ingest.will_publish() is False
-
-    def test_fcl_not_published_if_not_published(self, fcl_ingest):
-        fcl_ingest.api_client.get_published.return_value = False
-        assert fcl_ingest.will_publish() is False
-
-    def test_fcl_published_if_published(self, fcl_ingest):
-        fcl_ingest.api_client.get_published.return_value = True
-        assert fcl_ingest.will_publish() is True
-
-
-@patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
-@patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
-@patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_bulk_judgment_notification")
-class TestEmailLogic:
-    def test_v2_ingest_publish_email_update(self, bulk, new, updated, v2_ingest):
-        v2_ingest.inserted = False
-        v2_ingest.updated = True
-
-        v2_ingest.send_email()
-
-        updated.assert_called()
-        new.assert_not_called()
-        bulk.assert_not_called()
-
-    def test_v2_ingest_publish_email_insert(self, bulk, new, updated, v2_ingest):
-        v2_ingest.inserted = True
-        v2_ingest.updated = False
-
-        v2_ingest.send_email()
-
-        updated.assert_not_called()
-        new.assert_called()
-        bulk.assert_not_called()
-
-    def test_fcl_ingest_no_email(self, bulk, new, updated, fcl_ingest):
-        fcl_ingest.inserted = True
-        fcl_ingest.updated = False
-        fcl_ingest.send_email()
-
-        updated.assert_not_called()
-        new.assert_not_called()
-        bulk.assert_not_called()
-
-    @patch("src.ds_caselaw_ingester.ingester.Metadata.force_publish", new_callable=PropertyMock)
-    def test_s3_ingest_no_email_if_publish(self, mock_property, bulk, new, updated, s3_ingest):
-        mock_property.return_value = True
-        s3_ingest.send_email()
-
-        updated.assert_not_called()
-        new.assert_not_called()
-        bulk.assert_not_called()
-
-    @patch("src.ds_caselaw_ingester.ingester.Metadata.force_publish", new_callable=PropertyMock)
-    def test_s3_ingest_email_if_not_publish(self, mock_property, bulk, new, updated, s3_ingest):
-        mock_property.return_value = False
-        s3_ingest.send_email()
-
-        updated.assert_not_called()
-        new.assert_not_called()

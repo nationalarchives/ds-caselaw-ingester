@@ -485,8 +485,12 @@ class TestLambda:
         with pytest.raises(MarklogicCommunicationError):
             v2_ingest.insert_document_xml()
 
+    @patch(
+        "src.ds_caselaw_ingester.lambda_function.Ingest.save_tar_file_in_s3",
+        return_value="/tmp/TDR-2022-DNWR.tar.gz",
+    )
     @patch("caselawclient.models.documents.Document")
-    def test_unpublish_updated_judgment(self, MockDocument, v2_ingest):
+    def test_unpublish_updated_judgment(self, MockDocument, fake_s3):
         # Mock the Document class
         # mock_document_instance = MagicMock()
         # MockDocument.side_effect = lambda _uri, _api_client: mock_document_instance
@@ -495,15 +499,34 @@ class TestLambda:
         mock_document_instance.unpublish = MagicMock()
 
         uri = "a/fake/uri"
-        v2_ingest.uri = uri
 
-        v2_ingest.unpublish_updated_judgment()
+        # Create a mock message object
+        mock_message = MagicMock()
+        mock_message.get_consignment_reference.return_value = "test-consignment-reference"
+        mock_message.message = "Test message"
+        mock_message.originator = "TDR"
 
-        MockDocument.assert_called_once_with(uri, v2_ingest.api_client)
+        # Create an instance of the Ingest class
+        ingest = ingester.Ingest(
+            message=mock_message,
+            destination_bucket="test-destination-bucket",
+            api_client=MagicMock(),
+            s3_client=MagicMock(),
+        )
+
+        ingest.uri = uri
+
+        ingest.unpublish_updated_judgment()
+
+        MockDocument.assert_called_once_with(uri, ingest.api_client)
         mock_document_instance.unpublish.assert_called_once()
 
+    @patch(
+        "src.ds_caselaw_ingester.lambda_function.Ingest.save_tar_file_in_s3",
+        return_value="/tmp/TDR-2022-DNWR.tar.gz",
+    )
     @patch("caselawclient.models.documents.Document")
-    def test_publish(self, MockDocument, v2_ingest):
+    def test_publish(self, MockDocument, fake_s3):
         # Mock the Document class
         # mock_document_instance = MagicMock()
         # MockDocument.side_effect = lambda _uri, _api_client: mock_document_instance
@@ -512,11 +535,26 @@ class TestLambda:
         mock_document_instance.unpublish = MagicMock()
 
         uri = "a/fake/uri"
-        v2_ingest.uri = uri
 
-        v2_ingest.publish()
+        # Create a mock message object
+        mock_message = MagicMock()
+        mock_message.get_consignment_reference.return_value = "test-consignment-reference"
+        mock_message.message = "Test message"
+        mock_message.originator = "TDR"
 
-        MockDocument.assert_called_once_with(uri, v2_ingest.api_client)
+        # Create an instance of the Ingest class
+        ingest = ingester.Ingest(
+            message=mock_message,
+            destination_bucket="test-destination-bucket",
+            api_client=MagicMock(),
+            s3_client=MagicMock(),
+        )
+
+        ingest.uri = uri
+
+        ingest.publish()
+
+        MockDocument.assert_called_once_with(uri, ingest.api_client)
         mock_document_instance.publish.assert_called_once()
 
     def test_user_agent(self):

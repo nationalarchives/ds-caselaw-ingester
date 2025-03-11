@@ -485,12 +485,39 @@ class TestLambda:
         with pytest.raises(MarklogicCommunicationError):
             v2_ingest.insert_document_xml()
 
-    def test_unpublish_updated_judgment(self, v2_ingest):
+    @patch("caselawclient.models.documents.Document")
+    def test_unpublish_updated_judgment(self, MockDocument, v2_ingest):
+        # Mock the Document class
+        # mock_document_instance = MagicMock()
+        # MockDocument.side_effect = lambda _uri, _api_client: mock_document_instance
+
+        mock_document_instance = MockDocument.return_value
+        mock_document_instance.unpublish = MagicMock()
+
         uri = "a/fake/uri"
-        v2_ingest.api_client.set_published = MagicMock()
         v2_ingest.uri = uri
+
         v2_ingest.unpublish_updated_judgment()
-        v2_ingest.api_client.set_published.assert_called_with(uri, False)
+
+        MockDocument.assert_called_once_with(uri, v2_ingest.api_client)
+        mock_document_instance.unpublish.assert_called_once()
+
+    @patch("caselawclient.models.documents.Document")
+    def test_publish(self, MockDocument, v2_ingest):
+        # Mock the Document class
+        # mock_document_instance = MagicMock()
+        # MockDocument.side_effect = lambda _uri, _api_client: mock_document_instance
+
+        mock_document_instance = MockDocument.return_value
+        mock_document_instance.unpublish = MagicMock()
+
+        uri = "a/fake/uri"
+        v2_ingest.uri = uri
+
+        v2_ingest.publish()
+
+        MockDocument.assert_called_once_with(uri, v2_ingest.api_client)
+        mock_document_instance.publish.assert_called_once()
 
     def test_user_agent(self):
         assert "ingester" in lambda_function.api_client.session.headers["User-Agent"]

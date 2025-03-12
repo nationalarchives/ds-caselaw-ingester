@@ -17,6 +17,7 @@ from caselawclient.models.documents import Document, DocumentURIString
 from caselawclient.models.identifiers.neutral_citation import NeutralCitationNumber
 from caselawclient.models.identifiers.press_summary_ncn import PressSummaryRelatedNCNIdentifier
 from caselawclient.models.judgments import Judgment
+from caselawclient.models.parser_logs import ParserLog
 from caselawclient.models.press_summaries import PressSummary
 from caselawclient.models.utilities.aws import S3PrefixString
 from mypy_boto3_s3.client import S3Client
@@ -284,12 +285,7 @@ class Ingest:
     @property
     def ingested_document_type_string(self) -> str:
         """The type of the ingested document as a string, for humans"""
-        lookup = {
-            Document: "Parser Error",
-            Judgment: "Judgment",
-            PressSummary: "Press Summary",
-        }
-        return lookup[self.ingested_document_type]
+        return self.ingested_document_type.document_noun
 
     def update_document_xml(self) -> bool:
         if self.metadata_object.is_tdr:
@@ -343,7 +339,7 @@ class Ingest:
         identifier_class_lookup = {
             PressSummary: PressSummaryRelatedNCNIdentifier,
             Judgment: NeutralCitationNumber,
-            Document: None,
+            ParserLog: None,
         }
         identifier_class = identifier_class_lookup[self.ingested_document_type]
 

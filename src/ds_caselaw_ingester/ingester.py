@@ -14,10 +14,10 @@ from botocore.exceptions import NoCredentialsError
 from caselawclient.Client import MarklogicApiClient, MarklogicResourceNotFoundError
 from caselawclient.client_helpers import VersionAnnotation, VersionType, get_document_type_class
 from caselawclient.models.documents import Document, DocumentURIString
+from caselawclient.models.identifiers import Identifier
 from caselawclient.models.identifiers.neutral_citation import NeutralCitationNumber
 from caselawclient.models.identifiers.press_summary_ncn import PressSummaryRelatedNCNIdentifier
 from caselawclient.models.judgments import Judgment
-from caselawclient.models.parser_logs import ParserLog
 from caselawclient.models.press_summaries import PressSummary
 from caselawclient.models.utilities.aws import S3PrefixString
 from mypy_boto3_s3.client import S3Client
@@ -336,12 +336,13 @@ class Ingest:
             logger.warning(msg)
 
         ncn = doc.neutral_citation
-        identifier_class_lookup = {
+
+        identifier_class_lookup: dict[type[Document], type[Identifier]] = {
             PressSummary: PressSummaryRelatedNCNIdentifier,
             Judgment: NeutralCitationNumber,
-            ParserLog: None,
         }
-        identifier_class = identifier_class_lookup[self.ingested_document_type]
+
+        identifier_class = identifier_class_lookup.get(self.ingested_document_type, None)
 
         if not identifier_class:
             return

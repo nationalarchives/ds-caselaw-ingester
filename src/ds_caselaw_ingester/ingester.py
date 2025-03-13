@@ -208,6 +208,19 @@ def modify_filename(original: str, addition: str) -> str:
     return os.path.join(path, new_basename)
 
 
+def extract_document_uri_from_metadata(metadata: TREMetadataDict, consignment_reference: str) -> DocumentURIString:
+    """TODO: Remove this function once we're back to UUID-based URIs."""
+    uri = metadata["parameters"]["PARSER"].get("uri", "")
+
+    if uri:
+        uri = uri.replace("https://caselaw.nationalarchives.gov.uk/id/", "")
+
+    if not uri:
+        uri = f"failures/{consignment_reference}"
+
+    return DocumentURIString(uri)
+
+
 class Metadata:
     def __init__(self, metadata: TREMetadataDict) -> None:
         self.metadata = metadata
@@ -242,9 +255,17 @@ class Ingest:
         print(f"Ingester Start: Consignment reference {self.consignment_reference}")
         print(f"Received Message: {self.message.message}")
         self.local_tar_filename = self.save_tar_file_in_s3()
-        self.uri = DocumentURIString("d-" + str(uuid4()))
+
+        self.uuid_uri = DocumentURIString(
+            "d-" + str(uuid4()),
+        )  ## TODO: This is what we need to do to reinstate UUID-based URIs
+
         with tarfile.open(self.local_tar_filename, mode="r") as tar:
             self.metadata = extract_metadata(tar, self.consignment_reference)
+            self.uri = extract_document_uri_from_metadata(
+                metadata=self.metadata,
+                consignment_reference=self.consignment_reference,
+            )  # TODO: Remove this once we reinstate UUIDs
             self.message.update_consignment_reference(self.metadata["parameters"]["TRE"]["reference"])
             self.xml_file_name = self.metadata["parameters"]["TRE"]["payload"]["xml"]
             self.xml = get_best_xml(self.uri, tar, self.xml_file_name, self.consignment_reference)

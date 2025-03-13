@@ -118,7 +118,8 @@ class TestHandler:
         assert "publishing" in log
         assert "Invalid XML file" not in log
         assert "No XML file found" not in log
-        apiclient.set_published.assert_called_with("d-a1b2-c3d4", True)
+        # apiclient.set_published.assert_called_with("d-a1b2-c3d4", True)
+        apiclient.set_published.assert_called_with("ukut/iac/2012/82", True)
         assert apiclient.set_published.call_count == 2
         notify_new.assert_not_called()
         notify_updated.assert_not_called()

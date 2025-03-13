@@ -11,16 +11,16 @@ from caselawclient.Client import (
     MarklogicCommunicationError,
     MarklogicResourceNotFoundError,
 )
-from caselawclient.models.documents import Document
 from caselawclient.models.identifiers.neutral_citation import NeutralCitationNumber
 from caselawclient.models.judgments import Judgment
+from caselawclient.models.parser_logs import ParserLog
 from caselawclient.models.press_summaries import PressSummary
 from notifications_python_client.notifications import NotificationsAPIClient
 
 from src.ds_caselaw_ingester import exceptions, ingester, lambda_function
 
-from .conftest import s3_message_raw, v2_message, v2_message_raw
-from .helpers import create_fake_bulk_file, create_fake_tdr_file
+from .conftest import error_message_raw, s3_message_raw, v2_message, v2_message_raw
+from .helpers import create_fake_bulk_file, create_fake_error_file, create_fake_tdr_file
 
 rollbar.init(access_token=None, enabled=False)
 
@@ -136,6 +136,50 @@ class TestHandler:
         assert type(doc.identifiers.add.call_args_list[0].args[0]) is NeutralCitationNumber
         doc.save_identifiers.assert_called()
 
+    @patch("src.ds_caselaw_ingester.lambda_function.api_client", autospec=True)
+    @patch("src.ds_caselaw_ingester.lambda_function.boto3.session.Session")
+    @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
+    @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
+    @patch("src.ds_caselaw_ingester.ingester.VersionAnnotation")
+    @patch("src.ds_caselaw_ingester.ingester.modify_filename")
+    def test_handler_messages_v2_parser_error(
+        self,
+        modify_filename,
+        annotation,
+        notify_new,
+        notify_update,
+        boto_session,
+        apiclient,
+        capsys,
+    ):
+        boto_session.return_value.client.return_value.download_file = create_fake_error_file
+        doc = apiclient.get_document_by_uri.return_value
+        doc.neutral_citation = None
+
+        message = error_message_raw
+
+        event = {"Records": [{"Sns": {"Message": message}}, {"Sns": {"Message": message}}]}
+        lambda_function.handler(event=event, context=None)
+
+        log = capsys.readouterr().out
+        assert_log_sensible(log)
+        assert "publishing" not in log
+        assert "image1.png" in log
+        notify_update.assert_called()
+        assert notify_update.call_count == 2
+        notify_new.assert_not_called()
+        modify_filename.assert_not_called()
+
+        annotation.assert_called_with(
+            ANY,
+            automated=False,
+            message="Updated document submitted by TDR user",
+            payload=ANY,
+        )
+        assert annotation.call_count == 2
+        doc.identifiers.add.assert_not_called()
+        doc.identifiers.save.assert_not_called()
+
 
 class TestLambda:
     def test_store_metadata(self, v2_ingest):
@@ -182,7 +226,7 @@ class TestLambda:
             "consignment": "TDR-2021-CF6L",
             "submitter": "Tom King, Ministry of Justice <someone@example.com>",
             "submitted_at": "2021-12-16T14:54:06Z",
-            "doctype": "Judgment",
+            "doctype": "judgment",
         }
         NotificationsAPIClient.send_email_notification = MagicMock()
         v2_ingest.send_new_judgment_notification()
@@ -213,7 +257,7 @@ class TestLambda:
             "consignment": "unknown",
             "submitter": "unknown, unknown <unknown>",
             "submitted_at": "unknown",
-            "doctype": "Judgment",
+            "doctype": "judgment",
         }
         NotificationsAPIClient.send_email_notification = MagicMock()
         v2_ingest.send_new_judgment_notification()
@@ -433,7 +477,7 @@ class TestLambda:
             document_uri=v2_ingest.uri,
             document_xml=xml,
             annotation=ANY,
-            document_type=Document,
+            document_type=ParserLog,
         )
 
     def test_insert_document_xml_failure(self, v2_ingest):

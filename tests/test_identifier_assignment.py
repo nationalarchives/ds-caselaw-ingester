@@ -1,10 +1,10 @@
 from unittest.mock import MagicMock
 
 from caselawclient.factories import JudgmentFactory, PressSummaryFactory
-from caselawclient.models.documents import Document
 from caselawclient.models.identifiers.neutral_citation import NeutralCitationNumber
 from caselawclient.models.identifiers.press_summary_ncn import PressSummaryRelatedNCNIdentifier
 from caselawclient.models.judgments import Judgment
+from caselawclient.models.parser_logs import ParserLog
 from caselawclient.models.press_summaries import PressSummary
 
 from src.ds_caselaw_ingester import ingester
@@ -46,7 +46,7 @@ class TestDocumentIdentifiers:
     def test_select_type_document(self):
         """Verify parser error documents do not get identifiers"""
         ingest = MagicMock()
-        ingest.ingested_document_type = Document
+        ingest.ingested_document_type = ParserLog
         ingest.uri = "d-1003"
 
         doc = JudgmentFactory.build()

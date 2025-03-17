@@ -43,8 +43,10 @@ class TestHandler:
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
     @patch("src.ds_caselaw_ingester.ingester.VersionAnnotation")
     @patch("src.ds_caselaw_ingester.ingester.modify_filename")
+    @patch("src.ds_caselaw_ingester.ingester.Document")
     def test_handler_messages_v2(
         self,
+        mock_doc,
         modify_filename,
         annotation,
         notify_new,
@@ -56,6 +58,7 @@ class TestHandler:
         boto_session.return_value.client.return_value.download_file = create_fake_tdr_file
         doc = apiclient.get_document_by_uri.return_value
         doc.neutral_citation = None
+        mock_doc.return_value = doc
 
         message = v2_message_raw
         event = {"Records": [{"Sns": {"Message": message}}, {"Sns": {"Message": message}}]}
@@ -69,6 +72,7 @@ class TestHandler:
         assert notify_update.call_count == 2
         notify_new.assert_not_called()
         modify_filename.assert_not_called()
+        doc.publish.assert_not_called()
 
         annotation.assert_called_with(
             ANY,
@@ -87,8 +91,10 @@ class TestHandler:
     @patch("src.ds_caselaw_ingester.ingester.VersionAnnotation")
     @patch("src.ds_caselaw_ingester.ingester.modify_filename")
     @patch("src.ds_caselaw_ingester.ingester.uuid4")
+    @patch("src.ds_caselaw_ingester.ingester.Document")
     def test_handler_messages_s3(
         self,
+        mock_doc,
         mock_uuid4,
         modify_filename,
         annotation,
@@ -100,9 +106,10 @@ class TestHandler:
     ):
         """Test that, with appropriate stubs, an S3 message passes through the parsing process"""
         boto_session.return_value.client.return_value.download_file = create_fake_bulk_file
+        mock_uuid4.return_value = "a1b2-c3d4"
         doc = apiclient.get_document_by_uri.return_value
         doc.neutral_citation = "[2012] UKUT 82 (IAC)"
-        mock_uuid4.return_value = "a1b2-c3d4"
+        mock_doc.return_value = doc
 
         message = s3_message_raw
         event = {"Records": [{"Sns": {"Message": message}}, {"Sns": {"Message": message}}]}
@@ -118,9 +125,7 @@ class TestHandler:
         assert "publishing" in log
         assert "Invalid XML file" not in log
         assert "No XML file found" not in log
-        # apiclient.set_published.assert_called_with("d-a1b2-c3d4", True)
-        apiclient.set_published.assert_called_with("ukut/iac/2012/82", True)
-        assert apiclient.set_published.call_count == 2
+        doc.publish.assert_called_with()
         notify_new.assert_not_called()
         notify_updated.assert_not_called()
         modify_filename.assert_not_called()
@@ -142,8 +147,10 @@ class TestHandler:
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
     @patch("src.ds_caselaw_ingester.ingester.VersionAnnotation")
     @patch("src.ds_caselaw_ingester.ingester.modify_filename")
+    @patch("src.ds_caselaw_ingester.ingester.Document")
     def test_handler_messages_v2_parser_error(
         self,
+        mock_doc,
         modify_filename,
         annotation,
         notify_new,
@@ -155,6 +162,7 @@ class TestHandler:
         boto_session.return_value.client.return_value.download_file = create_fake_error_file
         doc = apiclient.get_document_by_uri.return_value
         doc.neutral_citation = None
+        mock_doc.return_value = doc
 
         message = error_message_raw
 
@@ -169,6 +177,7 @@ class TestHandler:
         assert notify_update.call_count == 2
         notify_new.assert_not_called()
         modify_filename.assert_not_called()
+        doc.publish.assert_not_called()
 
         annotation.assert_called_with(
             ANY,
@@ -485,12 +494,77 @@ class TestLambda:
         with pytest.raises(MarklogicCommunicationError):
             v2_ingest.insert_document_xml()
 
-    def test_unpublish_updated_judgment(self, v2_ingest):
+    @patch(
+        "src.ds_caselaw_ingester.lambda_function.Ingest.save_tar_file_in_s3",
+        return_value="/tmp/TDR-2022-DNWR.tar.gz",
+    )
+    @patch("src.ds_caselaw_ingester.ingester.Document")
+    def test_unpublish_updated_judgment(self, MockDocument, fake_s3):
+        # Mock the Document class
+        # mock_document_instance = MagicMock()
+        # MockDocument.side_effect = lambda _uri, _api_client: mock_document_instance
+
+        mock_document_instance = MockDocument.return_value
+        mock_document_instance.unpublish = MagicMock()
+
         uri = "a/fake/uri"
-        v2_ingest.api_client.set_published = MagicMock()
-        v2_ingest.uri = uri
-        v2_ingest.unpublish_updated_judgment()
-        v2_ingest.api_client.set_published.assert_called_with(uri, False)
+
+        # Create a mock message object
+        mock_message = MagicMock()
+        mock_message.get_consignment_reference.return_value = "test-consignment-reference"
+        mock_message.message = "Test message"
+        mock_message.originator = "TDR"
+
+        # Create an instance of the Ingest class
+        ingest = ingester.Ingest(
+            message=mock_message,
+            destination_bucket="test-destination-bucket",
+            api_client=MagicMock(),
+            s3_client=MagicMock(),
+        )
+
+        ingest.uri = uri
+
+        ingest.unpublish_updated_judgment()
+
+        MockDocument.assert_called_once_with(uri, ingest.api_client)
+        mock_document_instance.unpublish.assert_called_once()
+
+    @patch(
+        "src.ds_caselaw_ingester.lambda_function.Ingest.save_tar_file_in_s3",
+        return_value="/tmp/TDR-2022-DNWR.tar.gz",
+    )
+    @patch("src.ds_caselaw_ingester.ingester.Document")
+    def test_publish(self, MockDocument, fake_s3):
+        # Mock the Document class
+        # mock_document_instance = MagicMock()
+        # MockDocument.side_effect = lambda _uri, _api_client: mock_document_instance
+
+        mock_document_instance = MockDocument.return_value
+        mock_document_instance.unpublish = MagicMock()
+
+        uri = "ewca/civ/2022/111"
+
+        # Create a mock message object
+        mock_message = MagicMock()
+        mock_message.get_consignment_reference.return_value = "test-consignment-reference"
+        mock_message.message = "Test message"
+        mock_message.originator = "TDR"
+
+        # Create an instance of the Ingest class
+        ingest = ingester.Ingest(
+            message=mock_message,
+            destination_bucket="test-destination-bucket",
+            api_client=MagicMock(),
+            s3_client=MagicMock(),
+        )
+
+        ingest.uri = uri
+
+        ingest.publish()
+
+        MockDocument.assert_called_once_with(uri, ingest.api_client)
+        mock_document_instance.publish.assert_called_once()
 
     def test_user_agent(self):
         assert "ingester" in lambda_function.api_client.session.headers["User-Agent"]

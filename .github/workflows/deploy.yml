@@ -15,6 +15,8 @@ jobs:
     environment: staging
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
       - uses: aws-actions/setup-sam@v2
       - uses: aws-actions/configure-aws-credentials@v4
@@ -22,7 +24,7 @@ jobs:
           role-to-assume: ${{ secrets.AWS_OIDC_STAGING_ROLE_ARN }}
           aws-region: eu-west-2
       - run: sam build --use-container -m requirements/base.txt
-      - run: >
+      - run: > # zizmor: ignore[template-injection]
           sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --stack-name ds-caselaw-ingester --s3-bucket ingester-test-2 --capabilities CAPABILITY_IAM --region eu-west-2 --parameter-overrides
           AwsBucketName=${{ vars.AWS_BUCKET_NAME }}
           EditorialUiBaseUrl=${{ vars.EDITORIAL_UI_BASE_URL }}

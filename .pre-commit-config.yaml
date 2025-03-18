@@ -42,3 +42,8 @@ repos:
     hooks:
       - id: prettier
         types_or: [yaml, json, xml, markdown, scss, javascript]
+
+  - repo: https://github.com/woodruffw/zizmor-pre-commit
+    rev: v1.5.1
+    hooks:
+      - id: zizmor

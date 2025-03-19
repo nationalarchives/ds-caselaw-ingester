@@ -8,7 +8,7 @@ TDR_TARBALL_PATH = os.path.join(
 
 ERROR_TARBALL_PATH = os.path.join(
     os.path.dirname(__file__),
-    "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
+    "../aws_examples/s3/te-editorial-out-int/TDR-2025-CN7V.tar.gz",
 )
 
 BULK_TARBALL_PATH = os.path.join(os.path.dirname(__file__), "../aws_examples/s3/te-editorial-out-int/test3.tar.gz")
@@ -19,7 +19,7 @@ def create_fake_tdr_file(*args, **kwargs):
 
 
 def create_fake_error_file(*args, **kwargs):
-    shutil.copyfile(ERROR_TARBALL_PATH, "/tmp/ERROR.tar.gz")
+    shutil.copyfile(ERROR_TARBALL_PATH, "/tmp/TDR-2025-CN7V.tar.gz")
 
 
 def create_fake_bulk_file(*args, **kwargs):

@@ -30,7 +30,7 @@ v2_message_raw = """
     }
     """
 
-error_message_raw = v2_message_raw.replace("TDR-2022-DNWR.tar.gz", "ERROR.tar.gz")
+error_message_raw = v2_message_raw.replace("TDR-2022-DNWR", "TDR-2025-CN7V")
 
 s3_message = {
     "Records": [

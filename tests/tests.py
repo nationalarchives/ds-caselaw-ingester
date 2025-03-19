@@ -160,9 +160,7 @@ class TestHandler:
         capsys,
     ):
         boto_session.return_value.client.return_value.download_file = create_fake_error_file
-        doc = apiclient.get_document_by_uri.return_value
-        doc.neutral_citation = None
-        mock_doc.return_value = doc
+        mock_doc.return_value = apiclient.get_document_by_uri.return_value
 
         message = error_message_raw
 
@@ -170,24 +168,32 @@ class TestHandler:
         lambda_function.handler(event=event, context=None)
 
         log = capsys.readouterr().out
-        assert_log_sensible(log)
+        assert "tar.gz saved locally as /tmp/TDR-2025-CN7V.tar.gz" in log
+        assert "No XML file found in tarfile for uri" in log
+        assert "Ingesting document failures/TDR-2025-CN7V" in log
+        assert "Updated judgment xml for failures/TDR-2025-CN7V" in log
+        assert "extracted docx filename is 'failures_TDR-2025-CN7V.docx'" in log
+        assert "Upload Successful failures/TDR-2025-CN7V/TDR-2025-CN7V.tar.gz" in log
+        assert "saved tar.gz as '/tmp/TDR-2025-CN7V.tar.gz'" in log
+        assert "Upload Successful failures/TDR-2025-CN7V/failures_TDR-2025-CN7V.docx" in log
+        assert "Upload Successful failures/TDR-2025-CN7V/parser.log" in log
+        assert "Ingestion complete" in log
         assert "publishing" not in log
-        assert "image1.png" in log
         notify_update.assert_called()
         assert notify_update.call_count == 2
         notify_new.assert_not_called()
         modify_filename.assert_not_called()
-        doc.publish.assert_not_called()
+        mock_doc.publish.assert_not_called()
 
         annotation.assert_called_with(
             ANY,
             automated=False,
-            message="Updated document submitted by TDR user",
+            message="Updated document uploaded by Find Case Law",
             payload=ANY,
         )
         assert annotation.call_count == 2
-        doc.identifiers.add.assert_not_called()
-        doc.identifiers.save.assert_not_called()
+        mock_doc.identifiers.add.assert_not_called()
+        mock_doc.identifiers.save.assert_not_called()
 
 
 class TestLambda:

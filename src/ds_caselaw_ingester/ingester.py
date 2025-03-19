@@ -335,7 +335,7 @@ class Ingest:
             msg = f"Ingesting, but identifiers already present for {self.uri}!"
             logger.warning(msg)
 
-        ncn = doc.neutral_citation
+        ncn = getattr(doc, "neutral_citation", None)
 
         identifier_class_lookup: dict[type[Document], type[Identifier]] = {
             PressSummary: PressSummaryRelatedNCNIdentifier,

@@ -1,9 +1,10 @@
 build:
+	@rm -rf build
 	@mkdir -p dist
 	@rm dist/lambda.zip & 2>&1
 	@samlocal build --use-container -m requirements/base.txt
 	@cd .aws-sam/build/TNACaselawIngesterFunction && zip -r ../../../dist/lambda.zip .
-	@zip -g dist/lambda.zip ds_caselaw_ingester/lambda_function.py
+	@zip -g dist/lambda.zip src/ds_caselaw_ingester/lambda_function.py
 	@echo 'Built dist/lambda.zip'
 
 ifeq (setup,$(firstword $(MAKECMDGOALS)))

@@ -177,7 +177,7 @@ class TestIngesterGetBestXMLMethod:
             TDR_TARBALL_PATH,
             mode="r",
         ) as tar:
-            result = ingester.get_best_xml("a/valid/uri", tar, filename, "a_consignment_reference")
+            result = ingester.get_best_xml(tar, filename, "a_consignment_reference")
             assert result.__class__ == ET.Element
             assert result.tag == "{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}akomaNtoso"
 
@@ -187,7 +187,7 @@ class TestIngesterGetBestXMLMethod:
             TARBALL_INVALID_XML_PATH,
             mode="r",
         ) as tar:
-            result = ingester.get_best_xml("a/valid/uri", tar, filename, "a_consignment_reference")
+            result = ingester.get_best_xml(tar, filename, "a_consignment_reference")
             assert result.__class__ == ET.Element
             assert result.tag == "error"
 
@@ -198,7 +198,6 @@ class TestIngesterGetBestXMLMethod:
             mode="r",
         ) as tar:
             result = ingester.get_best_xml(
-                "failures/consignment_reference",
                 tar,
                 filename,
                 "a_consignment_reference",
@@ -213,7 +212,6 @@ class TestIngesterGetBestXMLMethod:
             mode="r",
         ) as tar:
             result = ingester.get_best_xml(
-                "failures/consignment_reference",
                 tar,
                 filename,
                 "a_consignment_reference",
@@ -228,7 +226,6 @@ class TestIngesterGetBestXMLMethod:
             mode="r",
         ) as tar:
             result = ingester.get_best_xml(
-                "failures/consignment_reference",
                 tar,
                 filename,
                 "a_consignment_reference",

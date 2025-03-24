@@ -4,8 +4,10 @@ import json
 import logging
 import os
 import tarfile
+import xml
 import xml.etree.ElementTree as ET
 from contextlib import suppress
+from functools import cached_property
 from typing import IO, TYPE_CHECKING, Any, Optional, TypedDict
 from uuid import uuid4
 from xml.sax.saxutils import escape
@@ -14,12 +16,15 @@ from botocore.exceptions import NoCredentialsError
 from caselawclient.Client import MarklogicApiClient, MarklogicResourceNotFoundError
 from caselawclient.client_helpers import VersionAnnotation, VersionType, get_document_type_class
 from caselawclient.models.documents import Document, DocumentURIString
+from caselawclient.models.documents.body import DocumentBody
 from caselawclient.models.identifiers import Identifier
 from caselawclient.models.identifiers.neutral_citation import NeutralCitationNumber
 from caselawclient.models.identifiers.press_summary_ncn import PressSummaryRelatedNCNIdentifier
 from caselawclient.models.judgments import Judgment
+from caselawclient.models.parser_logs import ParserLog
 from caselawclient.models.press_summaries import PressSummary
 from caselawclient.models.utilities.aws import S3PrefixString
+from caselawclient.types import DocumentIdentifierValue
 from mypy_boto3_s3.client import S3Client
 from mypy_boto3_s3.type_defs import CopySourceTypeDef
 from notifications_python_client.notifications import NotificationsAPIClient
@@ -29,6 +34,17 @@ from .exceptions import (
     DocxFilenameNotFoundException,
     FileNotFoundException,
 )
+
+
+class MultipleResolutionsFoundError(DocumentInsertionError):
+    pass
+
+
+IDENTIFIER_CLASS_LOOKUP: dict[type[Document], Optional[type[Identifier]]] = {
+    PressSummary: PressSummaryRelatedNCNIdentifier,
+    Judgment: NeutralCitationNumber,
+    ParserLog: None,
+}
 
 if TYPE_CHECKING:
     from .lambda_function import Message
@@ -135,7 +151,7 @@ def create_parser_log_xml(tar: tarfile.TarFile) -> bytes:
     return parser_log_value.encode("utf-8")
 
 
-def get_best_xml(uri, tar: tarfile.TarFile, xml_file_name: str, consignment_reference: str) -> ET.Element:
+def get_best_xml(tar: tarfile.TarFile, xml_file_name: str, consignment_reference: str) -> ET.Element:
     xml_file = extract_xml_file(tar, xml_file_name)
     if xml_file:
         contents = xml_file.read()
@@ -143,14 +159,14 @@ def get_best_xml(uri, tar: tarfile.TarFile, xml_file_name: str, consignment_refe
             return parse_xml(contents)
         except ET.ParseError:
             print(
-                f"Invalid XML file for uri: {uri}, consignment reference: {consignment_reference}."
+                f"Invalid XML file for consignment reference: {consignment_reference}."
                 f" Falling back to parser.log contents.",
             )
             contents = create_parser_log_xml(tar)
             return parse_xml(contents)
     else:
         print(
-            f"No XML file found in tarfile for uri: {uri}, filename: {xml_file_name},"
+            f"No XML file found in tarfile."
             f"consignment reference: {consignment_reference}."
             f" Falling back to parser.log contents.",
         )
@@ -209,17 +225,17 @@ def modify_filename(original: str, addition: str) -> str:
     return os.path.join(path, new_basename)
 
 
-def extract_document_uri_from_metadata(metadata: TREMetadataDict, consignment_reference: str) -> DocumentURIString:
+def extract_document_uri_from_metadata(
+    metadata: TREMetadataDict,
+    consignment_reference: str,
+) -> Optional[DocumentURIString]:
     """TODO: Remove this function once we're back to UUID-based URIs."""
     uri = metadata["parameters"]["PARSER"].get("uri", "")
 
     if uri:
-        uri = uri.replace("https://caselaw.nationalarchives.gov.uk/id/", "")
-
-    if not uri:
-        uri = f"failures/{consignment_reference}"
-
-    return DocumentURIString(uri)
+        return DocumentURIString(uri.replace("https://caselaw.nationalarchives.gov.uk/id/", ""))
+    else:
+        return None
 
 
 class Metadata:
@@ -252,25 +268,34 @@ class Ingest:
         self.destination_bucket = destination_bucket
         self.api_client = api_client
         self.s3_client = s3_client
+        self.inserted: bool = False
+        self.updated: bool = False
         self.consignment_reference: str = self.message.get_consignment_reference()
         print(f"Ingester Start: Consignment reference {self.consignment_reference}")
         print(f"Received Message: {self.message.message}")
         self.local_tar_filename = self.save_tar_file_in_s3()
 
-        self.uuid_uri = DocumentURIString(
-            "d-" + str(uuid4()),
-        )  ## TODO: This is what we need to do to reinstate UUID-based URIs
-
         with tarfile.open(self.local_tar_filename, mode="r") as tar:
             self.metadata = extract_metadata(tar, self.consignment_reference)
-            self.uri = extract_document_uri_from_metadata(
-                metadata=self.metadata,
-                consignment_reference=self.consignment_reference,
-            )  # TODO: Remove this once we reinstate UUIDs
+            self.extracted_ncn = self.metadata["parameters"]["PARSER"].get("cite")
             self.message.update_consignment_reference(self.metadata["parameters"]["TRE"]["reference"])
             self.xml_file_name = self.metadata["parameters"]["TRE"]["payload"]["xml"]
-            self.xml = get_best_xml(self.uri, tar, self.xml_file_name, self.consignment_reference)
-        print(f"Ingesting document {self.uri}")
+            self.xml = get_best_xml(tar, self.xml_file_name, self.consignment_reference)
+            self.uri = self.determine_uri()
+            self.body = DocumentBody(xml.etree.ElementTree.tostring(self.xml))  # not needed?
+            print(f"Ingesting document {self.uri}")
+
+    def determine_uri(self) -> DocumentURIString:
+        # TODO: remove `metadata_uri` once we reinstate UUIDs
+        metadata_uri = extract_document_uri_from_metadata(
+            metadata=self.metadata,
+            consignment_reference=self.consignment_reference,
+        )
+        if self.existing_document_uri:
+            return self.existing_document_uri
+        if metadata_uri:
+            return metadata_uri
+        return DocumentURIString("d-" + str(uuid4()))
 
     def save_tar_file_in_s3(self) -> str:
         """This should be mocked out for testing -- get the tar file from S3 and
@@ -336,13 +361,7 @@ class Ingest:
             logger.warning(msg)
 
         ncn = getattr(doc, "neutral_citation", None)
-
-        identifier_class_lookup: dict[type[Document], type[Identifier]] = {
-            PressSummary: PressSummaryRelatedNCNIdentifier,
-            Judgment: NeutralCitationNumber,
-        }
-
-        identifier_class = identifier_class_lookup.get(self.ingested_document_type, None)
+        identifier_class = IDENTIFIER_CLASS_LOOKUP.get(self.ingested_document_type, None)
 
         if not identifier_class:
             return
@@ -489,7 +508,9 @@ class Ingest:
 
         # reparse
         if originator == "FCL":
-            return self.api_client.get_published(self.uri) is True
+            if not self.existing_document_uri:
+                return False
+            return self.api_client.get_published(self.existing_document_uri) is True
 
         raise RuntimeError(f"Didn't recognise originator {originator!r}")
 
@@ -511,13 +532,39 @@ class Ingest:
         raise RuntimeError(f"Didn't recognise originator {originator!r}")
 
     def upload_xml(self) -> None:
-        self.updated = self.update_document_xml()
-        self.inserted = False if self.updated else self.insert_document_xml()
-        if not self.updated and not self.inserted:
-            raise DocumentInsertionError(
-                f"Judgment {self.uri} failed to insert into Marklogic. Consignment Ref: {self.consignment_reference}",
-            )
-        self.set_document_identifiers()
+        ## Find documents of same type with the same NCN
+        # TODO DRAGON
+
+        if self.existing_document_uri:
+            self.updated = self.update_document_xml()
+            if not self.updated:
+                raise DocumentInsertionError(
+                    f"Updating {self.existing_document_uri} failed. Consignment Ref: {self.consignment_reference}",
+                )
+        else:
+            self.inserted = self.insert_document_xml()
+            if not self.inserted:
+                raise DocumentInsertionError(
+                    f"Inserting XXX TODO XXX {self.uri} failed. Consignment Ref: {self.consignment_reference}",
+                )
+
+    @cached_property
+    def existing_document_uri(self) -> Optional[DocumentURIString]:
+        """
+        Is there an existing document claiming to be this one? (i.e. NCN and type match)
+        Return the MarklogicURI of that document.
+        """
+        raw_resolutions = self.api_client.resolve_from_identifier_value(DocumentIdentifierValue(self.extracted_ncn))
+        identifier_type = IDENTIFIER_CLASS_LOOKUP[self.ingested_document_type]
+        resolutions = [resolution for resolution in raw_resolutions if resolution.identifier_type == identifier_type]
+
+        if len(resolutions) == 1:
+            return resolutions[0].document_uri.as_document_uri()
+
+        if len(resolutions) > 1:
+            raise MultipleResolutionsFoundError(f"Multiple resolutions for {self.uri} already, before ingest!")
+
+        return None
 
     @property
     def upload_state(self) -> str:
@@ -545,6 +592,7 @@ def perform_ingest(ingest: Ingest) -> None:
     # Extract and parse the judgment XML
     ingest.upload_xml()
     print(f"{ingest.upload_state.title()} judgment xml for {ingest.uri}")
+    ingest.set_document_identifiers()
 
     ingest.send_email()
 

@@ -9,7 +9,7 @@
   },
   "parameters": {
     "status": "JUDGMENT_PARSE_NO_ERRORS",
-    "reference": "TDR-2023-2M3",
+    "reference": "TDR-2022-DNWR",
     "originator": "FCL",
     "s3Bucket": "staging-tre-court-document-pack-out",
     "s3Key": "QX/e31b117f-ff09-49b6-a697-7952c7a67384/QX.tar.gz",

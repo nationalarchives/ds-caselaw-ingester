@@ -703,6 +703,41 @@ class TestEmailLogic:
         new.assert_not_called()
 
 
+class TestIngesterDetermineUri:
+    @patch(
+        "src.ds_caselaw_ingester.ingester.Ingest.existing_document_uri",
+        new_callable=PropertyMock,
+        return_value="dog",
+    )
+    def test__doc_uri(self, doc_uri, v2_ingest):
+        assert str(v2_ingest.determine_uri()) == "dog"
+
+    @patch("src.ds_caselaw_ingester.ingester.extract_document_uri_from_metadata", return_value="cat")
+    @patch(
+        "src.ds_caselaw_ingester.ingester.Ingest.existing_document_uri",
+        new_callable=PropertyMock,
+        return_value=None,
+    )
+    def test_no_doc_uri(self, doc_uri, metadata_uri, v2_ingest):
+        assert str(v2_ingest.determine_uri()) == "cat"
+
+    @patch(
+        "src.ds_caselaw_ingester.ingester.Ingest.existing_document_uri",
+        new_callable=PropertyMock,
+        return_value=None,
+    )
+    @patch("src.ds_caselaw_ingester.ingester.extract_document_uri_from_metadata", return_value=None)
+    @patch("src.ds_caselaw_ingester.ingester.uuid4", return_value="uuid")
+    def test_fallback_uuid(self, doc_uri, metadata_uri, uuid, v2_ingest):
+        assert isinstance(v2_ingest.determine_uri(), DocumentURIString)
+        assert str(v2_ingest.determine_uri()) == "d-uuid"
+
+
+class TestIngesterExtractDocumentUriFromMetadata:
+    def test_(self):
+        pass
+
+
 class TestIngesterExistingDocumentUriMethod:
     def test_no_resolutions(self, fcl_ingest):
         fcl_ingest.api_client.resolve_from_identifier_value.return_value = IdentifierResolutionsFactory.build([])

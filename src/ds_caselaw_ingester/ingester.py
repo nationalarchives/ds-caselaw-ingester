@@ -545,7 +545,8 @@ class Ingest:
 
         raise RuntimeError(f"Didn't recognise originator {originator!r}")
 
-    def upload_xml(self) -> None:
+    def insert_or_update_xml(self) -> None:
+        """Puts the XML into MarkLogic, either by updating an existing document (if `self.existing_document_uri`) or by creating a new one."""
         if self.existing_document_uri:
             self.updated = self.update_document_xml()
             if not self.updated:
@@ -604,7 +605,8 @@ def perform_ingest(ingest: Ingest) -> None:
     """Given an Ingest object, perform the necessary tasks to put it in MarkLogic and tell people about it."""
 
     # Extract and parse the judgment XML
-    ingest.upload_xml()
+    ingest.insert_or_update_xml()
+
     print(f"{ingest.upload_state.title()} judgment xml for {ingest.uri}")
     ingest.set_document_identifiers()
 

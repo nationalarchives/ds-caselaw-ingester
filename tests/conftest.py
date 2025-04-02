@@ -2,11 +2,17 @@ import copy
 import json
 from unittest.mock import Mock, patch
 
+from caselawclient.types import DocumentURIString
 from pytest import fixture
 
 from src.ds_caselaw_ingester import ingester, lambda_function
 
 from .helpers import create_fake_bulk_file, create_fake_tdr_file
+
+
+def setup_api_client():
+    return Mock()
+
 
 v2_message_raw = """
     {
@@ -56,28 +62,26 @@ s3_message_raw = json.dumps(s3_message)
     "src.ds_caselaw_ingester.lambda_function.Ingest.save_tar_file_in_s3",
     return_value="/tmp/TDR-2022-DNWR.tar.gz",
 )
-@patch("src.ds_caselaw_ingester.ingester.uuid4")
-def v2_ingest(mock_uuid4, fake_s3):
-    mock_uuid4.return_value = "v2-a1b2-c3d4"
+@patch("src.ds_caselaw_ingester.ingester.Ingest.determine_uri", return_value=DocumentURIString("v2-a1b2-c3d4"))
+def v2_ingest(fake_determine_uri, fake_s3):
     create_fake_tdr_file()
     return ingester.Ingest(
         message=lambda_function.Message.from_message(v2_message),
         destination_bucket="bucket",
-        api_client=Mock(),
+        api_client=setup_api_client(),
         s3_client=Mock(),
     )
 
 
 @fixture
 @patch("src.ds_caselaw_ingester.lambda_function.Ingest.save_tar_file_in_s3", return_value="/tmp/BULK-0.tar.gz")
-@patch("src.ds_caselaw_ingester.ingester.uuid4")
-def s3_ingest(mock_uuid4, fake_s3):
-    mock_uuid4.return_value = "s3-a1b2-c3d4"
+@patch("src.ds_caselaw_ingester.ingester.Ingest.determine_uri", return_value=DocumentURIString("s3-a1b2-c3d4"))
+def s3_ingest(mock_determine_uri, fake_s3):
     create_fake_bulk_file()
     return ingester.Ingest(
         message=lambda_function.Message.from_message(s3_message),
         destination_bucket="bucket",
-        api_client=Mock(),
+        api_client=setup_api_client(),
         s3_client=Mock(),
     )
 
@@ -87,7 +91,8 @@ def s3_ingest(mock_uuid4, fake_s3):
     "src.ds_caselaw_ingester.lambda_function.Ingest.save_tar_file_in_s3",
     return_value="/tmp/TDR-2022-DNWR.tar.gz",
 )
-def fcl_ingest(fake_s3):
+@patch("src.ds_caselaw_ingester.ingester.Ingest.determine_uri", return_value=DocumentURIString("s3-a1b2-c3d4"))
+def fcl_ingest(fake_determine_uri, fake_s3):
     "Fake a FCL reparse message (badly)"
     new_message = copy.deepcopy(v2_message)
     new_message["parameters"]["originator"] = "FCL"
@@ -95,6 +100,6 @@ def fcl_ingest(fake_s3):
     return ingester.Ingest(
         message=lambda_function.Message.from_message(new_message),
         destination_bucket="bucket",
-        api_client=Mock(),
+        api_client=setup_api_client(),
         s3_client=Mock(),
     )

@@ -11,13 +11,16 @@ from caselawclient.Client import (
     MarklogicCommunicationError,
     MarklogicResourceNotFoundError,
 )
+from caselawclient.factories import IdentifierResolutionFactory, IdentifierResolutionsFactory
 from caselawclient.models.identifiers.neutral_citation import NeutralCitationNumber
 from caselawclient.models.judgments import Judgment
 from caselawclient.models.parser_logs import ParserLog
 from caselawclient.models.press_summaries import PressSummary
+from caselawclient.types import DocumentURIString
 from notifications_python_client.notifications import NotificationsAPIClient
 
 from src.ds_caselaw_ingester import exceptions, ingester, lambda_function
+from src.ds_caselaw_ingester.ingester import extract_document_uri_from_metadata
 
 from .conftest import error_message_raw, s3_message_raw, v2_message, v2_message_raw
 from .helpers import create_fake_bulk_file, create_fake_error_file, create_fake_tdr_file
@@ -44,8 +47,15 @@ class TestHandler:
     @patch("src.ds_caselaw_ingester.ingester.VersionAnnotation")
     @patch("src.ds_caselaw_ingester.ingester.modify_filename")
     @patch("src.ds_caselaw_ingester.ingester.Document")
+    @patch(
+        "src.ds_caselaw_ingester.ingester.Ingest.existing_document_uri",
+        return_value=IdentifierResolutionsFactory.build(),
+    )
+    @patch("src.ds_caselaw_ingester.ingester.Ingest.determine_uri", return_value=DocumentURIString("cat"))
     def test_handler_messages_v2(
         self,
+        mock_determine_uri,
+        mock_existing_uri,
         mock_doc,
         modify_filename,
         annotation,
@@ -92,8 +102,15 @@ class TestHandler:
     @patch("src.ds_caselaw_ingester.ingester.modify_filename")
     @patch("src.ds_caselaw_ingester.ingester.uuid4")
     @patch("src.ds_caselaw_ingester.ingester.Document")
+    @patch(
+        "src.ds_caselaw_ingester.ingester.Ingest.existing_document_uri",
+        return_value=IdentifierResolutionsFactory.build(),
+    )
+    @patch("src.ds_caselaw_ingester.ingester.Ingest.determine_uri", return_value=DocumentURIString("cat"))
     def test_handler_messages_s3(
         self,
+        mock_determine,
+        mock_existing,
         mock_doc,
         mock_uuid4,
         modify_filename,
@@ -148,8 +165,10 @@ class TestHandler:
     @patch("src.ds_caselaw_ingester.ingester.VersionAnnotation")
     @patch("src.ds_caselaw_ingester.ingester.modify_filename")
     @patch("src.ds_caselaw_ingester.ingester.Document")
+    @patch("src.ds_caselaw_ingester.lambda_function.Ingest.determine_uri", return_value=DocumentURIString("uuid"))
     def test_handler_messages_v2_parser_error(
         self,
+        mock_determine_uri,
         mock_doc,
         modify_filename,
         annotation,
@@ -169,26 +188,26 @@ class TestHandler:
 
         log = capsys.readouterr().out
         assert "tar.gz saved locally as /tmp/TDR-2025-CN7V.tar.gz" in log
-        assert "No XML file found in tarfile for uri" in log
-        assert "Ingesting document failures/TDR-2025-CN7V" in log
-        assert "Updated judgment xml for failures/TDR-2025-CN7V" in log
+        assert "No XML file found in tarfile." in log
+        assert "Ingesting document uuid" in log
+        assert "Inserted judgment xml for uuid" in log
         assert "extracted docx filename is 'failures_TDR-2025-CN7V.docx'" in log
-        assert "Upload Successful failures/TDR-2025-CN7V/TDR-2025-CN7V.tar.gz" in log
+        assert "Upload Successful uuid/TDR-2025-CN7V.tar.gz" in log
         assert "saved tar.gz as '/tmp/TDR-2025-CN7V.tar.gz'" in log
-        assert "Upload Successful failures/TDR-2025-CN7V/failures_TDR-2025-CN7V.docx" in log
-        assert "Upload Successful failures/TDR-2025-CN7V/parser.log" in log
+        assert "Upload Successful uuid/uuid.docx" in log
+        assert "Upload Successful uuid/parser.log" in log
         assert "Ingestion complete" in log
         assert "publishing" not in log
-        notify_update.assert_called()
-        assert notify_update.call_count == 2
-        notify_new.assert_not_called()
+        notify_new.assert_called()
+        assert notify_new.call_count == 2
+        notify_update.assert_not_called()
         modify_filename.assert_not_called()
         mock_doc.publish.assert_not_called()
 
         annotation.assert_called_with(
             ANY,
             automated=False,
-            message="Updated document uploaded by Find Case Law",
+            message="New document uploaded by Find Case Law",
             payload=ANY,
         )
         assert annotation.call_count == 2
@@ -618,11 +637,18 @@ class TestPublicationLogic:
             mock.return_value = False
             assert s3_ingest.will_publish() is False
 
-    def test_fcl_not_published_if_not_published(self, fcl_ingest):
+    @patch("src.ds_caselaw_ingester.ingester.Ingest.existing_document_uri", return_value=None)
+    def test_fcl_not_published_if_doesnt_exist(self, existing_uri, fcl_ingest):
         fcl_ingest.api_client.get_published.return_value = False
         assert fcl_ingest.will_publish() is False
 
-    def test_fcl_published_if_published(self, fcl_ingest):
+    @patch("src.ds_caselaw_ingester.ingester.Ingest.existing_document_uri", return_value="cat")
+    def test_fcl_not_published_if_exists_but_not_published(self, existing_uri, fcl_ingest):
+        fcl_ingest.api_client.get_published.return_value = False
+        assert fcl_ingest.will_publish() is False
+
+    @patch("src.ds_caselaw_ingester.ingester.Ingest.existing_document_uri", return_value="cat")
+    def test_fcl_published_if_published(self, existing_uri, fcl_ingest):
         fcl_ingest.api_client.get_published.return_value = True
         assert fcl_ingest.will_publish() is True
 
@@ -676,3 +702,70 @@ class TestEmailLogic:
 
         updated.assert_not_called()
         new.assert_not_called()
+
+
+class TestIngesterDetermineUri:
+    @patch(
+        "src.ds_caselaw_ingester.ingester.Ingest.existing_document_uri",
+        new_callable=PropertyMock,
+        return_value="dog",
+    )
+    def test__doc_uri(self, doc_uri, v2_ingest):
+        assert str(v2_ingest.determine_uri()) == "dog"
+
+    @patch("src.ds_caselaw_ingester.ingester.extract_document_uri_from_metadata", return_value="cat")
+    @patch(
+        "src.ds_caselaw_ingester.ingester.Ingest.existing_document_uri",
+        new_callable=PropertyMock,
+        return_value=None,
+    )
+    def test_no_doc_uri(self, doc_uri, metadata_uri, v2_ingest):
+        assert str(v2_ingest.determine_uri()) == "cat"
+
+    @patch(
+        "src.ds_caselaw_ingester.ingester.Ingest.existing_document_uri",
+        new_callable=PropertyMock,
+        return_value=None,
+    )
+    @patch("src.ds_caselaw_ingester.ingester.extract_document_uri_from_metadata", return_value=None)
+    @patch("src.ds_caselaw_ingester.ingester.uuid4", return_value="uuid")
+    def test_fallback_uuid(self, doc_uri, metadata_uri, uuid, v2_ingest):
+        assert isinstance(v2_ingest.determine_uri(), DocumentURIString)
+        assert str(v2_ingest.determine_uri()) == "d-uuid"
+
+
+class TestIngesterExtractDocumentUriFromMetadata:
+    def test_no_uri_in_metadata(self):
+        assert extract_document_uri_from_metadata({"parameters": {"PARSER": {}}}, "consignment") is None
+
+    def test_uri_in_metadata(self):
+        assert (
+            extract_document_uri_from_metadata(
+                {"parameters": {"PARSER": {"uri": "https://caselaw.nationalarchives.gov.uk/id/cat"}}},
+                "consignment",
+            )
+            == "cat"
+        )
+
+
+class TestIngesterExistingDocumentUriMethod:
+    def test_no_resolutions(self, fcl_ingest):
+        fcl_ingest.api_client.resolve_from_identifier_value.return_value = IdentifierResolutionsFactory.build([])
+        assert fcl_ingest.existing_document_uri is None
+
+    def test_no_resolution_is_an_ncn(self, fcl_ingest):
+        fcl_ingest.api_client.resolve_from_identifier_value.return_value = IdentifierResolutionsFactory.build(
+            [IdentifierResolutionFactory.build(namespace="fclid")],
+        )
+        assert fcl_ingest.existing_document_uri is None
+
+    def test_one_resolution(self, v2_ingest):
+        v2_ingest.api_client.resolve_from_identifier_value.return_value = IdentifierResolutionsFactory.build()
+        assert v2_ingest.existing_document_uri == "ewca/civ/2003/547"
+
+    def test_many_resolutions(self, v2_ingest):
+        v2_ingest.api_client.resolve_from_identifier_value.return_value = IdentifierResolutionsFactory.build(
+            [IdentifierResolutionFactory.build(), IdentifierResolutionFactory.build()],
+        )
+        with pytest.raises(ingester.MultipleResolutionsFoundError):
+            _ = v2_ingest.existing_document_uri

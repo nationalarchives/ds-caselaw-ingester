@@ -286,15 +286,21 @@ class Ingest:
             print(f"Ingesting document {self.uri}")
 
     def determine_uri(self) -> DocumentURIString:
+        ## Is there an existing document with the same NCN and identifier type?
+        if self.existing_document_uri:
+            return self.existing_document_uri
+
         # TODO: remove `metadata_uri` once we reinstate UUIDs
+        ## If not, can we extract the URI from the metadata (ie this is a reparse?)
         metadata_uri = extract_document_uri_from_metadata(
             metadata=self.metadata,
             consignment_reference=self.consignment_reference,
         )
-        if self.existing_document_uri:
-            return self.existing_document_uri
+
         if metadata_uri:
             return metadata_uri
+
+        ## We have no way to determine an existing URI, give it a new one
         return DocumentURIString("d-" + str(uuid4()))
 
     def save_tar_file_in_s3(self) -> str:
@@ -532,20 +538,17 @@ class Ingest:
         raise RuntimeError(f"Didn't recognise originator {originator!r}")
 
     def upload_xml(self) -> None:
-        ## Find documents of same type with the same NCN
-        # TODO DRAGON
-
         if self.existing_document_uri:
             self.updated = self.update_document_xml()
             if not self.updated:
                 raise DocumentInsertionError(
-                    f"Updating {self.existing_document_uri} failed. Consignment Ref: {self.consignment_reference}",
+                    f"Updating {self.ingested_document_type_string} {self.existing_document_uri} failed. Consignment Ref: {self.consignment_reference}",
                 )
         else:
             self.inserted = self.insert_document_xml()
             if not self.inserted:
                 raise DocumentInsertionError(
-                    f"Inserting XXX TODO XXX {self.uri} failed. Consignment Ref: {self.consignment_reference}",
+                    f"Inserting {self.ingested_document_type_string} {self.uri} failed. Consignment Ref: {self.consignment_reference}",
                 )
 
     @cached_property

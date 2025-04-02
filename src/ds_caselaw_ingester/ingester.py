@@ -4,7 +4,6 @@ import json
 import logging
 import os
 import tarfile
-import xml
 import xml.etree.ElementTree as ET
 from contextlib import suppress
 from functools import cached_property
@@ -16,7 +15,6 @@ from botocore.exceptions import NoCredentialsError
 from caselawclient.Client import MarklogicApiClient, MarklogicResourceNotFoundError
 from caselawclient.client_helpers import VersionAnnotation, VersionType, get_document_type_class
 from caselawclient.models.documents import Document, DocumentURIString
-from caselawclient.models.documents.body import DocumentBody
 from caselawclient.models.identifiers import Identifier
 from caselawclient.models.identifiers.neutral_citation import NeutralCitationNumber
 from caselawclient.models.identifiers.press_summary_ncn import PressSummaryRelatedNCNIdentifier
@@ -282,7 +280,6 @@ class Ingest:
             self.xml_file_name = self.metadata["parameters"]["TRE"]["payload"]["xml"]
             self.xml = get_best_xml(tar, self.xml_file_name, self.consignment_reference)
             self.uri = self.determine_uri()
-            self.body = DocumentBody(xml.etree.ElementTree.tostring(self.xml))  # not needed?
             print(f"Ingesting document {self.uri}")
 
     def determine_uri(self) -> DocumentURIString:

@@ -29,14 +29,11 @@ from notifications_python_client.notifications import NotificationsAPIClient
 
 from .exceptions import (
     DocumentInsertionError,
+    DocumentXMLNotYetInDatabase,
     DocxFilenameNotFoundException,
     FileNotFoundException,
+    MultipleResolutionsFoundError,
 )
-
-
-class MultipleResolutionsFoundError(DocumentInsertionError):
-    pass
-
 
 IDENTIFIER_CLASS_LOOKUP: dict[type[Document], Optional[type[Identifier]]] = {
     PressSummary: PressSummaryRelatedNCNIdentifier,
@@ -269,6 +266,7 @@ class Ingest:
         self.inserted: bool = False
         self.updated: bool = False
         self.consignment_reference: str = self.message.get_consignment_reference()
+        self.document: Optional[Document] = None
         print(f"Ingester Start: Consignment reference {self.consignment_reference}")
         print(f"Received Message: {self.message.message}")
         self.local_tar_filename = self.save_tar_file_in_s3()
@@ -358,20 +356,22 @@ class Ingest:
         return True
 
     def set_document_identifiers(self) -> None:
-        doc = self.api_client.get_document_by_uri(DocumentURIString(self.uri))
-        if doc.identifiers:
+        if self.document is None:
+            raise DocumentXMLNotYetInDatabase("This Ingest instance has not yet been written to the database.")
+
+        if self.document.identifiers:
             msg = f"Ingesting, but identifiers already present for {self.uri}!"
             logger.warning(msg)
 
-        ncn = getattr(doc, "neutral_citation", None)
+        ncn = getattr(self.document, "neutral_citation", None)
         identifier_class = IDENTIFIER_CLASS_LOOKUP.get(self.ingested_document_type, None)
 
         if not identifier_class:
             return
 
         if ncn:
-            doc.identifiers.add(identifier_class(ncn))
-            doc.save_identifiers()
+            self.document.identifiers.add(identifier_class(ncn))
+            self.document.save_identifiers()
             logger.info(
                 f"Ingested {self.ingested_document_type_string} had identifier {identifier_class.__name__} {ncn}",
             )
@@ -410,10 +410,6 @@ class Ingest:
     def send_bulk_judgment_notification(self) -> None:
         # Not yet implemented. We currently only autopublish judgments sent in bulk.
         pass
-
-    def unpublish_updated_judgment(self) -> None:
-        document = Document(self.uri, self.api_client)
-        document.unpublish()
 
     def store_metadata(self) -> None:
         tdr_metadata = self.metadata["parameters"]["TDR"]
@@ -517,10 +513,6 @@ class Ingest:
 
         raise RuntimeError(f"Didn't recognise originator {originator!r}")
 
-    def publish(self) -> None:
-        document = Document(self.uri, self.api_client)
-        document.publish()
-
     def send_email(self) -> None:
         originator = self.message.originator
         if originator == "FCL":
@@ -548,6 +540,10 @@ class Ingest:
                 raise DocumentInsertionError(
                     f"Inserting {self.ingested_document_type_string} {self.uri} failed. Consignment Ref: {self.consignment_reference}",
                 )
+
+        # This is the only place we should be setting self.document, once the XML is in the database
+        # get_document_by_uri will raise an exception if the expected document doesn't exist
+        self.document = self.api_client.get_document_by_uri(DocumentURIString(self.uri))
 
     @cached_property
     def existing_document_uri(self) -> Optional[DocumentURIString]:
@@ -596,6 +592,9 @@ def perform_ingest(ingest: Ingest) -> None:
     # Extract and parse the judgment XML
     ingest.insert_or_update_xml()
 
+    if not ingest.document:
+        raise DocumentInsertionError("Document not present in MarkLogic after attempting insert or update.")
+
     print(f"{ingest.upload_state.title()} judgment xml for {ingest.uri}")
     ingest.set_document_identifiers()
 
@@ -611,9 +610,9 @@ def perform_ingest(ingest: Ingest) -> None:
 
     if ingest.will_publish():
         print(f"publishing {ingest.consignment_reference} at {ingest.uri}")
-        ingest.publish()
+        ingest.document.publish()
         ingest.update_published_documents(PUBLIC_ASSET_BUCKET)
     else:
-        ingest.unpublish_updated_judgment()
+        ingest.document.unpublish()
 
     print("Ingestion complete")

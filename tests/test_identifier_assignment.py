@@ -25,8 +25,8 @@ class TestDocumentIdentifiers:
         ingest.api_client.get_document_by_uri.return_value = doc
 
         ingester.Ingest.set_document_identifiers(ingest)
-        assert type(doc.identifiers.add.call_args_list[0].args[0]) is PressSummaryRelatedNCNIdentifier
         doc.save_identifiers.assert_called()
+        assert type(doc.identifiers.add.call_args_list[0].args[0]) is PressSummaryRelatedNCNIdentifier
 
     def test_select_type_judgment(self):
         ingest = MagicMock()
@@ -40,8 +40,8 @@ class TestDocumentIdentifiers:
         ingest.api_client.get_document_by_uri.return_value = doc
 
         ingester.Ingest.set_document_identifiers(ingest)
-        assert type(doc.identifiers.add.call_args_list[0].args[0]) is NeutralCitationNumber
         doc.save_identifiers.assert_called()
+        assert type(doc.identifiers.add.call_args_list[0].args[0]) is NeutralCitationNumber
 
     def test_select_type_parser_log(self):
         """Verify parser error documents do not get identifiers"""
@@ -56,5 +56,5 @@ class TestDocumentIdentifiers:
         ingest.api_client.get_document_by_uri.return_value = doc
 
         ingester.Ingest.set_document_identifiers(ingest)
-        doc.identifiers.add.assert_not_called()
         doc.save_identifiers.assert_not_called()
+        doc.identifiers.add.assert_not_called()

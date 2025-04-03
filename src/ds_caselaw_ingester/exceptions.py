@@ -37,3 +37,11 @@ class DocxFilenameNotFoundException(ReportableException):
 
 class DocumentInsertionError(ReportableException):
     pass
+
+
+class MultipleResolutionsFoundError(DocumentInsertionError):
+    pass
+
+
+class DocumentXMLNotYetInDatabase(ReportableException):
+    pass

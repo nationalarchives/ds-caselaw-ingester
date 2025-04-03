@@ -43,7 +43,7 @@ class TestDocumentIdentifiers:
         assert type(doc.identifiers.add.call_args_list[0].args[0]) is NeutralCitationNumber
         doc.save_identifiers.assert_called()
 
-    def test_select_type_document(self):
+    def test_select_type_parser_log(self):
         """Verify parser error documents do not get identifiers"""
         ingest = MagicMock()
         ingest.ingested_document_type = ParserLog

@@ -11,7 +11,25 @@ from src.ds_caselaw_ingester import ingester
 
 
 class TestDocumentIdentifiers:
-    """Check that given a document of a given type we assign the correct document-specific identifier types."""
+    """Check that given a document with known properties we assign (or not) the right identifiers."""
+
+    def test_ncn_free_document_does_not_assign_identifiers(self):
+        ingest = MagicMock()
+        ingest.ingested_document_type = PressSummary
+        ingest.uri = "d-1000"
+
+        doc = PressSummaryFactory.build()
+
+        doc.neutral_citation = None
+
+        doc.identifiers = MagicMock()
+        doc.save_identifiers = MagicMock()
+
+        ingest.api_client.get_document_by_uri.return_value = doc
+
+        ingester.Ingest.set_document_identifiers(ingest)
+        doc.save_identifiers.assert_not_called()
+        doc.identifiers.add.assert_not_called()
 
     def test_select_type_press_summary(self):
         ingest = MagicMock()

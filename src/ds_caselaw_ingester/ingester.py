@@ -554,7 +554,10 @@ class Ingest:
         Is there an existing document claiming to be this one? (i.e. NCN and type match)
         Return the MarklogicURI of that document.
         """
-        raw_resolutions = self.api_client.resolve_from_identifier_value(DocumentIdentifierValue(self.extracted_ncn))
+        raw_resolutions = self.api_client.resolve_from_identifier_value(
+            DocumentIdentifierValue(self.extracted_ncn),
+            published_only=False,
+        )
         identifier_type = IDENTIFIER_CLASS_LOOKUP[self.ingested_document_type]
         resolutions = [resolution for resolution in raw_resolutions if resolution.identifier_type == identifier_type]
 

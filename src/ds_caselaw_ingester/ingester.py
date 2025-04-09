@@ -22,7 +22,7 @@ from caselawclient.models.judgments import Judgment
 from caselawclient.models.parser_logs import ParserLog
 from caselawclient.models.press_summaries import PressSummary
 from caselawclient.models.utilities.aws import S3PrefixString
-from caselawclient.types import DocumentIdentifierValue
+from caselawclient.types import DocumentIdentifierSlug, DocumentIdentifierValue
 from mypy_boto3_s3.client import S3Client
 from mypy_boto3_s3.type_defs import CopySourceTypeDef
 from notifications_python_client.notifications import NotificationsAPIClient
@@ -242,7 +242,7 @@ class Metadata:
     def is_tdr(self) -> bool:
         """Does the metadata say this document came from TDR?"""
         return "TDR" in self.parameters
-    
+
     @property
     def trimmed_uri(self) -> DocumentURIString:
         """The NCN-based URI the parser believes the document should be discoverable at"""
@@ -602,29 +602,27 @@ class Ingest:
                 print(f"copying {private_bucket} / {key} to {public_bucket} / {key}")
                 self.s3_client.copy(source, public_bucket, key, extra_args)
 
-    def database_location(self) -> tuple(DocumentURIString, bool):
+    def database_location(self) -> tuple[DocumentURIString, bool]:
         """Returns the chosen database location for the ingested document, and
         whether a document already exists at that location"""
-        # TODO test
+        # TODO test
         # TODO check makes sense
         # TODO delete irrelevant old approaches
         # TODO use this rather than old approaches
 
-        if trimmed_uri := self.metadata_object.trimmed_uri:
-            if slug_resolutions := self.api_client.resolve_from_identifier_slug(trimmed_uri):
+        if trimmed_uri := self.metadata_object.trimmed_uri:  # noqa: SIM102
+            if slug_resolutions := self.api_client.resolve_from_identifier_slug(DocumentIdentifierSlug(trimmed_uri)):
                 if len(slug_resolutions) > 0:
                     msg = f"uri: {trimmed_uri}"
                     raise MultipleResolutionsFoundError(msg)
 
                 return (trimmed_uri, True)
-            
-        if self.existing_document_uri: # rename to something better
+
+        if self.existing_document_uri:  # rename to something better
             return (self.existing_document_uri, True)
-        
+
         doc_uuid = DocumentURIString("d-" + str(uuid4()))
         return (doc_uuid, False)
-
-
 
 
 def perform_ingest(ingest: Ingest) -> None:

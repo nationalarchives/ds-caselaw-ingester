@@ -245,6 +245,12 @@ class Metadata:
     def is_tdr(self) -> bool:
         """Does the metadata say this document came from TDR?"""
         return "TDR" in self.parameters
+    
+    @property
+    def trimmed_uri(self) -> DocumentURIString:
+        """The NCN-based URI the parser believes the document should be discoverable at"""
+        raw_uri = self.parameters["PARSER"].get("uri", "")
+        return DocumentURIString(raw_uri.replace("https://caselaw.nationalarchives.gov.uk/id/", ""))
 
     @property
     def force_publish(self) -> bool:
@@ -587,6 +593,30 @@ class Ingest:
                 extra_args: dict[str, Any] = {}
                 print(f"copying {private_bucket} / {key} to {public_bucket} / {key}")
                 self.s3_client.copy(source, public_bucket, key, extra_args)
+
+    def database_location(self) -> tuple(DocumentURIString, bool):
+        """Returns the chosen database location for the ingested document, and
+        whether a document already exists at that location"""
+        # TODO test
+        # TODO check makes sense
+        # TODO delete irrelevant old approaches
+        # TODO use this rather than old approaches
+
+        if trimmed_uri := self.metadata_object.trimmed_uri:
+            if slug_resolutions := self.api_client.resolve_from_identifier_slug(trimmed_uri):
+                if len(slug_resolutions) > 0:
+                    msg = f"uri: {trimmed_uri}"
+                    raise MultipleResolutionsFoundError(msg)
+
+                return (trimmed_uri, True)
+            
+        if self.existing_document_uri: # rename to something better
+            return (self.existing_document_uri, True)
+        
+        doc_uuid = DocumentURIString("d-" + str(uuid4()))
+        return (doc_uuid, False)
+
+
 
 
 def perform_ingest(ingest: Ingest) -> None:

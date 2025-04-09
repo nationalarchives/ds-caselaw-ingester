@@ -504,9 +504,9 @@ class Ingest:
 
         # reparse
         if originator == "FCL":
-            if not self.existing_document_uri:
+            if not self.find_existing_document_by_ncn:
                 return False
-            return self.api_client.get_published(self.existing_document_uri) is True
+            return self.api_client.get_published(self.find_existing_document_by_ncn) is True
 
         raise RuntimeError(f"Didn't recognise originator {originator!r}")
 
@@ -528,7 +528,7 @@ class Ingest:
         if self.exists_in_database:
             if not self.update_document_xml():
                 raise DocumentInsertionError(
-                    f"Updating {self.ingested_document_type_string} {self.existing_document_uri} failed. Consignment Ref: {self.consignment_reference}",
+                    f"Updating {self.ingested_document_type_string} {self.uri} failed. Consignment Ref: {self.consignment_reference}",
                 )
         else:
             if not self.insert_document_xml():
@@ -541,7 +541,7 @@ class Ingest:
         self.document = self.api_client.get_document_by_uri(DocumentURIString(self.uri))
 
     @cached_property
-    def existing_document_uri(self) -> Optional[DocumentURIString]:
+    def find_existing_document_by_ncn(self) -> Optional[DocumentURIString]:
         """
         Is there an existing document claiming to be this one? (i.e. NCN and type match)
         Return the MarklogicURI of that document.
@@ -597,8 +597,8 @@ class Ingest:
 
                 return (trimmed_uri, True)
 
-        if self.existing_document_uri:  # rename to something better
-            return (self.existing_document_uri, True)
+        if self.find_existing_document_by_ncn:  # rename to something better
+            return (self.find_existing_document_by_ncn, True)
 
         doc_uuid = DocumentURIString("d-" + str(uuid4()))
         return (doc_uuid, False)

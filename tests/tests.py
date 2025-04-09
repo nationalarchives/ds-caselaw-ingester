@@ -48,7 +48,7 @@ class TestHandler:
     @patch("src.ds_caselaw_ingester.ingester.modify_filename")
     @patch("src.ds_caselaw_ingester.ingester.Document")
     @patch(
-        "src.ds_caselaw_ingester.ingester.Ingest.existing_document_uri",
+        "src.ds_caselaw_ingester.ingester.Ingest.find_existing_document_by_ncn",
         return_value=IdentifierResolutionsFactory.build(),
     )
     @patch("src.ds_caselaw_ingester.ingester.Ingest.determine_uri", return_value=DocumentURIString("cat"))
@@ -103,7 +103,7 @@ class TestHandler:
     @patch("src.ds_caselaw_ingester.ingester.uuid4")
     @patch("src.ds_caselaw_ingester.ingester.Document")
     @patch(
-        "src.ds_caselaw_ingester.ingester.Ingest.existing_document_uri",
+        "src.ds_caselaw_ingester.ingester.Ingest.find_existing_document_by_ncn",
         return_value=IdentifierResolutionsFactory.build(),
     )
     @patch("src.ds_caselaw_ingester.ingester.Ingest.determine_uri", return_value=DocumentURIString("cat"))
@@ -565,17 +565,17 @@ class TestPublicationLogic:
             mock.return_value = False
             assert s3_ingest.will_publish() is False
 
-    @patch("src.ds_caselaw_ingester.ingester.Ingest.existing_document_uri", return_value=None)
+    @patch("src.ds_caselaw_ingester.ingester.Ingest.find_existing_document_by_ncn", return_value=None)
     def test_fcl_not_published_if_doesnt_exist(self, existing_uri, fcl_ingest):
         fcl_ingest.api_client.get_published.return_value = False
         assert fcl_ingest.will_publish() is False
 
-    @patch("src.ds_caselaw_ingester.ingester.Ingest.existing_document_uri", return_value="cat")
+    @patch("src.ds_caselaw_ingester.ingester.Ingest.find_existing_document_by_ncn", return_value="cat")
     def test_fcl_not_published_if_exists_but_not_published(self, existing_uri, fcl_ingest):
         fcl_ingest.api_client.get_published.return_value = False
         assert fcl_ingest.will_publish() is False
 
-    @patch("src.ds_caselaw_ingester.ingester.Ingest.existing_document_uri", return_value="cat")
+    @patch("src.ds_caselaw_ingester.ingester.Ingest.find_existing_document_by_ncn", return_value="cat")
     def test_fcl_published_if_published(self, existing_uri, fcl_ingest):
         fcl_ingest.api_client.get_published.return_value = True
         assert fcl_ingest.will_publish() is True
@@ -634,7 +634,7 @@ class TestEmailLogic:
 
 class TestIngesterDetermineUri:
     @patch(
-        "src.ds_caselaw_ingester.ingester.Ingest.existing_document_uri",
+        "src.ds_caselaw_ingester.ingester.Ingest.find_existing_document_by_ncn",
         new_callable=PropertyMock,
         return_value="dog",
     )
@@ -643,7 +643,7 @@ class TestIngesterDetermineUri:
 
     @patch("src.ds_caselaw_ingester.ingester.extract_document_uri_from_metadata", return_value="cat")
     @patch(
-        "src.ds_caselaw_ingester.ingester.Ingest.existing_document_uri",
+        "src.ds_caselaw_ingester.ingester.Ingest.find_existing_document_by_ncn",
         new_callable=PropertyMock,
         return_value=None,
     )
@@ -651,7 +651,7 @@ class TestIngesterDetermineUri:
         assert str(v2_ingest.determine_uri()) == "cat"
 
     @patch(
-        "src.ds_caselaw_ingester.ingester.Ingest.existing_document_uri",
+        "src.ds_caselaw_ingester.ingester.Ingest.find_existing_document_by_ncn",
         new_callable=PropertyMock,
         return_value=None,
     )
@@ -679,21 +679,21 @@ class TestIngesterExtractDocumentUriFromMetadata:
 class TestIngesterExistingDocumentUriMethod:
     def test_no_resolutions(self, fcl_ingest):
         fcl_ingest.api_client.resolve_from_identifier_value.return_value = IdentifierResolutionsFactory.build([])
-        assert fcl_ingest.existing_document_uri is None
+        assert fcl_ingest.find_existing_document_by_ncn is None
 
     def test_no_resolution_is_an_ncn(self, fcl_ingest):
         fcl_ingest.api_client.resolve_from_identifier_value.return_value = IdentifierResolutionsFactory.build(
             [IdentifierResolutionFactory.build(namespace="fclid")],
         )
-        assert fcl_ingest.existing_document_uri is None
+        assert fcl_ingest.find_existing_document_by_ncn is None
 
     def test_one_resolution(self, v2_ingest):
         v2_ingest.api_client.resolve_from_identifier_value.return_value = IdentifierResolutionsFactory.build()
-        assert v2_ingest.existing_document_uri == "ewca/civ/2003/547"
+        assert v2_ingest.find_existing_document_by_ncn == "ewca/civ/2003/547"
 
     def test_many_resolutions(self, v2_ingest):
         v2_ingest.api_client.resolve_from_identifier_value.return_value = IdentifierResolutionsFactory.build(
             [IdentifierResolutionFactory.build(), IdentifierResolutionFactory.build()],
         )
         with pytest.raises(ingester.MultipleResolutionsFoundError):
-            _ = v2_ingest.existing_document_uri
+            _ = v2_ingest.find_existing_document_by_ncn

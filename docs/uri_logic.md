@@ -19,9 +19,7 @@ flowchart TD
 
     EXISTING_DOCUMENT_AT_URI -- Yes --> SET_URI_TO_EXISTING_DOC
 
-    SET_URI_TO_EXISTING_DOC --> TOGGLE_UPDATE_STATE
 
-    TOGGLE_UPDATE_STATE@{ shape: win-pane, label: "Record document as being an in-place update" }
 
     URI_IN_PARSER_METADATA -- No --> DOCUMENT_HAS_NCN
     EXISTING_DOCUMENT_AT_URI -- No --> DOCUMENT_HAS_NCN
@@ -34,26 +32,18 @@ flowchart TD
 
     EXISTING_DOCUMENT_AT_NCN -- Yes --> SET_URI_TO_EXISTING_DOC
 
-    SET_URI_TO_EXISTING_DOC@{ shape: win-pane, label: "Set document URI to URI of existing document" }
+    SET_URI_TO_EXISTING_DOC(["Return a tuple of (uri=existing document URI, exists=True)"])
 
     DOCUMENT_HAS_NCN -- No --> GENERATE_UUID_URI
 
     GENERATE_NCN_URI[Generate new NCN-based URI]
     GENERATE_NCN_URI --> SET_URI_TO_NCN
-    SET_URI_TO_NCN@{ shape: win-pane, label: "Set document URI to new NCN-based URI" }
-    SET_URI_TO_NCN --> TOGGLE_INSERT_STATE
+    SET_URI_TO_NCN(["Return a tuple of (uri=new NCN-based URI, exists=False)"])
 
     EXISTING_DOCUMENT_AT_NCN -- No --> GENERATE_NCN_URI
 
     GENERATE_UUID_URI[Generate new UUID-based URI]
     GENERATE_UUID_URI --> SET_URI_TO_UUID
-    SET_URI_TO_UUID@{ shape: win-pane, label: "Set document URI to new UUID-based URI" }
+    SET_URI_TO_UUID(["Return a tuple of (uri=new UUID URI, exists=False)"])
 
-    SET_URI_TO_UUID --> TOGGLE_INSERT_STATE
-    TOGGLE_INSERT_STATE@{ shape: win-pane, label: "Record document as being an insert" }
-
-    TOGGLE_UPDATE_STATE --> RETURN
-    TOGGLE_INSERT_STATE --> RETURN
-
-    RETURN(["Return a tuple of (URI, update/insert)"])
 ```

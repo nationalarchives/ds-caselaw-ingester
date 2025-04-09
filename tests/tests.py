@@ -20,7 +20,6 @@ from caselawclient.types import DocumentURIString
 from notifications_python_client.notifications import NotificationsAPIClient
 
 from src.ds_caselaw_ingester import exceptions, ingester, lambda_function
-from src.ds_caselaw_ingester.ingester import extract_document_uri_from_metadata
 
 from .conftest import error_message_raw, s3_message_raw, v2_message, v2_message_raw
 from .helpers import create_fake_bulk_file, create_fake_error_file, create_fake_tdr_file
@@ -48,13 +47,17 @@ class TestHandler:
     @patch("src.ds_caselaw_ingester.ingester.modify_filename")
     @patch("src.ds_caselaw_ingester.ingester.Document")
     @patch(
-        "src.ds_caselaw_ingester.ingester.Ingest.existing_document_uri",
+        "src.ds_caselaw_ingester.ingester.Ingest.find_existing_document_by_ncn",
         return_value=IdentifierResolutionsFactory.build(),
     )
-    @patch("src.ds_caselaw_ingester.ingester.Ingest.determine_uri", return_value=DocumentURIString("cat"))
-    def test_handler_messages_v2(
+    @patch(
+        "src.ds_caselaw_ingester.ingester.Ingest.database_location",
+        new_callable=PropertyMock,
+        return_value=((DocumentURIString("cat"), True)),
+    )
+    def test_handler_messages_v2_normal(
         self,
-        mock_determine_uri,
+        mock_database_location,
         mock_existing_uri,
         mock_doc,
         modify_filename,
@@ -103,10 +106,14 @@ class TestHandler:
     @patch("src.ds_caselaw_ingester.ingester.uuid4")
     @patch("src.ds_caselaw_ingester.ingester.Document")
     @patch(
-        "src.ds_caselaw_ingester.ingester.Ingest.existing_document_uri",
+        "src.ds_caselaw_ingester.ingester.Ingest.find_existing_document_by_ncn",
         return_value=IdentifierResolutionsFactory.build(),
     )
-    @patch("src.ds_caselaw_ingester.ingester.Ingest.determine_uri", return_value=DocumentURIString("cat"))
+    @patch(
+        "src.ds_caselaw_ingester.ingester.Ingest.database_location",
+        new_callable=PropertyMock,
+        return_value=(DocumentURIString("cat"), True),
+    )
     def test_handler_messages_s3(
         self,
         mock_determine,
@@ -165,7 +172,11 @@ class TestHandler:
     @patch("src.ds_caselaw_ingester.ingester.VersionAnnotation")
     @patch("src.ds_caselaw_ingester.ingester.modify_filename")
     @patch("src.ds_caselaw_ingester.ingester.Document")
-    @patch("src.ds_caselaw_ingester.lambda_function.Ingest.determine_uri", return_value=DocumentURIString("uuid"))
+    @patch(
+        "src.ds_caselaw_ingester.lambda_function.Ingest.database_location",
+        new_callable=PropertyMock,
+        return_value=(DocumentURIString("uuid"), False),
+    )
     def test_handler_messages_v2_parser_error(
         self,
         mock_determine_uri,
@@ -565,17 +576,17 @@ class TestPublicationLogic:
             mock.return_value = False
             assert s3_ingest.will_publish() is False
 
-    @patch("src.ds_caselaw_ingester.ingester.Ingest.existing_document_uri", return_value=None)
+    @patch("src.ds_caselaw_ingester.ingester.Ingest.find_existing_document_by_ncn", return_value=None)
     def test_fcl_not_published_if_doesnt_exist(self, existing_uri, fcl_ingest):
         fcl_ingest.api_client.get_published.return_value = False
         assert fcl_ingest.will_publish() is False
 
-    @patch("src.ds_caselaw_ingester.ingester.Ingest.existing_document_uri", return_value="cat")
+    @patch("src.ds_caselaw_ingester.ingester.Ingest.find_existing_document_by_ncn", return_value="cat")
     def test_fcl_not_published_if_exists_but_not_published(self, existing_uri, fcl_ingest):
         fcl_ingest.api_client.get_published.return_value = False
         assert fcl_ingest.will_publish() is False
 
-    @patch("src.ds_caselaw_ingester.ingester.Ingest.existing_document_uri", return_value="cat")
+    @patch("src.ds_caselaw_ingester.ingester.Ingest.find_existing_document_by_ncn", return_value="cat")
     def test_fcl_published_if_published(self, existing_uri, fcl_ingest):
         fcl_ingest.api_client.get_published.return_value = True
         assert fcl_ingest.will_publish() is True
@@ -586,8 +597,7 @@ class TestPublicationLogic:
 @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_bulk_judgment_notification")
 class TestEmailLogic:
     def test_v2_ingest_publish_email_update(self, bulk, new, updated, v2_ingest):
-        v2_ingest.inserted = False
-        v2_ingest.updated = True
+        v2_ingest.exists_in_database = True
 
         v2_ingest.send_email()
 
@@ -632,68 +642,111 @@ class TestEmailLogic:
         new.assert_not_called()
 
 
-class TestIngesterDetermineUri:
-    @patch(
-        "src.ds_caselaw_ingester.ingester.Ingest.existing_document_uri",
-        new_callable=PropertyMock,
-        return_value="dog",
-    )
-    def test__doc_uri(self, doc_uri, v2_ingest):
-        assert str(v2_ingest.determine_uri()) == "dog"
-
-    @patch("src.ds_caselaw_ingester.ingester.extract_document_uri_from_metadata", return_value="cat")
-    @patch(
-        "src.ds_caselaw_ingester.ingester.Ingest.existing_document_uri",
-        new_callable=PropertyMock,
-        return_value=None,
-    )
-    def test_no_doc_uri(self, doc_uri, metadata_uri, v2_ingest):
-        assert str(v2_ingest.determine_uri()) == "cat"
-
-    @patch(
-        "src.ds_caselaw_ingester.ingester.Ingest.existing_document_uri",
-        new_callable=PropertyMock,
-        return_value=None,
-    )
-    @patch("src.ds_caselaw_ingester.ingester.extract_document_uri_from_metadata", return_value=None)
-    @patch("src.ds_caselaw_ingester.ingester.uuid4", return_value="uuid")
-    def test_fallback_uuid(self, doc_uri, metadata_uri, uuid, v2_ingest):
-        assert isinstance(v2_ingest.determine_uri(), DocumentURIString)
-        assert str(v2_ingest.determine_uri()) == "d-uuid"
-
-
-class TestIngesterExtractDocumentUriFromMetadata:
-    def test_no_uri_in_metadata(self):
-        assert extract_document_uri_from_metadata({"parameters": {"PARSER": {}}}, "consignment") is None
-
-    def test_uri_in_metadata(self):
-        assert (
-            extract_document_uri_from_metadata(
-                {"parameters": {"PARSER": {"uri": "https://caselaw.nationalarchives.gov.uk/id/cat"}}},
-                "consignment",
-            )
-            == "cat"
-        )
-
-
 class TestIngesterExistingDocumentUriMethod:
     def test_no_resolutions(self, fcl_ingest):
         fcl_ingest.api_client.resolve_from_identifier_value.return_value = IdentifierResolutionsFactory.build([])
-        assert fcl_ingest.existing_document_uri is None
+        assert fcl_ingest.find_existing_document_by_ncn is None
 
     def test_no_resolution_is_an_ncn(self, fcl_ingest):
         fcl_ingest.api_client.resolve_from_identifier_value.return_value = IdentifierResolutionsFactory.build(
             [IdentifierResolutionFactory.build(namespace="fclid")],
         )
-        assert fcl_ingest.existing_document_uri is None
+        assert fcl_ingest.find_existing_document_by_ncn is None
 
     def test_one_resolution(self, v2_ingest):
         v2_ingest.api_client.resolve_from_identifier_value.return_value = IdentifierResolutionsFactory.build()
-        assert v2_ingest.existing_document_uri == "ewca/civ/2003/547"
+        assert v2_ingest.find_existing_document_by_ncn == "ewca/civ/2003/547"
 
     def test_many_resolutions(self, v2_ingest):
         v2_ingest.api_client.resolve_from_identifier_value.return_value = IdentifierResolutionsFactory.build(
             [IdentifierResolutionFactory.build(), IdentifierResolutionFactory.build()],
         )
         with pytest.raises(ingester.MultipleResolutionsFoundError):
-            _ = v2_ingest.existing_document_uri
+            _ = v2_ingest.find_existing_document_by_ncn
+
+
+class TestDatabaseLocation:
+    """The ynn annotations on the test names refer to this version of the flowchart:
+    https://github.com/nationalarchives/ds-caselaw-ingester/pull/311/files?short_path=81f315b#diff-81f315ba06f2786cef4c0a1d091d65b650897a6296ae371952d8475cef5d8b5e
+    """
+
+    @patch("src.ds_caselaw_ingester.ingester.uuid4", return_value="uuid")
+    def test_nn_no_parser_uri_or_ncn(self, uuid, v2_ingest):
+        v2_ingest.api_client.resolve_from_identifier_value.return_value = []
+        v2_ingest.api_client.resolve_from_identifier_slug.return_value = []
+        v2_ingest.metadata_object.trimmed_uri.return_value = ""
+        v2_ingest.extracted_ncn = None
+        uri, exists = v2_ingest.database_location
+        assert isinstance(uri, DocumentURIString)
+        assert str(uri) == "d-uuid"
+        assert exists is False
+
+    @patch("src.ds_caselaw_ingester.ingester.Metadata.trimmed_uri", new_callable=PropertyMock, return_value="uri")
+    def test_yy_parser_uri_and_doc_in_marklogic(self, trimmed, v2_ingest):
+        v2_ingest.api_client.resolve_from_identifier_slug.return_value = ["uri"]
+        uri, exists = v2_ingest.database_location
+        assert str(uri) == "uri"
+        assert exists is True
+
+    @patch("src.ds_caselaw_ingester.ingester.Metadata.trimmed_uri", new_callable=PropertyMock, return_value="uri")
+    @patch("src.ds_caselaw_ingester.ingester.uuid4", return_value="uuid")
+    def test_ynyn_neither_uri_or_ncn_in_marklogic(self, uuid, trimmed_uri, v2_ingest):
+        v2_ingest.api_client.resolve_from_identifier_slug.return_value = []
+        v2_ingest.api_client.resolve_from_identifier_value.return_value = []
+        # An NCN of [2022] EWCA Civ 111 is already present
+        uri, exists = v2_ingest.database_location
+        v2_ingest.api_client.resolve_from_identifier_slug.assert_called()
+        v2_ingest.api_client.resolve_from_identifier_value.assert_called()
+        assert str(uri) == "ewca/civ/2022/111"
+        assert exists is False
+
+    @patch("src.ds_caselaw_ingester.ingester.Metadata.trimmed_uri", new_callable=PropertyMock, return_value="uri")
+    @patch("src.ds_caselaw_ingester.ingester.uuid4", return_value="uuid")
+    def test_ynyy_ncn_in_marklogic(self, uuid, trimmed_uri, v2_ingest):
+        v2_ingest.api_client.resolve_from_identifier_slug.return_value = []
+        v2_ingest.api_client.resolve_from_identifier_value.return_value = [
+            IdentifierResolutionFactory.build(document_uri="/uksc/2030/999.xml"),
+        ]
+        # An NCN of [2022] EWCA Civ 111 is already present
+        uri, exists = v2_ingest.database_location
+        v2_ingest.api_client.resolve_from_identifier_slug.assert_called()
+        v2_ingest.api_client.resolve_from_identifier_value.assert_called()
+        assert str(uri) == "uksc/2030/999"
+        assert exists is True
+
+    @patch("src.ds_caselaw_ingester.ingester.Metadata.trimmed_uri", new_callable=PropertyMock, return_value="uri")
+    @patch("src.ds_caselaw_ingester.ingester.uuid4", return_value="uuid")
+    def test_ynn_uri_but_not_in_marklogic_no_ncn(self, uuid, trimmed_uri, v2_ingest):
+        v2_ingest.api_client.resolve_from_identifier_slug.return_value = []
+        v2_ingest.api_client.resolve_from_identifier_value.return_value = []
+        v2_ingest.extracted_ncn = None
+        v2_ingest.api_client.resolve_from_identifier_slug.assert_not_called()
+        v2_ingest.api_client.resolve_from_identifier_value.assert_not_called()
+
+        uri, exists = v2_ingest.database_location
+        assert str(uri) == "d-uuid"
+        assert exists is False
+
+    @patch("src.ds_caselaw_ingester.ingester.Metadata.trimmed_uri", new_callable=PropertyMock, return_value="")
+    def test_nyy_no_parser_uri_but_ncn_metdata_and_existing_doc(self, trimmed_uri, v2_ingest):
+        v2_ingest.api_client.resolve_from_identifier_slug.return_value = []
+        v2_ingest.api_client.resolve_from_identifier_value.return_value = [
+            IdentifierResolutionFactory.build(document_uri="/uksc/2030/999.xml"),
+        ]
+        v2_ingest.extracted_ncn = "[2030] UKSC 999"
+        # v2_ingest.api_client.resolve_from_identifier_slug.assert_called()
+
+        uri, exists = v2_ingest.database_location
+        v2_ingest.api_client.resolve_from_identifier_value.assert_called_with("[2030] UKSC 999", published_only=False)
+        assert str(uri) == "uksc/2030/999"
+        assert exists is True
+
+    @patch("src.ds_caselaw_ingester.ingester.Metadata.trimmed_uri", new_callable=PropertyMock, return_value="")
+    def test_nyn_no_parser_uri_or_existing_doc_but_ncn_metdata(self, trimmed_uri, v2_ingest):
+        v2_ingest.api_client.resolve_from_identifier_value.return_value = []
+        v2_ingest.extracted_ncn = "[2030] UKSC 999"
+
+        uri, exists = v2_ingest.database_location
+        v2_ingest.api_client.resolve_from_identifier_value.assert_called()
+        assert str(uri) == "uksc/2030/999"
+        assert exists is False

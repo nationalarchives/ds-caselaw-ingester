@@ -285,26 +285,8 @@ class Ingest:
             self.message.update_consignment_reference(self.metadata["parameters"]["TRE"]["reference"])
             self.xml_file_name = self.metadata["parameters"]["TRE"]["payload"]["xml"]
             self.xml = get_best_xml(tar, self.xml_file_name, self.consignment_reference)
-            self.uri = self.determine_uri()
+            self.uri, self.exists_in_database = self.database_location
             print(f"Ingesting document {self.uri}")
-
-    def determine_uri(self) -> DocumentURIString:
-        ## Is there an existing document with the same NCN and identifier type?
-        if self.existing_document_uri:
-            return self.existing_document_uri
-
-        # TODO: remove `metadata_uri` once we reinstate UUIDs
-        ## If not, can we extract the URI from the metadata (ie this is a reparse?)
-        metadata_uri = extract_document_uri_from_metadata(
-            metadata=self.metadata,
-            consignment_reference=self.consignment_reference,
-        )
-
-        if metadata_uri:
-            return metadata_uri
-
-        ## We have no way to determine an existing URI, give it a new one
-        return DocumentURIString("d-" + str(uuid4()))
 
     def save_tar_file_in_s3(self) -> str:
         """This should be mocked out for testing -- get the tar file from S3 and
@@ -594,6 +576,7 @@ class Ingest:
                 print(f"copying {private_bucket} / {key} to {public_bucket} / {key}")
                 self.s3_client.copy(source, public_bucket, key, extra_args)
 
+    @cached_property
     def database_location(self) -> tuple[DocumentURIString, bool]:
         """Returns the chosen database location for the ingested document, and
         whether a document already exists at that location"""

@@ -22,7 +22,8 @@ from caselawclient.models.judgments import Judgment
 from caselawclient.models.parser_logs import ParserLog
 from caselawclient.models.press_summaries import PressSummary
 from caselawclient.models.utilities.aws import S3PrefixString
-from caselawclient.types import DocumentIdentifierValue
+from caselawclient.types import DocumentIdentifierSlug, DocumentIdentifierValue
+from ds_caselaw_utils import neutral_url
 from mypy_boto3_s3.client import S3Client
 from mypy_boto3_s3.type_defs import CopySourceTypeDef
 from notifications_python_client.notifications import NotificationsAPIClient
@@ -244,6 +245,12 @@ class Metadata:
         return "TDR" in self.parameters
 
     @property
+    def trimmed_uri(self) -> DocumentURIString:
+        """The NCN-based URI the parser believes the document should be discoverable at"""
+        raw_uri = self.parameters["PARSER"].get("uri", "")
+        return DocumentURIString(raw_uri.replace("https://caselaw.nationalarchives.gov.uk/id/", ""))
+
+    @property
     def force_publish(self) -> bool:
         """
         Does the metadata say to automatically publish this document?
@@ -274,8 +281,6 @@ class Ingest:
         self.destination_bucket = destination_bucket
         self.api_client = api_client
         self.s3_client = s3_client
-        self.inserted: bool = False
-        self.updated: bool = False
         self.consignment_reference: str = self.message.get_consignment_reference()
         self.document: Optional[Document] = None
         print(f"Ingester Start: Consignment reference {self.consignment_reference}")
@@ -288,26 +293,11 @@ class Ingest:
             self.message.update_consignment_reference(self.metadata["parameters"]["TRE"]["reference"])
             self.xml_file_name = self.metadata["parameters"]["TRE"]["payload"]["xml"]
             self.xml = get_best_xml(tar, self.xml_file_name, self.consignment_reference)
-            self.uri = self.determine_uri()
+            self.uri, self.exists_in_database = self.database_location
             print(f"Ingesting document {self.uri}")
 
-    def determine_uri(self) -> DocumentURIString:
-        ## Is there an existing document with the same NCN and identifier type?
-        if self.existing_document_uri:
-            return self.existing_document_uri
-
-        # TODO: remove `metadata_uri` once we reinstate UUIDs
-        ## If not, can we extract the URI from the metadata (ie this is a reparse?)
-        metadata_uri = extract_document_uri_from_metadata(
-            metadata=self.metadata,
-            consignment_reference=self.consignment_reference,
-        )
-
-        if metadata_uri:
-            return metadata_uri
-
-        ## We have no way to determine an existing URI, give it a new one
-        return DocumentURIString("d-" + str(uuid4()))
+    def __repr__(self):
+        return f"<Ingest: {self.consignment_reference}, {self.local_tar_filename}, {self.extracted_ncn}>"
 
     def save_tar_file_in_s3(self) -> str:
         """This should be mocked out for testing -- get the tar file from S3 and
@@ -518,9 +508,9 @@ class Ingest:
 
         # reparse
         if originator == "FCL":
-            if not self.existing_document_uri:
+            if not self.find_existing_document_by_ncn:
                 return False
-            return self.api_client.get_published(self.existing_document_uri) is True
+            return self.api_client.get_published(self.find_existing_document_by_ncn) is True
 
         raise RuntimeError(f"Didn't recognise originator {originator!r}")
 
@@ -533,21 +523,23 @@ class Ingest:
             return None if self.metadata_object.force_publish else self.send_bulk_judgment_notification()
 
         if originator == "TDR":
-            return self.send_new_judgment_notification() if self.inserted else self.send_updated_judgment_notification()
+            return (
+                self.send_updated_judgment_notification()
+                if self.exists_in_database
+                else self.send_new_judgment_notification()
+            )
 
         raise RuntimeError(f"Didn't recognise originator {originator!r}")
 
     def insert_or_update_xml(self) -> None:
         """Puts the XML into MarkLogic, either by updating an existing document (if `self.existing_document_uri`) or by creating a new one."""
-        if self.existing_document_uri:
-            self.updated = self.update_document_xml()
-            if not self.updated:
+        if self.exists_in_database:
+            if not self.update_document_xml():
                 raise DocumentInsertionError(
-                    f"Updating {self.ingested_document_type_string} {self.existing_document_uri} failed. Consignment Ref: {self.consignment_reference}",
+                    f"Updating {self.ingested_document_type_string} {self.uri} failed. Consignment Ref: {self.consignment_reference}",
                 )
         else:
-            self.inserted = self.insert_document_xml()
-            if not self.inserted:
+            if not self.insert_document_xml():
                 raise DocumentInsertionError(
                     f"Inserting {self.ingested_document_type_string} {self.uri} failed. Consignment Ref: {self.consignment_reference}",
                 )
@@ -557,7 +549,7 @@ class Ingest:
         self.document = self.api_client.get_document_by_uri(DocumentURIString(self.uri))
 
     @cached_property
-    def existing_document_uri(self) -> Optional[DocumentURIString]:
+    def find_existing_document_by_ncn(self) -> Optional[DocumentURIString]:
         """
         Is there an existing document claiming to be this one? (i.e. NCN and type match)
         Return the MarklogicURI of that document.
@@ -579,7 +571,7 @@ class Ingest:
 
     @property
     def upload_state(self) -> str:
-        return "updated" if self.updated else "inserted"
+        return "updated" if self.exists_in_database else "inserted"
 
     def update_published_documents(self, public_bucket: str) -> None:
         """Copy all assets (except .tar.gz and parser.log) from the private bucket which have the prefix of this document's URI to the public bucket."""
@@ -595,6 +587,33 @@ class Ingest:
                 extra_args: dict[str, Any] = {}
                 print(f"copying {private_bucket} / {key} to {public_bucket} / {key}")
                 self.s3_client.copy(source, public_bucket, key, extra_args)
+
+    @cached_property
+    def database_location(self) -> tuple[DocumentURIString, bool]:
+        """Returns the chosen database location for the ingested document, and
+        whether a document already exists at that location"""
+
+        if trimmed_uri := self.metadata_object.trimmed_uri:  # noqa: SIM102
+            if slug_resolutions := self.api_client.resolve_from_identifier_slug(DocumentIdentifierSlug(trimmed_uri)):
+                if len(slug_resolutions) > 1:
+                    msg = f"uri: {trimmed_uri}"
+                    raise MultipleResolutionsFoundError(msg)
+
+                return (trimmed_uri, True)
+
+        if self.extracted_ncn:
+            if self.find_existing_document_by_ncn:  # rename to something better
+                return (self.find_existing_document_by_ncn, True)
+            else:
+                uri_from_document = neutral_url(self.extracted_ncn)
+                if not uri_from_document:
+                    msg = "Unable to form uri for extracted NCN {self.extracted_ncn}"
+                    raise RuntimeError(self.extracted_ncn)
+                return (DocumentURIString(uri_from_document), False)
+
+        doc_uuid = DocumentURIString("d-" + str(uuid4()))
+        print("fallback")
+        return (doc_uuid, False)
 
 
 def perform_ingest(ingest: Ingest) -> None:

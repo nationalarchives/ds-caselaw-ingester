@@ -272,8 +272,6 @@ class Ingest:
         self.destination_bucket = destination_bucket
         self.api_client = api_client
         self.s3_client = s3_client
-        self.inserted: bool = False
-        self.updated: bool = False
         self.consignment_reference: str = self.message.get_consignment_reference()
         print(f"Ingester Start: Consignment reference {self.consignment_reference}")
         print(f"Received Message: {self.message.message}")
@@ -518,20 +516,18 @@ class Ingest:
             return None if self.metadata_object.force_publish else self.send_bulk_judgment_notification()
 
         if originator == "TDR":
-            return self.send_new_judgment_notification() if self.inserted else self.send_updated_judgment_notification()
+            return self.send_new_judgment_notification() if self.exists_in_database else self.send_updated_judgment_notification()
 
         raise RuntimeError(f"Didn't recognise originator {originator!r}")
 
     def upload_xml(self) -> None:
-        if self.existing_document_uri:
-            self.updated = self.update_document_xml()
-            if not self.updated:
+        if self.exists_in_database:
+            if not self.update_document_xml():
                 raise DocumentInsertionError(
                     f"Updating {self.ingested_document_type_string} {self.existing_document_uri} failed. Consignment Ref: {self.consignment_reference}",
                 )
         else:
-            self.inserted = self.insert_document_xml()
-            if not self.inserted:
+            if not self.insert_document_xml():
                 raise DocumentInsertionError(
                     f"Inserting {self.ingested_document_type_string} {self.uri} failed. Consignment Ref: {self.consignment_reference}",
                 )
@@ -559,7 +555,7 @@ class Ingest:
 
     @property
     def upload_state(self) -> str:
-        return "updated" if self.updated else "inserted"
+        return "updated" if self.exists_in_database else "inserted"
 
     def update_published_documents(self, public_bucket: str) -> None:
         """Copy all assets (except .tar.gz and parser.log) from the private bucket which have the prefix of this document's URI to the public bucket."""

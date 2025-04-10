@@ -51,10 +51,10 @@ class TestHandler:
         "src.ds_caselaw_ingester.ingester.Ingest.find_existing_document_by_ncn",
         return_value=IdentifierResolutionsFactory.build(),
     )
-    @patch("src.ds_caselaw_ingester.ingester.Ingest.determine_uri", return_value=DocumentURIString("cat"))
-    def test_handler_messages_v2(
+    @patch("src.ds_caselaw_ingester.ingester.Ingest.database_location", new_callable=PropertyMock, return_value=((DocumentURIString("cat"), True)))
+    def test_handler_messages_v2_normal(
         self,
-        mock_determine_uri,
+        mock_database_location,
         mock_existing_uri,
         mock_doc,
         modify_filename,
@@ -106,7 +106,7 @@ class TestHandler:
         "src.ds_caselaw_ingester.ingester.Ingest.find_existing_document_by_ncn",
         return_value=IdentifierResolutionsFactory.build(),
     )
-    @patch("src.ds_caselaw_ingester.ingester.Ingest.determine_uri", return_value=DocumentURIString("cat"))
+    @patch("src.ds_caselaw_ingester.ingester.Ingest.database_location", new_callable=PropertyMock, return_value=(DocumentURIString("cat"), True))
     def test_handler_messages_s3(
         self,
         mock_determine,
@@ -165,7 +165,7 @@ class TestHandler:
     @patch("src.ds_caselaw_ingester.ingester.VersionAnnotation")
     @patch("src.ds_caselaw_ingester.ingester.modify_filename")
     @patch("src.ds_caselaw_ingester.ingester.Document")
-    @patch("src.ds_caselaw_ingester.lambda_function.Ingest.determine_uri", return_value=DocumentURIString("uuid"))
+    @patch("src.ds_caselaw_ingester.lambda_function.Ingest.database_location", new_callable=PropertyMock, return_value=(DocumentURIString("uuid"), False))
     def test_handler_messages_v2_parser_error(
         self,
         mock_determine_uri,
@@ -658,8 +658,7 @@ class TestPublicationLogic:
 @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_bulk_judgment_notification")
 class TestEmailLogic:
     def test_v2_ingest_publish_email_update(self, bulk, new, updated, v2_ingest):
-        v2_ingest.inserted = False
-        v2_ingest.updated = True
+        v2_ingest.exists_in_database = True
 
         v2_ingest.send_email()
 
@@ -704,36 +703,6 @@ class TestEmailLogic:
         new.assert_not_called()
 
 
-class TestIngesterDetermineUri:
-    @patch(
-        "src.ds_caselaw_ingester.ingester.Ingest.find_existing_document_by_ncn",
-        new_callable=PropertyMock,
-        return_value="dog",
-    )
-    def test__doc_uri(self, doc_uri, v2_ingest):
-        assert str(v2_ingest.determine_uri()) == "dog"
-
-    @patch("src.ds_caselaw_ingester.ingester.extract_document_uri_from_metadata", return_value="cat")
-    @patch(
-        "src.ds_caselaw_ingester.ingester.Ingest.find_existing_document_by_ncn",
-        new_callable=PropertyMock,
-        return_value=None,
-    )
-    def test_no_doc_uri(self, doc_uri, metadata_uri, v2_ingest):
-        assert str(v2_ingest.determine_uri()) == "cat"
-
-    @patch(
-        "src.ds_caselaw_ingester.ingester.Ingest.find_existing_document_by_ncn",
-        new_callable=PropertyMock,
-        return_value=None,
-    )
-    @patch("src.ds_caselaw_ingester.ingester.extract_document_uri_from_metadata", return_value=None)
-    @patch("src.ds_caselaw_ingester.ingester.uuid4", return_value="uuid")
-    def test_fallback_uuid(self, doc_uri, metadata_uri, uuid, v2_ingest):
-        assert isinstance(v2_ingest.determine_uri(), DocumentURIString)
-        assert str(v2_ingest.determine_uri()) == "d-uuid"
-
-
 class TestIngesterExtractDocumentUriFromMetadata:
     def test_no_uri_in_metadata(self):
         assert extract_document_uri_from_metadata({"parameters": {"PARSER": {}}}, "consignment") is None
@@ -769,3 +738,18 @@ class TestIngesterExistingDocumentUriMethod:
         )
         with pytest.raises(ingester.MultipleResolutionsFoundError):
             _ = v2_ingest.find_existing_document_by_ncn
+
+
+class TestDatabaseLocation:
+    @patch("src.ds_caselaw_ingester.ingester.uuid4", return_value="uuid")
+    def test_fallback_uuid(self, uuid, v2_ingest):
+        v2_ingest.api_client.resolve_from_identifier_value.return_value = []
+        v2_ingest.api_client.resolve_from_identifier_slug.return_value = []
+        v2_ingest.metadata_object.trimmed_uri.return_value = ""
+        uri, exists = v2_ingest.database_location
+        assert isinstance(uri, DocumentURIString)
+        assert str(uri) == "d-uuid"
+        assert exists is False
+
+# TODO if dog exists, uri is dog
+# if not, uri is from metadata

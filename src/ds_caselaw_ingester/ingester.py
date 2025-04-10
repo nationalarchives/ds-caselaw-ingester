@@ -255,6 +255,17 @@ class Metadata:
 
 
 class Ingest:
+    """
+    The `Ingest` object contains everything we need to know about an incoming ingestion request, including the metadata from the parser, the parsed XML, and details of the document's destination URI.
+
+    The logic flow for determining a document's URI and if it should be inserted or updated is described in `docs/uri_logic.md`.
+
+    :param message: The incoming message object describing where to find the document.
+    :param destination_bucket: The S3 bucket to put the resultant document objects into.
+    :param api_client: The API Client instance to use for this ingestion.
+    :param s3_client: The S3 client instance to use for this ingestion.
+    """
+
     def __init__(
         self,
         message: "Message",

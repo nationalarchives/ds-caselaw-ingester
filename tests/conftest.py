@@ -78,7 +78,11 @@ def v2_ingest(fake_location, fake_s3):
 
 
 @fixture
-@patch("src.ds_caselaw_ingester.ingester.Ingest.database_location", new_callable=PropertyMock, return_value=(DocumentURIString("s3-a1b2-c3d4"), True))
+@patch(
+    "src.ds_caselaw_ingester.ingester.Ingest.database_location",
+    new_callable=PropertyMock,
+    return_value=(DocumentURIString("s3-a1b2-c3d4"), True),
+)
 @patch("src.ds_caselaw_ingester.lambda_function.Ingest.save_tar_file_in_s3", return_value="/tmp/BULK-0.tar.gz")
 def s3_ingest(fake_determine_uri, fake_s3):  # TODO DRAGON
     create_fake_bulk_file()
@@ -95,7 +99,11 @@ def s3_ingest(fake_determine_uri, fake_s3):  # TODO DRAGON
     "src.ds_caselaw_ingester.lambda_function.Ingest.save_tar_file_in_s3",
     return_value="/tmp/TDR-2022-DNWR.tar.gz",
 )
-@patch("src.ds_caselaw_ingester.ingester.Ingest.database_location", new_callable=PropertyMock, return_value=(DocumentURIString("s3-a1b2-c3d4"), True))
+@patch(
+    "src.ds_caselaw_ingester.ingester.Ingest.database_location",
+    new_callable=PropertyMock,
+    return_value=(DocumentURIString("s3-a1b2-c3d4"), True),
+)
 def fcl_ingest(fake_determine_uri, fake_s3):
     "Fake a FCL reparse message (badly)"
     new_message = copy.deepcopy(v2_message)

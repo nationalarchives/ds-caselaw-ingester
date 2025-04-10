@@ -51,7 +51,11 @@ class TestHandler:
         "src.ds_caselaw_ingester.ingester.Ingest.find_existing_document_by_ncn",
         return_value=IdentifierResolutionsFactory.build(),
     )
-    @patch("src.ds_caselaw_ingester.ingester.Ingest.database_location", new_callable=PropertyMock, return_value=((DocumentURIString("cat"), True)))
+    @patch(
+        "src.ds_caselaw_ingester.ingester.Ingest.database_location",
+        new_callable=PropertyMock,
+        return_value=((DocumentURIString("cat"), True)),
+    )
     def test_handler_messages_v2_normal(
         self,
         mock_database_location,
@@ -106,7 +110,11 @@ class TestHandler:
         "src.ds_caselaw_ingester.ingester.Ingest.find_existing_document_by_ncn",
         return_value=IdentifierResolutionsFactory.build(),
     )
-    @patch("src.ds_caselaw_ingester.ingester.Ingest.database_location", new_callable=PropertyMock, return_value=(DocumentURIString("cat"), True))
+    @patch(
+        "src.ds_caselaw_ingester.ingester.Ingest.database_location",
+        new_callable=PropertyMock,
+        return_value=(DocumentURIString("cat"), True),
+    )
     def test_handler_messages_s3(
         self,
         mock_determine,
@@ -165,7 +173,11 @@ class TestHandler:
     @patch("src.ds_caselaw_ingester.ingester.VersionAnnotation")
     @patch("src.ds_caselaw_ingester.ingester.modify_filename")
     @patch("src.ds_caselaw_ingester.ingester.Document")
-    @patch("src.ds_caselaw_ingester.lambda_function.Ingest.database_location", new_callable=PropertyMock, return_value=(DocumentURIString("uuid"), False))
+    @patch(
+        "src.ds_caselaw_ingester.lambda_function.Ingest.database_location",
+        new_callable=PropertyMock,
+        return_value=(DocumentURIString("uuid"), False),
+    )
     def test_handler_messages_v2_parser_error(
         self,
         mock_determine_uri,
@@ -678,6 +690,7 @@ class TestDatabaseLocation:
         assert isinstance(uri, DocumentURIString)
         assert str(uri) == "d-uuid"
         assert exists is False
+
 
 # TODO if dog exists, uri is dog
 # if not, uri is from metadata

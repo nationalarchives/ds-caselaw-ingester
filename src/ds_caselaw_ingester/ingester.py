@@ -295,6 +295,9 @@ class Ingest:
             self.uri, self.exists_in_database = self.database_location
             print(f"Ingesting document {self.uri}")
 
+    def __repr__(self):
+        return f"<Ingest: {self.consignment_reference}, {self.local_tar_filename}, {self.extracted_ncn}>"
+
     def save_tar_file_in_s3(self) -> str:
         """This should be mocked out for testing -- get the tar file from S3 and
         save locally, returning the filename it was saved at"""
@@ -519,7 +522,11 @@ class Ingest:
             return None if self.metadata_object.force_publish else self.send_bulk_judgment_notification()
 
         if originator == "TDR":
-            return self.send_new_judgment_notification() if self.exists_in_database else self.send_updated_judgment_notification()
+            return (
+                self.send_updated_judgment_notification()
+                if self.exists_in_database
+                else self.send_new_judgment_notification()
+            )
 
         raise RuntimeError(f"Didn't recognise originator {originator!r}")
 
@@ -586,8 +593,6 @@ class Ingest:
         whether a document already exists at that location"""
         # TODO test
         # TODO check makes sense
-        # TODO delete irrelevant old approaches
-        # TODO use this rather than old approaches
 
         if trimmed_uri := self.metadata_object.trimmed_uri:  # noqa: SIM102
             if slug_resolutions := self.api_client.resolve_from_identifier_slug(DocumentIdentifierSlug(trimmed_uri)):

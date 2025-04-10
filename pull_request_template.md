@@ -1,9 +1,12 @@
-<!-- Amend as appropriate -->
+<!-- Describe what has changed in this PR, and why -->
 
-## Changes in this PR:
+## Checklist
 
-## Jira card / Rollbar error (etc)
+- [ ] I have updated docstrings as needed
+- [ ] I've checked that any changes to the application logic are reflected in the docs
 
-<!-- Have you updated the changelog? -->
+## Jira
 
-- [ ] Requires env variable(s) to be updated
+<!-- What Jira ticket does this correspond to? All work should have a ticket (although multiple PRs may share the same one) -->
+
+FCL-

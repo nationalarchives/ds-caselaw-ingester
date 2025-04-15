@@ -75,16 +75,24 @@ sequenceDiagram
                 Ingest ->> Ingest: Raise DocumentInsertionError exception
             end
         end
+
+        Ingest ->>+ Ingest: api_client.get_document_by_uri()
+            Ingest <<->> MarkLogic: Get existing document from MarkLogic
+
+            create participant document
+            Ingest ->> document: Create new Document object
+        deactivate Ingest
+
         deactivate Ingest
 
         perform_ingest ->>+ Ingest: set_document_identifiers()
         note right of Ingest: Make sure the document has the right identifiers as structured data
         opt The document has an NCN
             Ingest ->> Ingest: Build new identifier object
-            Ingest ->> Ingest: Save identifier to document instance
-            Ingest ->>+ Ingest: document.save_identifiers()
-                Ingest ->> MarkLogic: Save identifiers to document properties in MarkLogic
-            deactivate Ingest
+            Ingest ->> document: Add identifier to identifiers list
+            Ingest ->>+ document: save_identifiers()
+                document ->> MarkLogic: Save identifiers to document properties in MarkLogic
+            deactivate document
         end
         deactivate Ingest
 
@@ -148,16 +156,15 @@ sequenceDiagram
         participant S3_published as S3<br>(published bucket)
 
         alt Document is set to auto-publish
-            perform_ingest ->>+ Ingest: document.publish()
-            perform_ingest ->> Ingest: update_published_documents()
+            perform_ingest ->> document: publish()
+            perform_ingest ->>+ Ingest: update_published_documents()
             Ingest <<->> S3_unpublished : Get list of assets with document prefix
             loop For each asset
                 Ingest ->> S3_published : Copy asset to published bucket
             end
             deactivate Ingest
         else Document is not set to auto-publish
-            perform_ingest ->>+ Ingest: document.unpublish()
-            deactivate Ingest
+            perform_ingest ->> document: unpublish()
         end
 
         deactivate perform_ingest

@@ -2,6 +2,9 @@
 
 This describes the sequence of events which happens when a document is ingested, getting the bundled XML, metadata and artefacts from S3 (following parsing) and loading them into MarkLogic and the unpublished documents bucket.
 
+> [!NOTE]
+> This diagram is intended as a developer aid to make reasoning about the logic easier during refactoring. As code elements are made more self-documenting and SOLID, and as we write more robust test cases, you should feel free to simplify or delete some of the low-level detail in this diagram in favour of telling people to check the code itself.
+
 ```mermaid
 
 sequenceDiagram

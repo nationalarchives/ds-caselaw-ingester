@@ -4,6 +4,7 @@
 
 - [ ] I have updated docstrings as needed
 - [ ] I've checked that any changes to the application logic are reflected in the docs
+- [ ] Where possible I've either removed or simplified the relevant section in the workflow sequence diagram
 
 ## Jira
 

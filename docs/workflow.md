@@ -29,7 +29,7 @@ sequenceDiagram
 
         Ingest ->> Ingest : Assign internal variables based on message contents
 
-        participant S3_TRE as S3<br>(TRE bucket)
+        participant S3_TRE as TRE bucket<br>(S3)
 
         Ingest <<->> S3_TRE : Download consignment .tar.gz
         Ingest ->> Ingest : Unpack .tar.gz to local filesystem
@@ -137,7 +137,7 @@ sequenceDiagram
             deactivate Ingest
         end
 
-        participant S3_unpublished as S3<br>(unpublished bucket)
+        participant S3_unpublished as Unpublished bucket<br>(S3)
 
         perform_ingest ->>+ Ingest: save_files_to_s3()
         note right of Ingest: Put the artefacts into the unpublished documents S3 bucket
@@ -156,7 +156,7 @@ sequenceDiagram
         end
         deactivate Ingest
 
-        participant S3_published as S3<br>(published bucket)
+        participant S3_published as Published bucket<br>(S3)
 
         alt Document is set to auto-publish
             perform_ingest ->> document: publish()

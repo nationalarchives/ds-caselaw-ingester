@@ -498,9 +498,9 @@ class Ingest:
 
         # reparse
         if originator == "FCL":
-            if not self.find_existing_document_by_ncn:
+            if not self.exists_in_database:
                 return False
-            return self.api_client.get_published(self.find_existing_document_by_ncn) is True
+            return self.api_client.get_published(self.uri) is True
 
         raise RuntimeError(f"Didn't recognise originator {originator!r}")
 
@@ -596,7 +596,7 @@ class Ingest:
         # Is there an NCN present in the parser Metdata?
         if self.extracted_ncn:
             # Is there an existing document in MarkLogic with that NCN in the relevant identifier scheme?
-            if self.find_existing_document_by_ncn:  # rename to something better
+            if self.find_existing_document_by_ncn:
                 # set document URI to URI of existing document (2)
                 return (self.find_existing_document_by_ncn, True)
             else:

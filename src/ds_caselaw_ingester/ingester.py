@@ -522,7 +522,7 @@ class Ingest:
         raise RuntimeError(f"Didn't recognise originator {originator!r}")
 
     def insert_or_update_xml(self) -> None:
-        """Puts the XML into MarkLogic, either by updating an existing document (if `self.existing_document_uri`) or by creating a new one."""
+        """Puts the XML into MarkLogic, either by updating an existing document (if `self.exists_in_database`) or by creating a new one."""
         if self.exists_in_database:
             if not self.update_document_xml():
                 raise DocumentInsertionError(

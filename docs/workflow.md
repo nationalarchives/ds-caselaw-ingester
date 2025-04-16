@@ -36,6 +36,7 @@ sequenceDiagram
         Ingest ->> Ingest : Extract metadata from JSON blob
         Ingest ->> Ingest : Get document XML
         Ingest ->> Ingest : Determine document URI and presence of existing document
+
         Ingest ->> lambda : Return Ingest object
 
         deactivate Ingest
@@ -45,18 +46,6 @@ sequenceDiagram
 
         perform_ingest ->>+ Ingest: insert_or_update_xml()
         note right of Ingest: insert_or_update does the work of getting the XML into MarkLogic
-        Ingest ->>+ Ingest: existing_document_uri()
-            Ingest <<->> MarkLogic: Get existing documents with the same identifier value
-            alt If there is exactly one matching document in the same identifier scheme
-                Ingest ->> Ingest: Return existing document URI
-            else
-                break There are multiple matching documents
-                    Ingest ->> Ingest: Raise MultipleResolutionsFoundError exception
-                end
-            else
-                Ingest ->> Ingest: Return no existing documents
-            end
-            deactivate Ingest
         alt If existing document in MarkLogic
             Ingest ->>+ Ingest: update_document_xml()
                 Ingest ->> Ingest: Build annotation object
@@ -69,7 +58,7 @@ sequenceDiagram
             break Update operation returns False
                 Ingest ->> Ingest: Raise DocumentInsertionError exception
             end
-        else
+        else No existing document in MarkLogic
             Ingest ->>+ Ingest: insert_document_xml()
                 Ingest ->> Ingest: Build annotation object
                 Ingest ->> MarkLogic: Insert new document body in MarkLogic

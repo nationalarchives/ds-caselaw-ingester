@@ -22,21 +22,19 @@ from caselawclient.models.judgments import Judgment
 from caselawclient.models.parser_logs import ParserLog
 from caselawclient.models.press_summaries import PressSummary
 from caselawclient.models.utilities.aws import S3PrefixString
-from caselawclient.types import DocumentIdentifierValue
+from caselawclient.types import DocumentIdentifierSlug, DocumentIdentifierValue
+from ds_caselaw_utils import neutral_url
 from mypy_boto3_s3.client import S3Client
 from mypy_boto3_s3.type_defs import CopySourceTypeDef
 from notifications_python_client.notifications import NotificationsAPIClient
 
 from .exceptions import (
     DocumentInsertionError,
+    DocumentXMLNotYetInDatabase,
     DocxFilenameNotFoundException,
     FileNotFoundException,
+    MultipleResolutionsFoundError,
 )
-
-
-class MultipleResolutionsFoundError(DocumentInsertionError):
-    pass
-
 
 IDENTIFIER_CLASS_LOOKUP: dict[type[Document], Optional[type[Identifier]]] = {
     PressSummary: PressSummaryRelatedNCNIdentifier,
@@ -223,19 +221,6 @@ def modify_filename(original: str, addition: str) -> str:
     return os.path.join(path, new_basename)
 
 
-def extract_document_uri_from_metadata(
-    metadata: TREMetadataDict,
-    consignment_reference: str,
-) -> Optional[DocumentURIString]:
-    """TODO: Remove this function once we're back to UUID-based URIs."""
-    uri = metadata["parameters"]["PARSER"].get("uri", "")
-
-    if uri:
-        return DocumentURIString(uri.replace("https://caselaw.nationalarchives.gov.uk/id/", ""))
-    else:
-        return None
-
-
 class Metadata:
     def __init__(self, metadata: TREMetadataDict) -> None:
         self.metadata = metadata
@@ -247,6 +232,15 @@ class Metadata:
         return "TDR" in self.parameters
 
     @property
+    def trimmed_uri(self) -> Optional[DocumentURIString]:
+        """The NCN-based URI the parser believes the document should be discoverable at"""
+        raw_uri = self.parameters["PARSER"].get("uri", "")
+        if raw_uri:
+            return DocumentURIString(raw_uri.replace("https://caselaw.nationalarchives.gov.uk/id/", ""))
+        else:
+            return None
+
+    @property
     def force_publish(self) -> bool:
         """
         Does the metadata say to automatically publish this document?
@@ -255,6 +249,17 @@ class Metadata:
 
 
 class Ingest:
+    """
+    The `Ingest` object contains everything we need to know about an incoming ingestion request, including the metadata from the parser, the parsed XML, and details of the document's destination URI.
+
+    The logic flow for determining a document's URI and if it should be inserted or updated is described in `docs/uri_logic.md`.
+
+    :param message: The incoming message object describing where to find the document.
+    :param destination_bucket: The S3 bucket to put the resultant document objects into.
+    :param api_client: The API Client instance to use for this ingestion.
+    :param s3_client: The S3 client instance to use for this ingestion.
+    """
+
     def __init__(
         self,
         message: "Message",
@@ -266,9 +271,8 @@ class Ingest:
         self.destination_bucket = destination_bucket
         self.api_client = api_client
         self.s3_client = s3_client
-        self.inserted: bool = False
-        self.updated: bool = False
         self.consignment_reference: str = self.message.get_consignment_reference()
+        self.document: Optional[Document] = None
         print(f"Ingester Start: Consignment reference {self.consignment_reference}")
         print(f"Received Message: {self.message.message}")
         self.local_tar_filename = self.save_tar_file_in_s3()
@@ -279,26 +283,11 @@ class Ingest:
             self.message.update_consignment_reference(self.metadata["parameters"]["TRE"]["reference"])
             self.xml_file_name = self.metadata["parameters"]["TRE"]["payload"]["xml"]
             self.xml = get_best_xml(tar, self.xml_file_name, self.consignment_reference)
-            self.uri = self.determine_uri()
+            self.uri, self.exists_in_database = self.database_location
             print(f"Ingesting document {self.uri}")
 
-    def determine_uri(self) -> DocumentURIString:
-        ## Is there an existing document with the same NCN and identifier type?
-        if self.existing_document_uri:
-            return self.existing_document_uri
-
-        # TODO: remove `metadata_uri` once we reinstate UUIDs
-        ## If not, can we extract the URI from the metadata (ie this is a reparse?)
-        metadata_uri = extract_document_uri_from_metadata(
-            metadata=self.metadata,
-            consignment_reference=self.consignment_reference,
-        )
-
-        if metadata_uri:
-            return metadata_uri
-
-        ## We have no way to determine an existing URI, give it a new one
-        return DocumentURIString("d-" + str(uuid4()))
+    def __repr__(self):
+        return f"<Ingest: {self.consignment_reference}, {self.local_tar_filename}, {self.extracted_ncn}>"
 
     def save_tar_file_in_s3(self) -> str:
         """This should be mocked out for testing -- get the tar file from S3 and
@@ -358,20 +347,22 @@ class Ingest:
         return True
 
     def set_document_identifiers(self) -> None:
-        doc = self.api_client.get_document_by_uri(DocumentURIString(self.uri))
-        if doc.identifiers:
+        if self.document is None:
+            raise DocumentXMLNotYetInDatabase("This Ingest instance has not yet been written to the database.")
+
+        if self.document.identifiers:
             msg = f"Ingesting, but identifiers already present for {self.uri}!"
             logger.warning(msg)
 
-        ncn = getattr(doc, "neutral_citation", None)
+        ncn = getattr(self.document, "neutral_citation", None)
         identifier_class = IDENTIFIER_CLASS_LOOKUP.get(self.ingested_document_type, None)
 
         if not identifier_class:
             return
 
         if ncn:
-            doc.identifiers.add(identifier_class(ncn))
-            doc.save_identifiers()
+            self.document.identifiers.add(identifier_class(ncn))
+            self.document.save_identifiers()
             logger.info(
                 f"Ingested {self.ingested_document_type_string} had identifier {identifier_class.__name__} {ncn}",
             )
@@ -410,10 +401,6 @@ class Ingest:
     def send_bulk_judgment_notification(self) -> None:
         # Not yet implemented. We currently only autopublish judgments sent in bulk.
         pass
-
-    def unpublish_updated_judgment(self) -> None:
-        document = Document(self.uri, self.api_client)
-        document.unpublish()
 
     def store_metadata(self) -> None:
         tdr_metadata = self.metadata["parameters"]["TDR"]
@@ -511,15 +498,11 @@ class Ingest:
 
         # reparse
         if originator == "FCL":
-            if not self.existing_document_uri:
+            if not self.exists_in_database:
                 return False
-            return self.api_client.get_published(self.existing_document_uri) is True
+            return self.api_client.get_published(self.uri) is True
 
         raise RuntimeError(f"Didn't recognise originator {originator!r}")
-
-    def publish(self) -> None:
-        document = Document(self.uri, self.api_client)
-        document.publish()
 
     def send_email(self) -> None:
         originator = self.message.originator
@@ -530,26 +513,33 @@ class Ingest:
             return None if self.metadata_object.force_publish else self.send_bulk_judgment_notification()
 
         if originator == "TDR":
-            return self.send_new_judgment_notification() if self.inserted else self.send_updated_judgment_notification()
+            return (
+                self.send_updated_judgment_notification()
+                if self.exists_in_database
+                else self.send_new_judgment_notification()
+            )
 
         raise RuntimeError(f"Didn't recognise originator {originator!r}")
 
-    def upload_xml(self) -> None:
-        if self.existing_document_uri:
-            self.updated = self.update_document_xml()
-            if not self.updated:
+    def insert_or_update_xml(self) -> None:
+        """Puts the XML into MarkLogic, either by updating an existing document (if `self.exists_in_database`) or by creating a new one."""
+        if self.exists_in_database:
+            if not self.update_document_xml():
                 raise DocumentInsertionError(
-                    f"Updating {self.ingested_document_type_string} {self.existing_document_uri} failed. Consignment Ref: {self.consignment_reference}",
+                    f"Updating {self.ingested_document_type_string} {self.uri} failed. Consignment Ref: {self.consignment_reference}",
                 )
         else:
-            self.inserted = self.insert_document_xml()
-            if not self.inserted:
+            if not self.insert_document_xml():
                 raise DocumentInsertionError(
                     f"Inserting {self.ingested_document_type_string} {self.uri} failed. Consignment Ref: {self.consignment_reference}",
                 )
 
+        # This is the only place we should be setting self.document, once the XML is in the database
+        # get_document_by_uri will raise an exception if the expected document doesn't exist
+        self.document = self.api_client.get_document_by_uri(DocumentURIString(self.uri))
+
     @cached_property
-    def existing_document_uri(self) -> Optional[DocumentURIString]:
+    def find_existing_document_by_ncn(self) -> Optional[DocumentURIString]:
         """
         Is there an existing document claiming to be this one? (i.e. NCN and type match)
         Return the MarklogicURI of that document.
@@ -571,7 +561,7 @@ class Ingest:
 
     @property
     def upload_state(self) -> str:
-        return "updated" if self.updated else "inserted"
+        return "updated" if self.exists_in_database else "inserted"
 
     def update_published_documents(self, public_bucket: str) -> None:
         """Copy all assets (except .tar.gz and parser.log) from the private bucket which have the prefix of this document's URI to the public bucket."""
@@ -588,12 +578,49 @@ class Ingest:
                 print(f"copying {private_bucket} / {key} to {public_bucket} / {key}")
                 self.s3_client.copy(source, public_bucket, key, extra_args)
 
+    @cached_property
+    def database_location(self) -> tuple[DocumentURIString, bool]:
+        """Returns the chosen database location for the ingested document, and
+        whether a document already exists at that location"""
+
+        # Is a URI present in the parser metadata?
+        if trimmed_uri := self.metadata_object.trimmed_uri:  # noqa: SIM102
+            # Is there a document in MarkLogic at that URL?
+            if slug_resolutions := self.api_client.resolve_from_identifier_slug(DocumentIdentifierSlug(trimmed_uri)):
+                if len(slug_resolutions) > 1:
+                    msg = f"uri: {trimmed_uri}"
+                    raise MultipleResolutionsFoundError(msg)
+                # Set document URI to URI of existing document (1)
+                return (trimmed_uri, True)
+
+        # Is there an NCN present in the parser Metdata?
+        if self.extracted_ncn:
+            # Is there an existing document in MarkLogic with that NCN in the relevant identifier scheme?
+            if self.find_existing_document_by_ncn:
+                # set document URI to URI of existing document (2)
+                return (self.find_existing_document_by_ncn, True)
+            else:
+                # generate new NCN-based URI
+                uri_from_document = neutral_url(self.extracted_ncn)
+                if not uri_from_document:
+                    msg = "Unable to form uri for extracted NCN {self.extracted_ncn}"
+                    raise RuntimeError(self.extracted_ncn)
+                return (DocumentURIString(uri_from_document), False)
+
+        # Generate new UUID-based URI
+        doc_uuid = DocumentURIString("d-" + str(uuid4()))
+        return (doc_uuid, False)
+
 
 def perform_ingest(ingest: Ingest) -> None:
     """Given an Ingest object, perform the necessary tasks to put it in MarkLogic and tell people about it."""
 
     # Extract and parse the judgment XML
-    ingest.upload_xml()
+    ingest.insert_or_update_xml()
+
+    if not ingest.document:
+        raise DocumentInsertionError("Document not present in MarkLogic after attempting insert or update.")
+
     print(f"{ingest.upload_state.title()} judgment xml for {ingest.uri}")
     ingest.set_document_identifiers()
 
@@ -609,9 +636,9 @@ def perform_ingest(ingest: Ingest) -> None:
 
     if ingest.will_publish():
         print(f"publishing {ingest.consignment_reference} at {ingest.uri}")
-        ingest.publish()
+        ingest.document.publish()
         ingest.update_published_documents(PUBLIC_ASSET_BUCKET)
     else:
-        ingest.unpublish_updated_judgment()
+        ingest.document.unpublish()
 
     print("Ingestion complete")

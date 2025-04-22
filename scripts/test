@@ -1,1 +1,1 @@
-AWS_BUCKET_NAME=private-bucket PUBLIC_ASSET_BUCKET=public-bucket python -m pytest tests/* $*
+PRIVATE_ASSET_BUCKET=private-bucket PUBLIC_ASSET_BUCKET=public-bucket python -m pytest tests/* $*

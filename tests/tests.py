@@ -394,7 +394,7 @@ class TestLambda:
         )
         mock_print.assert_called_with(Contains("Sent update notification to test@notifications.service.gov.uk"))
 
-    @patch("src.ds_caselaw_ingester.ingester.AWS_BUCKET_NAME", "private-bucket")
+    @patch("src.ds_caselaw_ingester.ingester.PRIVATE_ASSET_BUCKET", "private-bucket")
     def test_update_published_documents(self, v2_ingest):
         contents = {"Contents": [{"Key": "file1.ext"}, {"Key": "file2.ext"}]}
 

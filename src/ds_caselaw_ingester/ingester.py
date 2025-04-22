@@ -48,7 +48,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("ingester")
 logger.setLevel(logging.DEBUG)
 
-AWS_BUCKET_NAME: str = os.environ["AWS_BUCKET_NAME"]
+PRIVATE_ASSET_BUCKET: str = os.environ["PRIVATE_ASSET_BUCKET"]
 PUBLIC_ASSET_BUCKET: str = os.environ["PUBLIC_ASSET_BUCKET"]
 
 
@@ -565,7 +565,7 @@ class Ingest:
 
     def update_published_documents(self, public_bucket: str) -> None:
         """Copy all assets (except .tar.gz and parser.log) from the private bucket which have the prefix of this document's URI to the public bucket."""
-        private_bucket = AWS_BUCKET_NAME
+        private_bucket = PRIVATE_ASSET_BUCKET
 
         response = self.s3_client.list_objects(Bucket=private_bucket, Prefix=self.uri)
 

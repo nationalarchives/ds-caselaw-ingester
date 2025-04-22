@@ -27,7 +27,7 @@ jobs:
       - run: sam build --use-container -m requirements/base.txt
       - run: > # zizmor: ignore[template-injection]
           sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --stack-name ds-caselaw-ingester --s3-bucket tna-caselaw-ingester-deploy --capabilities CAPABILITY_IAM --region eu-west-2 --parameter-overrides
-          AwsBucketName=${{ vars.AWS_BUCKET_NAME  }}
+          AwsBucketName=${{ vars.PRIVATE_ASSET_BUCKET  }}
           EditorialUiBaseUrl=${{ vars.EDITORIAL_UI_BASE_URL  }}
           MarklogicHost=${{ secrets.MARKLOGIC_HOST }}
           MarklogicPassword=${{ secrets.MARKLOGIC_PASSWORD }}

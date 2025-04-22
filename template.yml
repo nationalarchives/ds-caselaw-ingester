@@ -12,7 +12,7 @@ Globals:
 
 Parameters:
   AwsBucketName:
-    Description: "AWS_BUCKET_NAME"
+    Description: "PRIVATE_ASSET_BUCKET"
     Type: "String"
   EditorialUiBaseUrl:
     Description: "EDITORIAL_UI_BASE_URL"
@@ -78,7 +78,7 @@ Resources:
       Timeout: 420
       Environment:
         Variables:
-          AWS_BUCKET_NAME: !Ref AwsBucketName
+          PRIVATE_ASSET_BUCKET: !Ref AwsBucketName
           EDITORIAL_UI_BASE_URL: !Ref EditorialUiBaseUrl
           MARKLOGIC_HOST: !Ref MarklogicHost
           MARKLOGIC_PASSWORD: !Ref MarklogicPassword

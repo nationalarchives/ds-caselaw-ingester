@@ -32,7 +32,7 @@ MARKLOGIC_USER: str = os.environ["MARKLOGIC_USER"]
 MARKLOGIC_PASSWORD: str = os.environ["MARKLOGIC_PASSWORD"]
 MARKLOGIC_USE_HTTPS: bool = bool(os.getenv("MARKLOGIC_USE_HTTPS", default=False))
 
-AWS_BUCKET_NAME: str = os.environ["AWS_BUCKET_NAME"]
+PRIVATE_ASSET_BUCKET: str = os.environ["PRIVATE_ASSET_BUCKET"]
 
 api_client = MarklogicApiClient(
     host=MARKLOGIC_HOST,
@@ -171,7 +171,7 @@ def handler(event, context):
     for message in all_messages(event):
         ingest = Ingest(
             message=message,
-            destination_bucket=AWS_BUCKET_NAME,
+            destination_bucket=PRIVATE_ASSET_BUCKET,
             api_client=api_client,
             s3_client=s3_client,
         )

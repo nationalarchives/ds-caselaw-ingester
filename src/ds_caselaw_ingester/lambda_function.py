@@ -89,6 +89,7 @@ class V2Message(Message):
     def save_s3_response(self, s3_client: S3Client) -> str:
         s3_bucket = self.message.get("parameters", {}).get("s3Bucket")
         s3_key = self.message.get("parameters", {}).get("s3Key")
+        print(f"downloading {s3_key}")
         reference = self.get_consignment_reference()
         local_tar_filename = os.path.join("/tmp", f"{reference}.tar.gz")
         s3_client.download_file(s3_bucket, s3_key, local_tar_filename)
@@ -124,6 +125,7 @@ class S3Message(V2Message):
     def save_s3_response(self, s3_client: S3Client) -> str:
         s3_key = unquote_plus(self.message["s3"]["object"]["key"])
         s3_bucket = self.message["s3"]["bucket"]["name"]
+        print(f"downloading {s3_key}")
         reference = self.get_consignment_reference()
         local_tar_filename = os.path.join("/tmp", f"{reference}.tar.gz")
         s3_client.download_file(s3_bucket, s3_key, local_tar_filename)

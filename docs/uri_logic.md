@@ -19,22 +19,24 @@ flowchart TD
 
     EXISTING_DOCUMENT_AT_URI -- Yes --> SET_URI_TO_EXISTING_DOC
 
+    URI_IN_PARSER_METADATA -- No --> NCN_IN_PARSER_METADATA
+    EXISTING_DOCUMENT_AT_URI -- No --> NCN_IN_PARSER_METADATA
 
+    NCN_IN_PARSER_METADATA{Is an NCN present in the Parser metadata?}
 
-    URI_IN_PARSER_METADATA -- No --> DOCUMENT_HAS_NCN
-    EXISTING_DOCUMENT_AT_URI -- No --> DOCUMENT_HAS_NCN
+    NCN_IN_PARSER_METADATA -- Yes --> FIND_DOCUMENT_ID_SCHEMA
 
-    DOCUMENT_HAS_NCN{Is there an existing document in MarkLogic with the NCN present in the Parser metadata?}
+    FIND_DOCUMENT_ID_SCHEMA[Find correct ID schema for document]
 
-    DOCUMENT_HAS_NCN -- Yes --> EXISTING_DOCUMENT_AT_NCN
+    FIND_DOCUMENT_ID_SCHEMA --> EXISTING_DOCUMENT_AT_NCN
 
-    EXISTING_DOCUMENT_AT_NCN{Is there an NCN present in the Parser metadata?}
+    EXISTING_DOCUMENT_AT_NCN{Is there an existing document in MarkLogic with matching NCN and schema?}
 
     EXISTING_DOCUMENT_AT_NCN -- Yes --> SET_URI_TO_EXISTING_DOC
 
     SET_URI_TO_EXISTING_DOC(["Return a tuple of (uri=existing document URI, exists=True)"])
 
-    DOCUMENT_HAS_NCN -- No --> GENERATE_UUID_URI
+    NCN_IN_PARSER_METADATA -- No --> GENERATE_UUID_URI
 
     EXISTING_DOCUMENT_AT_NCN -- No --> GENERATE_UUID_URI
 

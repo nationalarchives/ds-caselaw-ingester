@@ -670,7 +670,7 @@ class TestDatabaseLocation:
     https://github.com/nationalarchives/ds-caselaw-ingester/pull/311/files?short_path=81f315b#diff-81f315ba06f2786cef4c0a1d091d65b650897a6296ae371952d8475cef5d8b5e
     """
 
-    @patch("src.ds_caselaw_ingester.ingester.uuid4", return_value="uuid")
+    @patch("src.ds_caselaw_ingester.ingester.uuid4", return_value="a1b2c3")
     def test_nn_no_parser_uri_or_ncn(self, uuid, v2_ingest):
         v2_ingest.api_client.resolve_from_identifier_value.return_value = []
         v2_ingest.api_client.resolve_from_identifier_slug.return_value = []
@@ -678,7 +678,7 @@ class TestDatabaseLocation:
         v2_ingest.extracted_ncn = None
         uri, exists = v2_ingest.database_location
         assert isinstance(uri, DocumentURIString)
-        assert str(uri) == "d-uuid"
+        assert str(uri) == "d-a1b2c3"
         assert exists is False
 
     @patch("src.ds_caselaw_ingester.ingester.Metadata.trimmed_uri", new_callable=PropertyMock, return_value="uri")
@@ -689,7 +689,7 @@ class TestDatabaseLocation:
         assert exists is True
 
     @patch("src.ds_caselaw_ingester.ingester.Metadata.trimmed_uri", new_callable=PropertyMock, return_value="uri")
-    @patch("src.ds_caselaw_ingester.ingester.uuid4", return_value="uuid")
+    @patch("src.ds_caselaw_ingester.ingester.uuid4", return_value="a1b2c3")
     def test_ynyn_neither_uri_or_ncn_in_marklogic(self, uuid, trimmed_uri, v2_ingest):
         v2_ingest.api_client.resolve_from_identifier_slug.return_value = []
         v2_ingest.api_client.resolve_from_identifier_value.return_value = []
@@ -697,11 +697,11 @@ class TestDatabaseLocation:
         uri, exists = v2_ingest.database_location
         v2_ingest.api_client.resolve_from_identifier_slug.assert_called()
         v2_ingest.api_client.resolve_from_identifier_value.assert_called()
-        assert str(uri) == "d-uuid"
+        assert str(uri) == "d-a1b2c3"
         assert exists is False
 
     @patch("src.ds_caselaw_ingester.ingester.Metadata.trimmed_uri", new_callable=PropertyMock, return_value="uri")
-    @patch("src.ds_caselaw_ingester.ingester.uuid4", return_value="uuid")
+    @patch("src.ds_caselaw_ingester.ingester.uuid4", return_value="a1b2c3")
     def test_ynyy_ncn_in_marklogic(self, uuid, trimmed_uri, v2_ingest):
         v2_ingest.api_client.resolve_from_identifier_slug.return_value = []
         v2_ingest.api_client.resolve_from_identifier_value.return_value = [
@@ -715,7 +715,7 @@ class TestDatabaseLocation:
         assert exists is True
 
     @patch("src.ds_caselaw_ingester.ingester.Metadata.trimmed_uri", new_callable=PropertyMock, return_value="uri")
-    @patch("src.ds_caselaw_ingester.ingester.uuid4", return_value="uuid")
+    @patch("src.ds_caselaw_ingester.ingester.uuid4", return_value="a1b2c3")
     def test_ynn_uri_but_not_in_marklogic_no_ncn(self, uuid, trimmed_uri, v2_ingest):
         v2_ingest.api_client.resolve_from_identifier_slug.return_value = []
         v2_ingest.api_client.resolve_from_identifier_value.return_value = []
@@ -724,7 +724,7 @@ class TestDatabaseLocation:
         v2_ingest.api_client.resolve_from_identifier_value.assert_not_called()
 
         uri, exists = v2_ingest.database_location
-        assert str(uri) == "d-uuid"
+        assert str(uri) == "d-a1b2c3"
         assert exists is False
 
     @patch("src.ds_caselaw_ingester.ingester.Metadata.trimmed_uri", new_callable=PropertyMock, return_value="")
@@ -742,12 +742,12 @@ class TestDatabaseLocation:
         assert exists is True
 
     @patch("src.ds_caselaw_ingester.ingester.Metadata.trimmed_uri", new_callable=PropertyMock, return_value="")
-    @patch("src.ds_caselaw_ingester.ingester.uuid4", return_value="uuid")
+    @patch("src.ds_caselaw_ingester.ingester.uuid4", return_value="a1b2c3")
     def test_nyn_no_parser_uri_or_existing_doc_but_ncn_metdata(self, fake_uuid, trimmed_uri, v2_ingest):
         v2_ingest.api_client.resolve_from_identifier_value.return_value = []
         v2_ingest.extracted_ncn = "[2030] UKSC 999"
 
         uri, exists = v2_ingest.database_location
         v2_ingest.api_client.resolve_from_identifier_value.assert_called()
-        assert str(uri) == "d-uuid"
+        assert str(uri) == "d-a1b2c3"
         assert exists is False

@@ -19,28 +19,26 @@ flowchart TD
 
     EXISTING_DOCUMENT_AT_URI -- Yes --> SET_URI_TO_EXISTING_DOC
 
+    URI_IN_PARSER_METADATA -- No --> NCN_IN_PARSER_METADATA
+    EXISTING_DOCUMENT_AT_URI -- No --> NCN_IN_PARSER_METADATA
 
+    NCN_IN_PARSER_METADATA{Is an NCN present in the Parser metadata?}
 
-    URI_IN_PARSER_METADATA -- No --> DOCUMENT_HAS_NCN
-    EXISTING_DOCUMENT_AT_URI -- No --> DOCUMENT_HAS_NCN
+    NCN_IN_PARSER_METADATA -- Yes --> FIND_DOCUMENT_ID_SCHEMA
 
-    DOCUMENT_HAS_NCN{Is there an NCN present in the Parser metadata?}
+    FIND_DOCUMENT_ID_SCHEMA[Find correct ID schema for document]
 
-    DOCUMENT_HAS_NCN -- Yes --> EXISTING_DOCUMENT_AT_NCN
+    FIND_DOCUMENT_ID_SCHEMA --> EXISTING_DOCUMENT_AT_NCN
 
-    EXISTING_DOCUMENT_AT_NCN{Is there an existing document in MarkLogic with that NCN in the relevant identifier scheme?}
+    EXISTING_DOCUMENT_AT_NCN{Is there an existing document in MarkLogic with matching NCN and schema?}
 
     EXISTING_DOCUMENT_AT_NCN -- Yes --> SET_URI_TO_EXISTING_DOC
 
     SET_URI_TO_EXISTING_DOC(["Return a tuple of (uri=existing document URI, exists=True)"])
 
-    DOCUMENT_HAS_NCN -- No --> GENERATE_UUID_URI
+    NCN_IN_PARSER_METADATA -- No --> GENERATE_UUID_URI
 
-    GENERATE_NCN_URI[Generate new NCN-based URI]
-    GENERATE_NCN_URI --> SET_URI_TO_NCN
-    SET_URI_TO_NCN(["Return a tuple of (uri=new NCN-based URI, exists=False)"])
-
-    EXISTING_DOCUMENT_AT_NCN -- No --> GENERATE_NCN_URI
+    EXISTING_DOCUMENT_AT_NCN -- No --> GENERATE_UUID_URI
 
     GENERATE_UUID_URI[Generate new UUID-based URI]
     GENERATE_UUID_URI --> SET_URI_TO_UUID

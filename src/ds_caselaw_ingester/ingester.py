@@ -23,7 +23,6 @@ from caselawclient.models.parser_logs import ParserLog
 from caselawclient.models.press_summaries import PressSummary
 from caselawclient.models.utilities.aws import S3PrefixString
 from caselawclient.types import DocumentIdentifierSlug, DocumentIdentifierValue
-from ds_caselaw_utils import neutral_url
 from mypy_boto3_s3.client import S3Client
 from mypy_boto3_s3.type_defs import CopySourceTypeDef
 from notifications_python_client.notifications import NotificationsAPIClient
@@ -544,6 +543,9 @@ class Ingest:
         Is there an existing document claiming to be this one? (i.e. NCN and type match)
         Return the MarklogicURI of that document.
         """
+        if not self.extracted_ncn:
+            return None
+
         raw_resolutions = self.api_client.resolve_from_identifier_value(
             DocumentIdentifierValue(self.extracted_ncn),
             published_only=False,
@@ -593,19 +595,10 @@ class Ingest:
                 # Set document URI to URI of existing document (1)
                 return (trimmed_uri, True)
 
-        # Is there an NCN present in the parser Metdata?
-        if self.extracted_ncn:
-            # Is there an existing document in MarkLogic with that NCN in the relevant identifier scheme?
-            if self.find_existing_document_by_ncn:
-                # set document URI to URI of existing document (2)
-                return (self.find_existing_document_by_ncn, True)
-            else:
-                # generate new NCN-based URI
-                uri_from_document = neutral_url(self.extracted_ncn)
-                if not uri_from_document:
-                    msg = "Unable to form uri for extracted NCN {self.extracted_ncn}"
-                    raise RuntimeError(self.extracted_ncn)
-                return (DocumentURIString(uri_from_document), False)
+        # Is there an existing document in MarkLogic with that NCN in the relevant identifier scheme?
+        if self.find_existing_document_by_ncn:
+            # set document URI to URI of existing document
+            return (self.find_existing_document_by_ncn, True)
 
         # Generate new UUID-based URI
         doc_uuid = DocumentURIString("d-" + str(uuid4()))

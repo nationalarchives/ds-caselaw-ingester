@@ -697,7 +697,7 @@ class TestDatabaseLocation:
         uri, exists = v2_ingest.database_location
         v2_ingest.api_client.resolve_from_identifier_slug.assert_called()
         v2_ingest.api_client.resolve_from_identifier_value.assert_called()
-        assert str(uri) == "ewca/civ/2022/111"
+        assert str(uri) == "d-uuid"
         assert exists is False
 
     @patch("src.ds_caselaw_ingester.ingester.Metadata.trimmed_uri", new_callable=PropertyMock, return_value="uri")
@@ -742,11 +742,12 @@ class TestDatabaseLocation:
         assert exists is True
 
     @patch("src.ds_caselaw_ingester.ingester.Metadata.trimmed_uri", new_callable=PropertyMock, return_value="")
-    def test_nyn_no_parser_uri_or_existing_doc_but_ncn_metdata(self, trimmed_uri, v2_ingest):
+    @patch("src.ds_caselaw_ingester.ingester.uuid4", return_value="uuid")
+    def test_nyn_no_parser_uri_or_existing_doc_but_ncn_metdata(self, fake_uuid, trimmed_uri, v2_ingest):
         v2_ingest.api_client.resolve_from_identifier_value.return_value = []
         v2_ingest.extracted_ncn = "[2030] UKSC 999"
 
         uri, exists = v2_ingest.database_location
         v2_ingest.api_client.resolve_from_identifier_value.assert_called()
-        assert str(uri) == "uksc/2030/999"
+        assert str(uri) == "d-uuid"
         assert exists is False

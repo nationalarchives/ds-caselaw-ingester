@@ -50,6 +50,9 @@ Parameters:
   RollbarToken:
     Description: "ROLLBAR_TOKEN"
     Type: "String"
+  SnsTopic:
+    Description: "SNS_TOPIC"
+    Type: "String"
   SqsQueueUrl:
     Description: "SQS_QUEUE_URL"
     Type: "String"
@@ -91,6 +94,7 @@ Resources:
           PUBLIC_ASSET_BUCKET: !Ref PublicAssetBucket
           ROLLBAR_ENV: !Ref RollbarEnv
           ROLLBAR_TOKEN: !Ref RollbarToken
+          SNS_TOPIC: !Ref SnsTopic
           SQS_QUEUE_URL: !Ref SqsQueueUrl
       VpcConfig:
         SubnetIds:

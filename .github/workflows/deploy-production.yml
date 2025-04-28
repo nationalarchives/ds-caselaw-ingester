@@ -13,14 +13,14 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           persist-credentials: true
       - name: Run latest-tag
-        uses: EndBug/latest-tag@latest
-      - uses: actions/setup-python@v5
-      - uses: aws-actions/setup-sam@v2
-      - uses: aws-actions/configure-aws-credentials@v4
+        uses: EndBug/latest-tag@7589411ebda7bc8f98deb2dbc37e3dc45828f7d0 # v1.6.2
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+      - uses: aws-actions/setup-sam@819220f63fb333a9a394dd0a5cab2d8303fd17e2 # v2
+      - uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0
         with:
           role-to-assume: ${{ secrets.AWS_OIDC_PRODUCTION_ROLE_ARN }}
           aws-region: eu-west-2

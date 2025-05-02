@@ -612,6 +612,7 @@ def perform_ingest(ingest: Ingest) -> None:
         print(f"publishing {ingest.consignment_reference} at {ingest.uri}")
         ingest.document.publish()
     else:
+        print(f"unpublishing {ingest.uri}")
         ingest.document.unpublish()
 
     print("Ingestion complete")

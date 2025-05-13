@@ -666,9 +666,11 @@ class TestDatabaseLocation:
 
     @patch("src.ds_caselaw_ingester.ingester.Metadata.trimmed_uri", new_callable=PropertyMock, return_value="uri")
     def test_yy_parser_uri_and_doc_in_marklogic(self, trimmed, v2_ingest):
-        v2_ingest.api_client.resolve_from_identifier_slug.return_value = ["uri"]
+        v2_ingest.api_client.resolve_from_identifier_slug.return_value = [
+            IdentifierResolutionFactory.build(document_uri="/d-a1b2c3.xml", identifier_slug="ewca/civ/2003/547"),
+        ]
         uri, exists = v2_ingest.database_location
-        assert str(uri) == "uri"
+        assert str(uri) == "d-a1b2c3"
         assert exists is True
 
     @patch("src.ds_caselaw_ingester.ingester.Metadata.trimmed_uri", new_callable=PropertyMock, return_value="uri")

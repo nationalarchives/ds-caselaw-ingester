@@ -592,8 +592,8 @@ class Ingest:
                 if len(slug_resolutions) > 1:
                     msg = f"uri: {trimmed_uri}"
                     raise MultipleResolutionsFoundError(msg)
-                # Set document URI to URI of existing document (1)
-                return (trimmed_uri, True)
+                # Set URI of the document being ingested to the URI of the one it is replacing in MarkLogic
+                return (slug_resolutions[0].document_uri.as_document_uri(), True)
 
         # Is there an existing document in MarkLogic with that NCN in the relevant identifier scheme?
         if self.find_existing_document_by_ncn:

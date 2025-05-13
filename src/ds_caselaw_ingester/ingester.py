@@ -632,6 +632,7 @@ def perform_ingest(ingest: Ingest) -> None:
         ingest.document.publish()
         ingest.update_published_documents(PUBLIC_ASSET_BUCKET)
     else:
+        print(f"unpublishing {ingest.uri}")
         ingest.document.unpublish()
 
     print("Ingestion complete")

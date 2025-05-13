@@ -12,7 +12,7 @@ from uuid import uuid4
 from xml.sax.saxutils import escape
 
 from botocore.exceptions import NoCredentialsError
-from caselawclient.Client import MarklogicApiClient, MarklogicResourceNotFoundError
+from caselawclient.Client import MarklogicApiClient
 from caselawclient.client_helpers import VersionAnnotation, VersionType, get_document_type_class
 from caselawclient.models.documents import Document, DocumentURIString
 from caselawclient.models.identifiers import Identifier
@@ -303,28 +303,25 @@ class Ingest:
         """The type of the ingested document as a string, for humans"""
         return self.ingested_document_type.document_noun
 
-    def update_document_xml(self) -> bool:
+    def update_document_xml(self) -> None:
         if self.metadata_object.is_tdr:
             message = "Updated document submitted by TDR user"
         else:
             message = "Updated document uploaded by Find Case Law"
-        try:
-            annotation = VersionAnnotation(
-                VersionType.SUBMISSION,
-                automated=self.metadata_object.force_publish,
-                message=message,
-                payload=dict(
-                    _build_version_annotation_payload_from_metadata(self.metadata),
-                ),  # We cast this to a dict here because VersionAnnotation doesn't yet have a TypedDict as its payload argument.
-            )
 
-            self.api_client.get_judgment_xml(self.uri, show_unpublished=True)
-            self.api_client.update_document_xml(self.uri, self.xml, annotation)
-            return True
-        except MarklogicResourceNotFoundError:
-            return False
+        annotation = VersionAnnotation(
+            VersionType.SUBMISSION,
+            automated=self.metadata_object.force_publish,
+            message=message,
+            payload=dict(
+                _build_version_annotation_payload_from_metadata(self.metadata),
+            ),  # We cast this to a dict here because VersionAnnotation doesn't yet have a TypedDict as its payload argument.
+        )
 
-    def insert_document_xml(self) -> bool:
+        self.api_client.get_judgment_xml(self.uri, show_unpublished=True)
+        self.api_client.update_document_xml(self.uri, self.xml, annotation)
+
+    def insert_document_xml(self) -> None:
         if self.metadata_object.is_tdr:
             message = "New document submitted by TDR user"
         else:
@@ -343,7 +340,6 @@ class Ingest:
             annotation=annotation,
             document_type=self.ingested_document_type,
         )
-        return True
 
     def set_document_identifiers(self) -> None:
         if self.document is None:
@@ -523,15 +519,19 @@ class Ingest:
     def insert_or_update_xml(self) -> None:
         """Puts the XML into MarkLogic, either by updating an existing document (if `self.exists_in_database`) or by creating a new one."""
         if self.exists_in_database:
-            if not self.update_document_xml():
+            try:
+                self.update_document_xml()
+            except Exception as err:
                 raise DocumentInsertionError(
                     f"Updating {self.ingested_document_type_string} {self.uri} failed. Consignment Ref: {self.consignment_reference}",
-                )
+                ) from err
         else:
-            if not self.insert_document_xml():
+            try:
+                self.insert_document_xml()
+            except Exception as err:
                 raise DocumentInsertionError(
                     f"Inserting {self.ingested_document_type_string} {self.uri} failed. Consignment Ref: {self.consignment_reference}",
-                )
+                ) from err
 
         # This is the only place we should be setting self.document, once the XML is in the database
         # get_document_by_uri will raise an exception if the expected document doesn't exist

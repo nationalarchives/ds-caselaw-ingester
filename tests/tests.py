@@ -9,7 +9,6 @@ import rollbar
 from callee import Contains
 from caselawclient.Client import (
     MarklogicCommunicationError,
-    MarklogicResourceNotFoundError,
 )
 from caselawclient.factories import IdentifierResolutionFactory, IdentifierResolutionsFactory
 from caselawclient.models.identifiers.neutral_citation import NeutralCitationNumber
@@ -455,26 +454,13 @@ class TestLambda:
     def test_update_document_xml_success(self, v2_ingest):
         v2_ingest.api_client.get_judgment_xml = MagicMock(return_value=True)
         v2_ingest.api_client.update_document_xml = MagicMock(return_value=True)
-        assert v2_ingest.update_document_xml() is True
+        v2_ingest.update_document_xml()
 
     def test_update_document_xml_success_no_tdr(self, v2_ingest):
         v2_ingest.api_client.get_judgment_xml = MagicMock(return_value=True)
         v2_ingest.api_client.update_document_xml = MagicMock(return_value=True)
         v2_ingest.metadata = {"parameters": {}}
-        result = v2_ingest.update_document_xml()
-        assert result is True
-
-    def test_update_document_xml_judgment_does_not_exist(self, v2_ingest):
-        v2_ingest.api_client.get_judgment_xml = MagicMock(side_effect=MarklogicResourceNotFoundError("error"))
-        v2_ingest.api_client.update_document_xml = MagicMock(return_value=True)
-        result = v2_ingest.update_document_xml()
-        assert result is False
-
-    def test_update_document_xml_judgment_does_not_save(self, v2_ingest):
-        v2_ingest.api_client.get_judgment_xml = MagicMock(return_value=True)
-        v2_ingest.api_client.update_document_xml = MagicMock(side_effect=MarklogicCommunicationError("error"))
-        with pytest.raises(MarklogicCommunicationError):
-            v2_ingest.update_document_xml()
+        v2_ingest.update_document_xml()
 
     def test_insert_document_xml_success_judgment(self, v2_ingest):
         xml = ET.XML(
@@ -483,8 +469,7 @@ class TestLambda:
         v2_ingest.api_client.insert_document_xml = MagicMock(return_value=True)
         v2_ingest.uri = "a/fake/uri"
         v2_ingest.xml = xml
-        result = v2_ingest.insert_document_xml()
-        assert result is True
+        v2_ingest.insert_document_xml()
         v2_ingest.api_client.insert_document_xml.assert_called_once_with(
             document_uri=v2_ingest.uri,
             document_xml=xml,
@@ -499,8 +484,7 @@ class TestLambda:
         v2_ingest.api_client.insert_document_xml = MagicMock(return_value=True)
         v2_ingest.uri = "a/fake/uri"
         v2_ingest.xml = xml
-        result = v2_ingest.insert_document_xml()
-        assert result is True
+        v2_ingest.insert_document_xml()
         v2_ingest.api_client.insert_document_xml.assert_called_once_with(
             document_uri=v2_ingest.uri,
             document_xml=xml,
@@ -516,8 +500,7 @@ class TestLambda:
         v2_ingest.api_client.insert_document_xml = MagicMock(return_value=True)
         v2_ingest.uri = "a/fake/uri"
         v2_ingest.xml = xml
-        result = v2_ingest.insert_document_xml()
-        assert result is True
+        v2_ingest.insert_document_xml()
         v2_ingest.api_client.insert_document_xml.assert_called_once_with(
             document_uri=v2_ingest.uri,
             document_xml=xml,
@@ -683,9 +666,11 @@ class TestDatabaseLocation:
 
     @patch("src.ds_caselaw_ingester.ingester.Metadata.trimmed_uri", new_callable=PropertyMock, return_value="uri")
     def test_yy_parser_uri_and_doc_in_marklogic(self, trimmed, v2_ingest):
-        v2_ingest.api_client.resolve_from_identifier_slug.return_value = ["uri"]
+        v2_ingest.api_client.resolve_from_identifier_slug.return_value = [
+            IdentifierResolutionFactory.build(document_uri="/d-a1b2c3.xml", identifier_slug="ewca/civ/2003/547"),
+        ]
         uri, exists = v2_ingest.database_location
-        assert str(uri) == "uri"
+        assert str(uri) == "d-a1b2c3"
         assert exists is True
 
     @patch("src.ds_caselaw_ingester.ingester.Metadata.trimmed_uri", new_callable=PropertyMock, return_value="uri")

@@ -39,6 +39,7 @@ jobs:
           PublicAssetBucket=${{ vars.PUBLIC_ASSET_BUCKET }}
           RollbarEnv=${{ vars.ROLLBAR_ENV }}
           RollbarToken=${{ secrets.ROLLBAR_TOKEN }}
+          SnsTopic=${{ vars.SNS_TOPIC }}
           SqsQueueUrl=${{ vars.SQS_QUEUE_URL }}
           VpcSubnetId0=${{ vars.VPC_SUBNET_ID_0 }}
           VpcSubnetId1=${{ vars.VPC_SUBNET_ID_1 }}

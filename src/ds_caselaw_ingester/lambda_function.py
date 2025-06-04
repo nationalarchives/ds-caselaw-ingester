@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import tarfile
 from abc import ABC, abstractmethod
 from typing import Optional
 from urllib.parse import unquote_plus
@@ -171,11 +172,19 @@ def get_s3_client() -> S3Client:
 def handler(event, context):
     s3_client = get_s3_client()
     for message in all_messages(event):
-        ingest = Ingest(
-            message=message,
-            destination_bucket=PRIVATE_ASSET_BUCKET,
-            api_client=api_client,
-            s3_client=s3_client,
-        )
+        print(f"Received Message: {message.message}")
 
-        perform_ingest(ingest)
+        # Download the tarfile specified in the message, and inject into the ingester
+        local_tar_filename = message.save_s3_response(s3_client=s3_client)
+        print(f"Tarfile saved locally as {local_tar_filename}")
+        with tarfile.open(local_tar_filename, mode="r") as tarfile_reader:
+            ingest = Ingest(
+                message=message,
+                tarfile_reader=tarfile_reader,
+                destination_bucket=PRIVATE_ASSET_BUCKET,
+                destination_tar_filename=local_tar_filename,
+                api_client=api_client,
+                s3_client=s3_client,
+            )
+
+            perform_ingest(ingest)

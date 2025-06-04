@@ -1,5 +1,6 @@
 import copy
 import json
+import tarfile
 from unittest.mock import Mock, PropertyMock, patch
 
 from caselawclient.types import DocumentURIString
@@ -59,22 +60,21 @@ s3_message_raw = json.dumps(s3_message)
 
 @fixture
 @patch(
-    "src.ds_caselaw_ingester.lambda_function.Ingest.save_tar_file_in_s3",
-    return_value="/tmp/TDR-2022-DNWR.tar.gz",
-)
-@patch(
     "src.ds_caselaw_ingester.ingester.Ingest.database_location",
     new_callable=PropertyMock,
     return_value=(DocumentURIString("v2-a1b2-c3d4"), False),
 )
-def v2_ingest(fake_location, fake_s3):
+def v2_ingest(fake_location):
     create_fake_tdr_file()
-    return ingester.Ingest(
-        message=lambda_function.Message.from_message(v2_message),
-        destination_bucket="bucket",
-        api_client=setup_api_client(),
-        s3_client=Mock(),
-    )
+    with tarfile.open("/tmp/TDR-2022-DNWR.tar.gz", mode="r") as tarfile_reader:
+        return ingester.Ingest(
+            message=lambda_function.Message.from_message(v2_message),
+            tarfile_reader=tarfile_reader,
+            destination_bucket="bucket",
+            destination_tar_filename="/tmp/TDR-2022-DNWR.tar.gz",
+            api_client=setup_api_client(),
+            s3_client=Mock(),
+        )
 
 
 @fixture
@@ -83,35 +83,35 @@ def v2_ingest(fake_location, fake_s3):
     new_callable=PropertyMock,
     return_value=(DocumentURIString("s3-a1b2-c3d4"), True),
 )
-@patch("src.ds_caselaw_ingester.lambda_function.Ingest.save_tar_file_in_s3", return_value="/tmp/BULK-0.tar.gz")
-def s3_ingest(fake_determine_uri, fake_s3):  # TODO DRAGON
+def s3_ingest(fake_determine_uri):  # TODO DRAGON
     create_fake_bulk_file()
-    return ingester.Ingest(
-        message=lambda_function.Message.from_message(s3_message),
-        destination_bucket="bucket",
-        api_client=setup_api_client(),
-        s3_client=Mock(),
-    )
+    with tarfile.open("/tmp/BULK-0.tar.gz", mode="r") as tarfile_reader:
+        return ingester.Ingest(
+            message=lambda_function.Message.from_message(s3_message),
+            tarfile_reader=tarfile_reader,
+            destination_bucket="bucket",
+            destination_tar_filename="/tmp/BULK-0.tar.gz",
+            api_client=setup_api_client(),
+            s3_client=Mock(),
+        )
 
 
 @fixture
-@patch(
-    "src.ds_caselaw_ingester.lambda_function.Ingest.save_tar_file_in_s3",
-    return_value="/tmp/TDR-2022-DNWR.tar.gz",
-)
 @patch(
     "src.ds_caselaw_ingester.ingester.Ingest.database_location",
     new_callable=PropertyMock,
     return_value=(DocumentURIString("s3-a1b2-c3d4"), True),
 )
-def fcl_ingest(fake_determine_uri, fake_s3):
+def fcl_ingest(fake_determine_uri):
     "Fake a FCL reparse message (badly)"
     new_message = copy.deepcopy(v2_message)
     new_message["parameters"]["originator"] = "FCL"
-
-    return ingester.Ingest(
-        message=lambda_function.Message.from_message(new_message),
-        destination_bucket="bucket",
-        api_client=setup_api_client(),
-        s3_client=Mock(),
-    )
+    with tarfile.open("/tmp/TDR-2022-DNWR.tar.gz", mode="r") as tarfile_reader:
+        return ingester.Ingest(
+            message=lambda_function.Message.from_message(new_message),
+            tarfile_reader=tarfile_reader,
+            destination_bucket="bucket",
+            destination_tar_filename="/tmp/TDR-2022-DNWR.tar.gz",
+            api_client=setup_api_client(),
+            s3_client=Mock(),
+        )

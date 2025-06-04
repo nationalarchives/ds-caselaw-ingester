@@ -3,6 +3,6 @@
 awscli
 awscli-local
 
-pytest==8.3.5  # https://github.com/pytest-dev/pytest
+pytest==8.4.0  # https://github.com/pytest-dev/pytest
 callee==0.3.1
 aws-sam-cli-local

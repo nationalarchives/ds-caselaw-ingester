@@ -262,36 +262,33 @@ class Ingest:
     def __init__(
         self,
         message: "Message",
+        tarfile_reader: tarfile.TarFile,
         destination_bucket: str,
+        destination_tar_filename: str,
         api_client: MarklogicApiClient,
         s3_client: S3Client,
     ) -> None:
         self.message = message
         self.destination_bucket = destination_bucket
+        self.destination_tar_filename = destination_tar_filename
         self.api_client = api_client
         self.s3_client = s3_client
         self.consignment_reference: str = self.message.get_consignment_reference()
         self.document: Optional[Document] = None
         print(f"Ingester Start: Consignment reference {self.consignment_reference}")
-        print(f"Received Message: {self.message.message}")
-        self.local_tar_filename = self.save_tar_file_in_s3()
 
-        with tarfile.open(self.local_tar_filename, mode="r") as tar:
-            self.metadata = extract_metadata(tar, self.consignment_reference)
-            self.extracted_ncn = self.metadata["parameters"]["PARSER"].get("cite")
-            self.message.update_consignment_reference(self.metadata["parameters"]["TRE"]["reference"])
-            self.xml_file_name = self.metadata["parameters"]["TRE"]["payload"]["xml"]
-            self.xml = get_best_xml(tar, self.xml_file_name, self.consignment_reference)
-            self.uri, self.exists_in_database = self.database_location
-            print(f"Ingesting document {self.uri}")
+        self.local_tarfile_reader = tarfile_reader
+
+        self.metadata = extract_metadata(self.local_tarfile_reader, self.consignment_reference)
+        self.extracted_ncn = self.metadata["parameters"]["PARSER"].get("cite")
+        self.message.update_consignment_reference(self.metadata["parameters"]["TRE"]["reference"])
+        self.xml_file_name = self.metadata["parameters"]["TRE"]["payload"]["xml"]
+        self.xml = get_best_xml(self.local_tarfile_reader, self.xml_file_name, self.consignment_reference)
+        self.uri, self.exists_in_database = self.database_location
+        print(f"Ingesting document {self.uri}")
 
     def __repr__(self):
-        return f"<Ingest: {self.consignment_reference}, {self.local_tar_filename}, {self.extracted_ncn}>"
-
-    def save_tar_file_in_s3(self) -> str:
-        """This should be mocked out for testing -- get the tar file from S3 and
-        save locally, returning the filename it was saved at"""
-        return self.message.save_s3_response(self.s3_client)
+        return f"<Ingest: {self.consignment_reference}, {self.extracted_ncn}>"
 
     @property
     def ingested_document_type(self) -> type[Document]:
@@ -427,11 +424,13 @@ class Ingest:
 
         # Copy original tarfile
         modified_targz_filename = (
-            self.local_tar_filename if docx_filename else modify_filename(self.local_tar_filename, "_nodocx")
+            self.destination_tar_filename
+            if docx_filename
+            else modify_filename(self.destination_tar_filename, "_nodocx")
         )
-        with open(self.local_tar_filename, mode="rb") as local_tar:
+        with open(self.destination_tar_filename, mode="rb") as local_tar_read_buffer:
             store_file(
-                file=local_tar,
+                file=local_tar_read_buffer,
                 destination_bucket=self.destination_bucket,
                 destination_folder=S3PrefixString(self.uri + "/"),
                 destination_filename=os.path.basename(modified_targz_filename),
@@ -442,20 +441,19 @@ class Ingest:
         # Store docx and rename
         # The docx_filename is None for files which have been reparsed.
         if docx_filename is not None:
-            with tarfile.open(self.local_tar_filename, mode="r") as tar:
-                copy_file(
-                    tar,
-                    f"{self.consignment_reference}/{docx_filename}",
-                    self.destination_bucket,
-                    f"{self.uri.replace('/', '_')}.docx",
-                    S3PrefixString(self.uri + "/"),
-                    self.s3_client,
-                )
+            copy_file(
+                self.local_tarfile_reader,
+                f"{self.consignment_reference}/{docx_filename}",
+                self.destination_bucket,
+                f"{self.uri.replace('/', '_')}.docx",
+                S3PrefixString(self.uri + "/"),
+                self.s3_client,
+            )
 
         # Store parser log
-        with suppress(FileNotFoundException), tarfile.open(self.local_tar_filename, mode="r") as tar:
+        with suppress(FileNotFoundException):
             copy_file(
-                tar,
+                self.local_tarfile_reader,
                 f"{self.consignment_reference}/parser.log",
                 self.destination_bucket,
                 "parser.log",
@@ -467,15 +465,14 @@ class Ingest:
         image_list = self.metadata["parameters"]["TRE"]["payload"]["images"]
         if image_list:
             for image_filename in image_list:
-                with tarfile.open(self.local_tar_filename, mode="r") as tar:
-                    copy_file(
-                        tar,
-                        f"{self.consignment_reference}/{image_filename}",
-                        self.destination_bucket,
-                        image_filename,
-                        S3PrefixString(self.uri + "/"),
-                        self.s3_client,
-                    )
+                copy_file(
+                    self.local_tarfile_reader,
+                    f"{self.consignment_reference}/{image_filename}",
+                    self.destination_bucket,
+                    image_filename,
+                    S3PrefixString(self.uri + "/"),
+                    self.s3_client,
+                )
 
     @property
     def metadata_object(self) -> Metadata:

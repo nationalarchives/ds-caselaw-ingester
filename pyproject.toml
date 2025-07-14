@@ -3,14 +3,14 @@ line-length = 120
 
 [tool.ruff.lint]
 ignore = ["E501", "G004", "PLR2004", "RUF005", "RUF012", "UP040"] # longlines, fstrings in logs, magic values, consider not concat, mutable classbits, type instead of TypeAlias
-extend-select = ["W", "I", "SLF", "SIM", "B", "Q", "A", "COM", "C90", "UP", "YTT", "ASYNC", "BLE", "C4", "DTZ", "T10", "DJ", "EXE" ]
-# extend-select = [ "S", "EM", "FA",
-#                  "ISC", "ICN", "G", "INP", "PIE", "T20", "PYI", "PT", "RSE", "RET", "SLOT", "TID", "TCH", "INT", "PTH",
-#                  "FIX", "PGH", "PL", "TRY", "FLY", "PERF", "RUF"]
+extend-select = ["G", "W", "I", "SLF", "SIM", "B", "Q", "A", "COM", "C90", "UP", "YTT", "ASYNC", "BLE", "C4", "DTZ", "T10", "DJ", "EXE", "S"]
+# extend-select = ["EM", "FA", "ISC", "ICN", "INP", "PIE", "T20", "PYI", "PT", "RSE", "RET",
+#                  "SLOT", "TID", "TCH", "INT", "PTH", "FIX", "PGH", "PL", "TRY", "FLY", "PERF", "RUF"]
 unfixable = ["ERA"]
 
 [tool.ruff.lint.extend-per-file-ignores]
-"tests/*" = ["S101"]  # `assert` is fine in tests
+"*" = ["S108"] # insecure hardcoded temp file name -- fix at some point?
+"tests/*" = ["S101"]   # `assert` is fine in tests
 
 # things skipped:
 # N: naming, possibly good
@@ -18,7 +18,6 @@ unfixable = ["ERA"]
 # ANN: annotations missing throughout
 # FBT: not convinced boolean trap worth auto-banning.
 # CPY: copyright at top of each file
-# G: logging warnings -- fstrings bad?
 # ARG: sometimes you need to accept arguments.
 # TD: somewhat finicky details about formatting TODOs
 # FIX: flags todos: possible to add -- skipped for now

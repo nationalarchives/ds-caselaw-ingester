@@ -11,6 +11,7 @@ from typing import IO, TYPE_CHECKING, Any, Optional, TypedDict
 from uuid import uuid4
 from xml.sax.saxutils import escape
 
+import lxml.etree
 from botocore.exceptions import NoCredentialsError
 from caselawclient.Client import MarklogicApiClient
 from caselawclient.client_helpers import VersionAnnotation, VersionType, get_document_type_class
@@ -127,10 +128,15 @@ def extract_xml_file(tar: tarfile.TarFile, xml_file_name: str) -> Optional[IO[by
     return xml_file
 
 
-def parse_xml(xml: bytes) -> ET.Element:
-    ET.register_namespace("", "http://docs.oasis-open.org/legaldocml/ns/akn/3.0")
-    ET.register_namespace("uk", "https://caselaw.nationalarchives.gov.uk/akn")
-    return ET.XML(xml)
+# def parse_xml(xml: bytes) -> ET.Element:
+#     ET.register_namespace("", "http://docs.oasis-open.org/legaldocml/ns/akn/3.0")
+#     ET.register_namespace("uk", "https://caselaw.nationalarchives.gov.uk/akn")
+#     return ET.XML(xml)
+
+
+# dragon
+def parse_xml(xml: bytes) -> "lxml.etree._Element":
+    return lxml.etree.fromstring(xml)
 
 
 def create_parser_log_xml(tar: tarfile.TarFile) -> bytes:
@@ -152,7 +158,7 @@ def get_best_xml(tar: tarfile.TarFile, xml_file_name: str, consignment_reference
         contents = xml_file.read()
         try:
             return parse_xml(contents)
-        except ET.ParseError:
+        except lxml.etree.XMLSyntaxError:
             print(
                 f"Invalid XML file for consignment reference: {consignment_reference}."
                 f" Falling back to parser.log contents.",

@@ -7,6 +7,7 @@ import boto3
 import pytest
 from botocore.exceptions import NoCredentialsError
 from caselawclient.models.utilities.aws import S3PrefixString
+from lxml.etree import _Element as lxmlElement
 
 from src.ds_caselaw_ingester import exceptions, ingester
 
@@ -178,7 +179,7 @@ class TestIngesterGetBestXMLMethod:
             mode="r",
         ) as tar:
             result = ingester.get_best_xml(tar, filename, "a_consignment_reference")
-            assert result.__class__ == ET.Element
+            assert isinstance(result, lxmlElement)
             assert result.tag == "{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}akomaNtoso"
 
     def test_get_best_xml_with_invalid_xml_file(self):
@@ -188,7 +189,7 @@ class TestIngesterGetBestXMLMethod:
             mode="r",
         ) as tar:
             result = ingester.get_best_xml(tar, filename, "a_consignment_reference")
-            assert result.__class__ == ET.Element
+            assert isinstance(result, lxmlElement)
             assert result.tag == "error"
 
     def test_get_best_xml_with_failure_uri_but_valid_xml(self):
@@ -202,7 +203,7 @@ class TestIngesterGetBestXMLMethod:
                 filename,
                 "a_consignment_reference",
             )
-            assert result.__class__ == ET.Element
+            assert isinstance(result, lxmlElement)
             assert result.tag == "{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}akomaNtoso"
 
     def test_get_best_xml_with_failure_uri_and_missing_xml(self):
@@ -216,7 +217,7 @@ class TestIngesterGetBestXMLMethod:
                 filename,
                 "a_consignment_reference",
             )
-            assert result.__class__ == ET.Element
+            assert isinstance(result, lxmlElement)
             assert result.tag == "error"
 
     def test_get_best_xml_with_no_xml_file(self):
@@ -230,7 +231,7 @@ class TestIngesterGetBestXMLMethod:
                 filename,
                 "a_consignment_reference",
             )
-            assert result.__class__ == ET.Element
+            assert isinstance(result, lxmlElement)
             assert result.tag == "error"
 
 

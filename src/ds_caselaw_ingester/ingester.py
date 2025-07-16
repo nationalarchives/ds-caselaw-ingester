@@ -4,7 +4,6 @@ import json
 import logging
 import os
 import tarfile
-import xml.etree.ElementTree as ET
 from contextlib import suppress
 from functools import cached_property
 from typing import IO, TYPE_CHECKING, Any, Optional, TypedDict
@@ -24,6 +23,7 @@ from caselawclient.models.parser_logs import ParserLog
 from caselawclient.models.press_summaries import PressSummary
 from caselawclient.models.utilities.aws import S3PrefixString
 from caselawclient.types import DocumentIdentifierSlug, DocumentIdentifierValue
+from lxml.etree import _Element as lxmlElement
 from mypy_boto3_s3.client import S3Client
 from mypy_boto3_s3.type_defs import CopySourceTypeDef
 from notifications_python_client.notifications import NotificationsAPIClient
@@ -128,13 +128,6 @@ def extract_xml_file(tar: tarfile.TarFile, xml_file_name: str) -> Optional[IO[by
     return xml_file
 
 
-# def parse_xml(xml: bytes) -> ET.Element:
-#     ET.register_namespace("", "http://docs.oasis-open.org/legaldocml/ns/akn/3.0")
-#     ET.register_namespace("uk", "https://caselaw.nationalarchives.gov.uk/akn")
-#     return ET.XML(xml)
-
-
-# dragon
 def parse_xml(xml: bytes) -> "lxml.etree._Element":
     return lxml.etree.fromstring(xml)
 
@@ -152,7 +145,7 @@ def create_parser_log_xml(tar: tarfile.TarFile) -> bytes:
     return parser_log_value.encode("utf-8")
 
 
-def get_best_xml(tar: tarfile.TarFile, xml_file_name: str, consignment_reference: str) -> ET.Element:
+def get_best_xml(tar: tarfile.TarFile, xml_file_name: str, consignment_reference: str) -> lxmlElement:
     xml_file = extract_xml_file(tar, xml_file_name)
     if xml_file:
         contents = xml_file.read()
@@ -299,7 +292,7 @@ class Ingest:
     @property
     def ingested_document_type(self) -> type[Document]:
         """Get the type of the ingested document."""
-        return get_document_type_class(ET.tostring(self.xml))
+        return get_document_type_class(lxml.etree.tostring(self.xml))
 
     @property
     def ingested_document_type_string(self) -> str:

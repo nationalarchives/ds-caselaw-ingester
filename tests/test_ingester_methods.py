@@ -1,9 +1,9 @@
 import os
 import tarfile
-import xml.etree.ElementTree as ET
 from unittest.mock import ANY, MagicMock, patch
 
 import boto3
+import lxml.etree
 import pytest
 from botocore.exceptions import NoCredentialsError
 from caselawclient.models.utilities.aws import S3PrefixString
@@ -129,7 +129,7 @@ class TestIngesterExtractXMLFileMethod:
         ) as tar:
             filename = "TDR-2022-DNWR.xml"
             result = ingester.extract_xml_file(tar, filename)
-            xml = ET.XML(result.read())
+            xml = lxml.etree.fromstring(result.read())
             assert xml.tag == "{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}akomaNtoso"
 
     def test_extract_xml_file_not_found_tdr(self):

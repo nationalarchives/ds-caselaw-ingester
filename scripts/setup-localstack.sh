@@ -4,23 +4,9 @@ awslocal iam create-role \
   --role-name lambda-role \
   --assume-role-policy-document file://aws_examples/example_trust_policy.json
 
-awslocal lambda create-function \
-  --function-name te-lambda \
-  --zip-file fileb://dist/lambda.zip \
-  --handler ds_caselaw_ingester/lambda_function.handler \
-  --runtime python3.12 \
-  --environment "Variables={MARKLOGIC_HOST=$MARKLOGIC_HOST,MARKLOGIC_USER=$MARKLOGIC_USER,MARKLOGIC_PASSWORD=$MARKLOGIC_PASSWORD,PRIVATE_ASSET_BUCKET=$PRIVATE_ASSET_BUCKET,AWS_SECRET_KEY=$AWS_SECRET_KEY,AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID,AWS_ENDPOINT_URL=$AWS_ENDPOINT_URL,SQS_QUEUE_URL=$SQS_QUEUE_URL,ROLLBAR_TOKEN=$ROLLBAR_TOKEN,ROLLBAR_ENV=$ROLLBAR_ENV,NOTIFY_API_KEY=$NOTIFY_API_KEY,NOTIFY_EDITORIAL_ADDRESS=$NOTIFY_EDITORIAL_ADDRESS,NOTIFY_NEW_JUDGMENT_TEMPLATE_ID=$NOTIFY_NEW_JUDGMENT_TEMPLATE_ID,EDITORIAL_UI_BASE_URL=$EDITORIAL_UI_BASE_URL,PUBLIC_ASSET_BUCKET=$PUBLIC_ASSET_BUCKET,LAMBDA_RUNTIME_ENVIRONMENT_TIMEOUT=500}" \
-  --role arn:aws:iam::000000000000:role/lambda-role \
-  --timeout 500
-
 awslocal sns create-topic \
   --name judgments \
   --attributes consignment-reference=string,s3-folder-url=string,consignment-type=string,number-of-retries=number
-
-awslocal sns subscribe \
-  --topic-arn arn:aws:sns:us-east-1:000000000000:judgments \
-  --protocol lambda \
-  --notification-endpoint arn:aws:lambda:us-east-1:000000000000:function:te-lambda
 
 awslocal s3api create-bucket \
   --bucket te-editorial-out-int
@@ -34,6 +20,26 @@ awslocal s3api create-bucket \
 awslocal s3api create-bucket \
   --bucket private-asset-bucket
 
+awslocal s3api create-bucket \
+  --bucket temp-lambda-storage
+
+awslocal s3 cp dist/lambda.zip s3://temp-lambda-storage
+
+awslocal lambda create-function \
+  --function-name te-lambda \
+  --code "S3Bucket=temp-lambda-storage,S3Key=lambda.zip" \
+  --handler ds_caselaw_ingester/lambda_function.handler \
+  --runtime python3.12 \
+  --environment "Variables={MARKLOGIC_HOST=$MARKLOGIC_HOST,MARKLOGIC_USER=$MARKLOGIC_USER,MARKLOGIC_PASSWORD=$MARKLOGIC_PASSWORD,PRIVATE_ASSET_BUCKET=$PRIVATE_ASSET_BUCKET,AWS_SECRET_KEY=$AWS_SECRET_KEY,AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID,AWS_ENDPOINT_URL=$AWS_ENDPOINT_URL,SQS_QUEUE_URL=$SQS_QUEUE_URL,ROLLBAR_TOKEN=$ROLLBAR_TOKEN,ROLLBAR_ENV=$ROLLBAR_ENV,NOTIFY_API_KEY=$NOTIFY_API_KEY,NOTIFY_EDITORIAL_ADDRESS=$NOTIFY_EDITORIAL_ADDRESS,NOTIFY_NEW_JUDGMENT_TEMPLATE_ID=$NOTIFY_NEW_JUDGMENT_TEMPLATE_ID,EDITORIAL_UI_BASE_URL=$EDITORIAL_UI_BASE_URL,PUBLIC_ASSET_BUCKET=$PUBLIC_ASSET_BUCKET,LAMBDA_RUNTIME_ENVIRONMENT_TIMEOUT=500}" \
+  --role arn:aws:iam::000000000000:role/lambda-role \
+  --timeout 500
+
+echo "Lambda created"
+
+awslocal sns subscribe \
+  --topic-arn arn:aws:sns:us-east-1:000000000000:judgments \
+  --protocol lambda \
+  --notification-endpoint arn:aws:lambda:us-east-1:000000000000:function:te-lambda
 
 awslocal sns create-topic \
   --name inbound-sns \

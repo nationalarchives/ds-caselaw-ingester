@@ -1,4 +1,5 @@
 source .env
+export AWS_PAGER=""
 
 awslocal iam create-role \
   --role-name lambda-role \

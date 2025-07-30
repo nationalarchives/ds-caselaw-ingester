@@ -52,10 +52,5 @@ jobs:
       - name: Run tests with coverage
         run: coverage run -m pytest tests/*
 
-      - name: Generate coverage XML
-        run: coverage xml
-
-      - name: Upload coverage to CodeClimate
-        uses: paambaati/codeclimate-action@f429536ee076d758a24705203199548125a28ca7 # v9.0.0
-        env:
-          CC_TEST_REPORTER_ID: ${{secrets.CC_TEST_REPORTER_ID}}
+      # - name: Generate coverage XML
+      #   run: coverage xml

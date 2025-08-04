@@ -46,11 +46,10 @@ jobs:
           python-version: "3.13"
       - run: pip install -r requirements/local.txt
 
-      - name: Install coverage
-        run: pip install coverage
-
       - name: Run tests with coverage
-        run: coverage run -m pytest tests/*
+        run: pytest --cov --cov-branch --cov-report=xml
 
-      # - name: Generate coverage XML
-      #   run: coverage xml
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24 # v5.4.3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}

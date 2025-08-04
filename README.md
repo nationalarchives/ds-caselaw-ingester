@@ -5,6 +5,7 @@ This repository is part of the [Find Case Law](https://caselaw.nationalarchives.
 # Case Law Ingester
 
 ![Tests](https://img.shields.io/github/actions/workflow/status/nationalarchives/ds-caselaw-ingester/ci.yml?branch=main&label=test)
+![Code Coverage](https://img.shields.io/codecov/c/github/nationalarchives/ds-caselaw-ingester)
 
 This is the repository for the lambda function used to parse Transformation Engine judgments and insert them to Marklogic
 

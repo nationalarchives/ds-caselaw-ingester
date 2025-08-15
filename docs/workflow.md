@@ -149,7 +149,6 @@ sequenceDiagram
 
         alt Document is set to auto-publish
             perform_ingest ->> document: publish()
-            perform_ingest ->>+ Ingest: update_published_documents()
             Ingest <<->> S3_unpublished : Get list of assets with document prefix
             loop For each asset
                 Ingest ->> S3_published : Copy asset to published bucket

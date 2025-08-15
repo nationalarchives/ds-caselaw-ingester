@@ -24,7 +24,6 @@ from caselawclient.models.press_summaries import PressSummary
 from caselawclient.models.utilities.aws import S3PrefixString
 from caselawclient.types import DocumentIdentifierSlug, DocumentIdentifierValue
 from mypy_boto3_s3.client import S3Client
-from mypy_boto3_s3.type_defs import CopySourceTypeDef
 from notifications_python_client.notifications import NotificationsAPIClient
 
 from .exceptions import (
@@ -562,21 +561,6 @@ class Ingest:
     def upload_state(self) -> str:
         return "updated" if self.exists_in_database else "inserted"
 
-    def update_published_documents(self, public_bucket: str) -> None:
-        """Copy all assets (except .tar.gz and parser.log) from the private bucket which have the prefix of this document's URI to the public bucket."""
-        private_bucket = PRIVATE_ASSET_BUCKET
-
-        response = self.s3_client.list_objects(Bucket=private_bucket, Prefix=self.uri)
-
-        for result in response.get("Contents", []):
-            key = result["Key"]
-
-            if "parser.log" not in key and not str(key).endswith(".tar.gz"):
-                source: CopySourceTypeDef = {"Bucket": private_bucket, "Key": key}
-                extra_args: dict[str, Any] = {}
-                print(f"copying {private_bucket} / {key} to {public_bucket} / {key}")
-                self.s3_client.copy(source, public_bucket, key, extra_args)
-
     @cached_property
     def database_location(self) -> tuple[DocumentURIString, bool]:
         """Returns the chosen database location for the ingested document, and
@@ -627,7 +611,6 @@ def perform_ingest(ingest: Ingest) -> None:
     if ingest.will_publish():
         print(f"publishing {ingest.consignment_reference} at {ingest.uri}")
         ingest.document.publish()
-        ingest.update_published_documents(PUBLIC_ASSET_BUCKET)
     else:
         ingest.document.unpublish()
 

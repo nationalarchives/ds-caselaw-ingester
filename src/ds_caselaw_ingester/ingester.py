@@ -314,7 +314,6 @@ class Ingest:
             ),  # We cast this to a dict here because VersionAnnotation doesn't yet have a TypedDict as its payload argument.
         )
 
-        self.api_client.get_judgment_xml(self.uri, show_unpublished=True)
         self.api_client.update_document_xml(self.uri, self.xml, annotation)
 
     def insert_document_xml(self) -> None:

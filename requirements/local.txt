@@ -4,6 +4,6 @@ awscli
 awscli-local
 
 pytest==8.4.2  # https://github.com/pytest-dev/pytest
-pytest-cov==6.2.1
+pytest-cov==6.3.0
 callee==0.3.1
 aws-sam-cli-local

@@ -1,6 +1,6 @@
 services:
   localstack:
-    image: localstack/localstack:4.9.0@sha256:e74aa0e3dad049db6a6a86dd0d4187e054a63ec4e4273d91959b2c41093bf566
+    image: localstack/localstack:4.9.1@sha256:ef90c3d6d69e36752d0154f9bc21099fc70dfbffc99a0145a6d7d04a721a6124
     network_mode: bridge
     environment:
       SERVICES: lambda,sns,s3,sqs,iam

@@ -13,8 +13,9 @@ from xml.sax.saxutils import escape
 
 from botocore.exceptions import NoCredentialsError
 from caselawclient.Client import MarklogicApiClient
-from caselawclient.client_helpers import VersionAnnotation, VersionType, get_document_type_class
+from caselawclient.client_helpers import get_document_type_class
 from caselawclient.models.documents import Document, DocumentURIString
+from caselawclient.models.documents.versions import VersionAnnotation, VersionType
 from caselawclient.models.identifiers import Identifier
 from caselawclient.models.identifiers.neutral_citation import NeutralCitationNumber
 from caselawclient.models.identifiers.press_summary_ncn import PressSummaryRelatedNCNIdentifier

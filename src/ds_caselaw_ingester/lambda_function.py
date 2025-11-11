@@ -5,7 +5,6 @@ import logging
 import os
 import tarfile
 from abc import ABC, abstractmethod
-from typing import Optional
 from urllib.parse import unquote_plus
 
 import boto3
@@ -104,7 +103,7 @@ class S3Message(V2Message):
     """An SNS message generated directly by adding a file to an S3 bucket"""
 
     def __init__(self, *args, **kwargs) -> None:
-        self._consignment: Optional[str] = None
+        self._consignment: str | None = None
         super().__init__(*args, **kwargs)
 
     @property

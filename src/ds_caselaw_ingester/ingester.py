@@ -7,7 +7,7 @@ import tarfile
 import xml.etree.ElementTree as ET
 from contextlib import suppress
 from functools import cached_property
-from typing import IO, TYPE_CHECKING, Any, Optional, TypedDict
+from typing import IO, TYPE_CHECKING, Any, TypedDict
 from uuid import uuid4
 from xml.sax.saxutils import escape
 
@@ -34,7 +34,7 @@ from .exceptions import (
     MultipleResolutionsFoundError,
 )
 
-IDENTIFIER_CLASS_LOOKUP: dict[type[Document], Optional[type[Identifier]]] = {
+IDENTIFIER_CLASS_LOOKUP: dict[type[Document], type[Identifier] | None] = {
     PressSummary: PressSummaryRelatedNCNIdentifier,
     Judgment: NeutralCitationNumber,
     ParserLog: None,
@@ -117,7 +117,7 @@ def store_file(
         print("Credentials not available")
 
 
-def extract_xml_file(tar: tarfile.TarFile, xml_file_name: str) -> Optional[IO[bytes]]:
+def extract_xml_file(tar: tarfile.TarFile, xml_file_name: str) -> IO[bytes] | None:
     xml_file = None
     if xml_file_name:
         for member in tar.getmembers():
@@ -230,7 +230,7 @@ class Metadata:
         return "TDR" in self.parameters
 
     @property
-    def trimmed_uri(self) -> Optional[DocumentURIString]:
+    def trimmed_uri(self) -> DocumentURIString | None:
         """The NCN-based URI the parser believes the document should be discoverable at"""
         raw_uri = self.parameters["PARSER"].get("uri", "")
         if raw_uri:
@@ -273,7 +273,7 @@ class Ingest:
         self.api_client = api_client
         self.s3_client = s3_client
         self.consignment_reference: str = self.message.get_consignment_reference()
-        self.document: Optional[Document] = None
+        self.document: Document | None = None
         print(f"Ingester Start: Consignment reference {self.consignment_reference}")
 
         self.local_tarfile_reader = tarfile_reader
@@ -534,7 +534,7 @@ class Ingest:
         self.document = self.api_client.get_document_by_uri(DocumentURIString(self.uri))
 
     @cached_property
-    def find_existing_document_by_ncn(self) -> Optional[DocumentURIString]:
+    def find_existing_document_by_ncn(self) -> DocumentURIString | None:
         """
         Is there an existing document claiming to be this one? (i.e. NCN and type match)
         Return the MarklogicURI of that document.

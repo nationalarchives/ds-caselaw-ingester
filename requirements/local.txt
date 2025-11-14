@@ -3,7 +3,7 @@
 awscli
 awscli-local
 
-pytest==9.0.0  # https://github.com/pytest-dev/pytest
+pytest==9.0.1  # https://github.com/pytest-dev/pytest
 pytest-cov==7.0.0
 callee==0.3.1
 aws-sam-cli-local

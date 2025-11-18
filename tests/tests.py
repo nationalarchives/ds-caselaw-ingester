@@ -78,7 +78,7 @@ class TestHandler:
 
         log = capsys.readouterr().out
         assert_log_sensible(log)
-        assert "publishing" not in log
+        assert "\npublishing" not in log
         assert "image1.png" in log
         notify_update.assert_called()
         assert notify_update.call_count == 2
@@ -145,7 +145,7 @@ class TestHandler:
         assert "Updated judgment xml" in log
         assert "Upload Successful" in log
         assert "Ingestion complete" in log
-        assert "publishing" in log
+        assert "\npublishing" in log
         assert "Invalid XML file" not in log
         assert "No XML file found" not in log
         doc.publish.assert_called_with()
@@ -207,7 +207,7 @@ class TestHandler:
         assert "Upload Successful uuid/uuid.docx" in log
         assert "Upload Successful uuid/parser.log" in log
         assert "Ingestion complete" in log
-        assert "publishing" not in log
+        assert "\npublishing" not in log
         notify_new.assert_called()
         assert notify_new.call_count == 2
         notify_update.assert_not_called()

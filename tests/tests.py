@@ -25,6 +25,8 @@ from .helpers import create_fake_bulk_file, create_fake_error_file, create_fake_
 
 rollbar.init(access_token=None, enabled=False)
 
+NULL_UPDATE_METADATA = '{\n  "Judgment-Update": null,\n  "Judgment-Update-Type": null,\n  "Judgment-Update-Details": null,\n  "Judgment-Neutral-Citation": null,\n  "Judgment-No-Neutral-Citation": null,\n  "Judgment-Reference": null\n}'
+
 
 def assert_log_sensible(log):
     assert "Ingester Start: Consignment reference" in log
@@ -78,7 +80,7 @@ class TestHandler:
 
         log = capsys.readouterr().out
         assert_log_sensible(log)
-        assert "publishing" not in log
+        assert "\npublishing" not in log
         assert "image1.png" in log
         notify_update.assert_called()
         assert notify_update.call_count == 2
@@ -145,7 +147,7 @@ class TestHandler:
         assert "Updated judgment xml" in log
         assert "Upload Successful" in log
         assert "Ingestion complete" in log
-        assert "publishing" in log
+        assert "\npublishing" in log
         assert "Invalid XML file" not in log
         assert "No XML file found" not in log
         doc.publish.assert_called_with()
@@ -207,7 +209,7 @@ class TestHandler:
         assert "Upload Successful uuid/uuid.docx" in log
         assert "Upload Successful uuid/parser.log" in log
         assert "Ingestion complete" in log
-        assert "publishing" not in log
+        assert "\npublishing" not in log
         notify_new.assert_called()
         assert notify_new.call_count == 2
         notify_update.assert_not_called()
@@ -235,6 +237,7 @@ class TestLambda:
                     "Internal-Sender-Identifier": "TDR-2021-CF6L",
                     "Consignment-Completed-Datetime": "2021-12-16T14:54:06Z",
                     "Contact-Email": "someone@example.com",
+                    "Judgment-Neutral-Citation": "[2019] UKSC 1701",
                 },
             },
         }
@@ -249,6 +252,7 @@ class TestLambda:
             call("uri", name="transfer-consignment-reference", value="TDR-2021-CF6L"),
             call("uri", name="transfer-received-at", value="2021-12-16T14:54:06Z"),
         ]
+        # currently we do not store Judgment-Neutral-Citation directly.
         v2_ingest.api_client.set_property.assert_has_calls(calls)
 
     @patch.dict(
@@ -271,6 +275,7 @@ class TestLambda:
             "submitter": "Tom King, Ministry of Justice <someone@example.com>",
             "submitted_at": "2021-12-16T14:54:06Z",
             "doctype": "judgment",
+            "update_metadata": NULL_UPDATE_METADATA,
         }
         NotificationsAPIClient.send_email_notification = MagicMock()
         v2_ingest.send_new_judgment_notification()
@@ -302,6 +307,7 @@ class TestLambda:
             "submitter": "unknown, unknown <unknown>",
             "submitted_at": "unknown",
             "doctype": "judgment",
+            "update_metadata": NULL_UPDATE_METADATA,
         }
         NotificationsAPIClient.send_email_notification = MagicMock()
         v2_ingest.send_new_judgment_notification()
@@ -345,6 +351,12 @@ class TestLambda:
                     "Internal-Sender-Identifier": "TDR-2021-CF6L",
                     "Consignment-Completed-Datetime": "2021-12-16T14:54:06Z",
                     "Contact-Email": "someone@example.com",
+                    "Judgment-Update": True,
+                    "Judgment-Update-Type": "judgment",
+                    "Judgment-Update-Details": "details",
+                    "Judgment-Neutral-Citation": "[2019] UKSC 1701",
+                    "Judgment-No-Neutral-Citation": False,
+                    "Judgment-Reference": "Case 1",
                 },
             },
         }
@@ -353,6 +365,7 @@ class TestLambda:
             "consignment": "TDR-2021-CF6L",
             "submitter": "Tom King, Ministry of Justice <someone@example.com>",
             "submitted_at": "2021-12-16T14:54:06Z",
+            "update_metadata": '{\n  "Judgment-Update": true,\n  "Judgment-Update-Type": "judgment",\n  "Judgment-Update-Details": "details",\n  "Judgment-Neutral-Citation": "[2019] UKSC 1701",\n  "Judgment-No-Neutral-Citation": false,\n  "Judgment-Reference": "Case 1"\n}',
         }
         NotificationsAPIClient.send_email_notification = MagicMock()
         v2_ingest.send_updated_judgment_notification()
@@ -383,6 +396,7 @@ class TestLambda:
             "consignment": "unknown",
             "submitter": "unknown, unknown <unknown>",
             "submitted_at": "unknown",
+            "update_metadata": NULL_UPDATE_METADATA,
         }
         NotificationsAPIClient.send_email_notification = MagicMock()
         v2_ingest.send_updated_judgment_notification()

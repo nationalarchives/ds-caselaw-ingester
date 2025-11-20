@@ -191,6 +191,17 @@ def personalise_email(uri: str, metadata: TREMetadataDict) -> dict:
         tdr_metadata = metadata["parameters"]["TDR"]
     except KeyError:
         tdr_metadata = {}
+
+    keys = [
+        "Judgment-Update",
+        "Judgment-Update-Type",
+        "Judgment-Update-Details",
+        "Judgment-Neutral-Citation",
+        "Judgment-No-Neutral-Citation",
+        "Judgment-Reference",
+    ]
+    update_metadata = json.dumps({key: tdr_metadata.get(key) for key in keys}, indent=2)
+
     return {
         "url": f"{os.getenv('EDITORIAL_UI_BASE_URL')}detail?judgment_uri={uri}",
         "consignment": tdr_metadata.get("Internal-Sender-Identifier", "unknown"),
@@ -198,6 +209,7 @@ def personalise_email(uri: str, metadata: TREMetadataDict) -> dict:
         f"{tdr_metadata.get('Source-Organization', 'unknown')}"
         f" <{tdr_metadata.get('Contact-Email', 'unknown')}>",
         "submitted_at": tdr_metadata.get("Consignment-Completed-Datetime", "unknown"),
+        "update_metadata": update_metadata,
     }
 
 

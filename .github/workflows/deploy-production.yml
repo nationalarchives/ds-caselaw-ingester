@@ -18,7 +18,7 @@ jobs:
           persist-credentials: true
       - name: Run latest-tag
         uses: EndBug/latest-tag@7589411ebda7bc8f98deb2dbc37e3dc45828f7d0 # v1.6.2
-      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+      - uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6.1.0
       - uses: aws-actions/setup-sam@c71dd89d980e49367c70391e8ada4353f52f2800 # v2
       - uses: aws-actions/configure-aws-credentials@00943011d9042930efac3dcd3a170e4273319bc8 # v5.1.0
         with:

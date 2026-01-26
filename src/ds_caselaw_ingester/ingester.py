@@ -15,6 +15,7 @@ from botocore.exceptions import NoCredentialsError
 from caselawclient.Client import MarklogicApiClient
 from caselawclient.client_helpers import get_document_type_class
 from caselawclient.models.documents import Document, DocumentURIString
+from caselawclient.models.documents.exceptions import CannotPublishUnpublishableDocument
 from caselawclient.models.documents.versions import VersionAnnotation, VersionType
 from caselawclient.models.identifiers import Identifier
 from caselawclient.models.identifiers.neutral_citation import NeutralCitationNumber
@@ -622,10 +623,14 @@ def perform_ingest(ingest: Ingest) -> None:
     ingest.save_files_to_s3()
 
     if ingest.will_publish():
-        print(f"publishing {ingest.consignment_reference} at {ingest.uri}")
-        ingest.document.publish()
-    else:
-        print(f"unpublishing {ingest.uri}")
-        ingest.document.unpublish()
+        try:
+            print(f"publishing {ingest.consignment_reference} at {ingest.uri}")
+            ingest.document.publish()
+            print("Ingestion complete")
+            return
+        except CannotPublishUnpublishableDocument:
+            print("Unable to publish document: {e}")
 
+    print(f"unpublishing {ingest.uri}")
+    ingest.document.unpublish()
     print("Ingestion complete")

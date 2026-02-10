@@ -359,7 +359,7 @@ class Ingest:
             logger.warning(msg)
 
         ncn = getattr(self.document, "neutral_citation", None)
-        identifier_class = IDENTIFIER_CLASS_LOOKUP.get(self.ingested_document_type, None)
+        identifier_class = IDENTIFIER_CLASS_LOOKUP.get(self.ingested_document_type)
 
         if not identifier_class:
             return

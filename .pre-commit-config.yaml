@@ -35,7 +35,7 @@ repos:
           - types-requests==2.32.4.20260107
           - types-python-dateutil==2.9.0.20260124
           - types-pytz==2025.2.0.20251108
-          - boto3-stubs[s3,sns]==1.42.55
+          - boto3-stubs[s3,sns]==1.42.56
           - ds-caselaw-marklogic-api-client==43.1.0
 
   - repo: https://github.com/pre-commit/mirrors-prettier

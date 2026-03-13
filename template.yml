@@ -75,7 +75,7 @@ Resources:
     Properties:
       CodeUri: src/
       Handler: ds_caselaw_ingester.lambda_function.handler
-      Runtime: python3.12
+      Runtime: python3.13
       MemorySize: 256
       Architectures:
         - x86_64

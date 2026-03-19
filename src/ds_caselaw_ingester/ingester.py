@@ -213,12 +213,12 @@ def personalise_email(uri: str, metadata: TREMetadataDict) -> dict:
     }
 
 
-def extract_docx_filename(metadata: TREMetadataDict, consignment_reference: str) -> str:
+def extract_source_filename(metadata: TREMetadataDict, consignment_reference: str) -> str:
     try:
         return metadata["parameters"]["TRE"]["payload"]["filename"]
     except KeyError as err:
         raise DocxFilenameNotFoundException(
-            f"No .docx filename was found in metadata. Consignment Ref: {consignment_reference}, metadata: {metadata}",
+            f"No source filename was found in metadata. Consignment Ref: {consignment_reference}, metadata: {metadata}",
         ) from err
 
 
@@ -431,13 +431,14 @@ class Ingest:
 
     def save_files_to_s3(self) -> None:
         # Determine if there's a word document -- we need to know before we save the tar.gz file
-        docx_filename = extract_docx_filename(self.metadata, self.consignment_reference)
-        print(f"extracted docx filename is {docx_filename!r}")
+
+        source_filename = extract_source_filename(self.metadata, self.consignment_reference)
+        print(f"extracted source filename is {source_filename!r}")
 
         # Copy original tarfile
         modified_targz_filename = (
             self.destination_tar_filename
-            if docx_filename
+            if source_filename
             else modify_filename(self.destination_tar_filename, "_nodocx")
         )
         with open(self.destination_tar_filename, mode="rb") as local_tar_read_buffer:
@@ -450,14 +451,15 @@ class Ingest:
             )
         print(f"saved tar.gz as {modified_targz_filename!r}")
 
-        # Store docx and rename
-        # The docx_filename is None for files which have been reparsed.
-        if docx_filename is not None:
+        # Store source file and rename
+        # The name is None for files which have been reparsed.
+        if source_filename is not None:
+            source_filename_extension = source_filename.split(".")[-1].lower()  # eg. docx/pdf
             copy_file(
                 self.local_tarfile_reader,
-                f"{self.consignment_reference}/{docx_filename}",
+                f"{self.consignment_reference}/{source_filename}",
                 self.destination_bucket,
-                f"{self.uri.replace('/', '_')}.docx",
+                f"{self.uri.replace('/', '_')}.{source_filename_extension}",
                 S3PrefixString(self.uri + "/"),
                 self.s3_client,
             )

@@ -235,16 +235,16 @@ class TestIngesterGetBestXMLMethod:
 
 
 class TestIngesterExtractDocxFilenameMethod:
-    def test_extract_docx_filename_success(self):
+    def test_extract_source_filename_success(self):
         metadata = {"parameters": {"TRE": {"payload": {"filename": "judgment.docx"}}}}
-        assert ingester.extract_docx_filename(metadata, "anything") == "judgment.docx"
+        assert ingester.extract_source_filename(metadata, "anything") == "judgment.docx"
 
-    def test_extract_docx_filename_no_docx_provided(self):
+    def test_extract_source_filename_no_docx_provided(self):
         """Reparsed documents do not have a docx file and have the metadata set to None"""
         metadata = {"parameters": {"TRE": {"payload": {"filename": None}}}}
-        assert ingester.extract_docx_filename(metadata, "anything") is None
+        assert ingester.extract_source_filename(metadata, "anything") is None
 
-    def test_extract_docx_filename_failure(self):
+    def test_extract_source_filename_failure(self):
         metadata = {"parameters": {"TRE": {"payload": {}}}}
         with pytest.raises(exceptions.DocxFilenameNotFoundException):
-            ingester.extract_docx_filename(metadata, "anything")
+            ingester.extract_source_filename(metadata, "anything")

@@ -83,7 +83,7 @@ def v2_ingest(fake_location):
     new_callable=PropertyMock,
     return_value=(DocumentURIString("s3-a1b2-c3d4"), True),
 )
-def s3_ingest(fake_determine_uri):  # TODO DRAGON
+def s3_ingest(fake_determine_uri):
     create_fake_bulk_file()
     with tarfile.open("/tmp/BULK-0.tar.gz", mode="r") as tarfile_reader:
         return ingester.Ingest(

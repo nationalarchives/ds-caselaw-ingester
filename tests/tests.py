@@ -503,6 +503,21 @@ class TestLambda:
         with pytest.raises(MarklogicCommunicationError):
             v2_ingest.insert_document_xml()
 
+    @patch("src.ds_caselaw_ingester.ingester.copy_file")
+    @patch("src.ds_caselaw_ingester.ingester.extract_source_filename", return_value="file.pdf")
+    def test_extension_is_retained_pdf(self, pdf_filename, copy_file, v2_ingest):
+        v2_ingest.save_files_to_s3()
+        (call,) = [x for x in copy_file.call_args_list if x.args[1] == "TDR-2022-DNWR/file.pdf"]
+        assert call.args[3] == "v2-a1b2-c3d4.pdf"
+
+    @patch("src.ds_caselaw_ingester.ingester.copy_file")
+    @patch("src.ds_caselaw_ingester.ingester.extract_source_filename", return_value="file.docx")
+    def test_extension_is_retained_docx(self, docx_filename, copy_file, v2_ingest):
+
+        v2_ingest.save_files_to_s3()
+        (call,) = [x for x in copy_file.call_args_list if x.args[1] == "TDR-2022-DNWR/file.docx"]
+        assert call.args[3] == "v2-a1b2-c3d4.docx"
+
     def test_user_agent(self):
         assert "ingester" in lambda_function.api_client.session.headers["User-Agent"]
 

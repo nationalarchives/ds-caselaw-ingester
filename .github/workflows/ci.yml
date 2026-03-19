@@ -44,9 +44,16 @@ jobs:
       - run: pip install -r requirements/local.txt
 
       - name: Run tests with coverage
-        run: pytest --cov --cov-branch --cov-report=xml
+        run: pytest --cov --junitxml=junit.xml -o junit_family=legacy --cov-branch --cov-report=xml
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
         with:
+          token: ${{ secrets.CODECOV_TOKEN }} # zizmor: ignore[secrets-outside-env]
+
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
+        with:
+          report_type: test_results
           token: ${{ secrets.CODECOV_TOKEN }} # zizmor: ignore[secrets-outside-env]

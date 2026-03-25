@@ -33,7 +33,7 @@ repos:
         language_version: "3.13"
         additional_dependencies:
           - types-requests==2.32.4.20260107
-          - types-python-dateutil==2.9.0.20260305
+          - types-python-dateutil==2.9.0.20260323
           - types-pytz==2026.1.1.20260304
           - boto3-stubs[s3,sns]==1.42.73
           - ds-caselaw-marklogic-api-client==44.4.5

@@ -226,6 +226,34 @@ class TestHandler:
         mock_doc.identifiers.add.assert_not_called()
         mock_doc.identifiers.save.assert_not_called()
 
+    @patch("src.ds_caselaw_ingester.lambda_function.boto3.session.Session")
+    @patch(
+        "src.ds_caselaw_ingester.lambda_function.perform_ingest",
+        side_effect=[exceptions.FileNotFoundException("test"), exceptions.DocxFilenameNotFoundException("test2")],
+    )
+    @patch("src.ds_caselaw_ingester.lambda_function.rollbar.report_exc_info")
+    def test_handler_exception_handled(
+        self,
+        mock_rollbar_call,
+        mock_perform_ingest,
+        boto_session,
+        capsys,
+    ):
+        message = s3_message_raw
+        event = {"Records": [{"Sns": {"Message": message}}, {"Sns": {"Message": message}}]}
+        lambda_function.handler(event=event, context=None)
+
+        log = capsys.readouterr().out
+        # rollbar is called each time it fails
+        mock_rollbar_call.assert_has_calls([call(level="warning"), call(level="warning")])
+
+        # stacktraces are in the log
+        assert "Traceback (most recent call last):" in log
+        assert "ds_caselaw_ingester.exceptions.FileNotFoundException: test" in log
+
+        # the first invocation does not block the second
+        assert "ds_caselaw_ingester.exceptions.DocxFilenameNotFoundException: test2" in log
+
 
 class TestLambda:
     def test_store_metadata(self, v2_ingest):

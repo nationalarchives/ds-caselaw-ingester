@@ -203,7 +203,7 @@ class TestHandler:
         assert "No XML file found in tarfile." in log
         assert "Ingesting document uuid" in log
         assert "Inserted judgment xml for uuid" in log
-        assert "extracted docx filename is 'failures_TDR-2025-CN7V.docx'" in log
+        assert "extracted source filename is 'failures_TDR-2025-CN7V.docx'" in log
         assert "Upload Successful uuid/TDR-2025-CN7V.tar.gz" in log
         assert "saved tar.gz as '/tmp/TDR-2025-CN7V.tar.gz'" in log
         assert "Upload Successful uuid/uuid.docx" in log

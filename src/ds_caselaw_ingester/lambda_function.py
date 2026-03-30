@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import tarfile
+import traceback
 from abc import ABC, abstractmethod
 from urllib.parse import unquote_plus
 
@@ -17,7 +18,7 @@ from caselawclient.Client import (
 from dotenv import load_dotenv
 from mypy_boto3_s3.client import S3Client
 
-from .exceptions import InvalidMessageException
+from .exceptions import InvalidMessageException, ReportableException
 from .ingester import Ingest, perform_ingest
 
 logger = logging.getLogger("ingester")
@@ -171,19 +172,22 @@ def get_s3_client() -> S3Client:
 def handler(event, context):
     s3_client = get_s3_client()
     for message in all_messages(event):
-        print(f"Received Message: {message.message}")
+        try:
+            print(f"Received Message: {message.message}")
+            # Download the tarfile specified in the message, and inject into the ingester
+            local_tar_filename = message.save_s3_response(s3_client=s3_client)
+            print(f"Tarfile saved locally as {local_tar_filename}")
+            with tarfile.open(local_tar_filename, mode="r") as tarfile_reader:
+                ingest = Ingest(
+                    message=message,
+                    tarfile_reader=tarfile_reader,
+                    destination_bucket=PRIVATE_ASSET_BUCKET,
+                    destination_tar_filename=local_tar_filename,
+                    api_client=api_client,
+                    s3_client=s3_client,
+                )
 
-        # Download the tarfile specified in the message, and inject into the ingester
-        local_tar_filename = message.save_s3_response(s3_client=s3_client)
-        print(f"Tarfile saved locally as {local_tar_filename}")
-        with tarfile.open(local_tar_filename, mode="r") as tarfile_reader:
-            ingest = Ingest(
-                message=message,
-                tarfile_reader=tarfile_reader,
-                destination_bucket=PRIVATE_ASSET_BUCKET,
-                destination_tar_filename=local_tar_filename,
-                api_client=api_client,
-                s3_client=s3_client,
-            )
-
-            perform_ingest(ingest)
+                perform_ingest(ingest)
+        except ReportableException:
+            rollbar.report_exc_info(level="warning")
+            print(traceback.format_exc())

@@ -1,10 +1,5 @@
-import rollbar
-
-
 class ReportableException(Exception):
-    def __init__(self, *args, **kwargs) -> None:
-        rollbar.report_message("Something happened!", "warning", str(self))
-        super().__init__(*args, **kwargs)
+    pass
 
 
 class S3HTTPError(ReportableException):

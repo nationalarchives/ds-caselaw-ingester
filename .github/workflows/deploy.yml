@@ -19,7 +19,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
       - uses: aws-actions/setup-sam@d78e1a4a9656d3b223e59b80676a797f20093133 # v2
-      - uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
+      - uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 # v6.1.0
         with:
           role-to-assume: ${{ secrets.AWS_OIDC_STAGING_ROLE_ARN }}
           aws-region: eu-west-2

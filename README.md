@@ -71,8 +71,9 @@ The logs will show the response from the lambda directly below this line. Any va
 
 To run the tests
 
-- [First time] create a virtualenv (`virtualenv venv -p \`which python\`` )
+- [First time] create a virtualenv (`` virtualenv venv -p `which python` ``)
 - Activate it with `. venv/bin/activate`
+- Install requirements with `pip install -r requirements/local.txt`
 - `scripts/test`
 - When you're done, you might want to `deactivate`
 

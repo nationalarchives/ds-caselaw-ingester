@@ -103,10 +103,22 @@ To test a tarfile locally:
    If you run `make setup` without an argument, the original test tarfile `TDR-2022-DNWR.tar.gz` will be used
 4. Run `make send-message-v2` to ingest your tarfile.
 
+## Release process
+
+<!-- last_review: 2026-04-14 -->
+
+1. [Create a new release](https://github.com/nationalarchives/ds-caselaw-ingester/releases/new), named and tagged `vX.Y.Z` following semantic versioning.
+1. Autogenerate release notes.
+1. Publish the release.
+
 ## Deployment
 
-<!-- last_review: 2026-04-09 -->
+<!-- last_review: 2026-04-14 -->
 
-Every change to the `main` branch is automatically deployed to the staging environment via GitHub actions.
+### Staging
 
-Only releases are deployed to production. To trigger a deploy, [create a new release](https://github.com/nationalarchives/ds-caselaw-ingester/releases/new) named and tagged `vX.Y.Z` following semantic versioning. Autogenerate release notes, and publish; the release will then be tagged `latest` automatically and deployed to production.
+Every change to the `main` branch is automatically deployed to the staging environment.
+
+### Production
+
+To deploy to production, create a tagged release following the [release process](#release-process).

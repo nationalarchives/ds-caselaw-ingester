@@ -40,3 +40,7 @@ class MultipleResolutionsFoundError(DocumentInsertionError):
 
 class DocumentXMLNotYetInDatabase(ReportableException):
     pass
+
+
+class CannotPublishException(ReportableException):
+    pass

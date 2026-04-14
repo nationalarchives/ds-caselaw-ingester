@@ -15,6 +15,7 @@ from botocore.exceptions import NoCredentialsError
 from caselawclient.Client import MarklogicApiClient
 from caselawclient.client_helpers import get_document_type_class
 from caselawclient.models.documents import Document, DocumentURIString
+from caselawclient.models.documents.exceptions import CannotPublishUnpublishableDocument
 from caselawclient.models.documents.versions import VersionAnnotation, VersionType
 from caselawclient.models.identifiers import Identifier
 from caselawclient.models.identifiers.neutral_citation import NeutralCitationNumber
@@ -28,6 +29,7 @@ from mypy_boto3_s3.client import S3Client
 from notifications_python_client.notifications import NotificationsAPIClient
 
 from .exceptions import (
+    CannotPublishException,
     DocumentInsertionError,
     DocumentXMLNotYetInDatabase,
     DocxFilenameNotFoundException,
@@ -624,8 +626,11 @@ def perform_ingest(ingest: Ingest) -> None:
     ingest.save_files_to_s3()
 
     if ingest.will_publish():
-        print(f"publishing {ingest.consignment_reference} at {ingest.uri}")
-        ingest.document.publish()
+        try:
+            print(f"publishing {ingest.consignment_reference} at {ingest.uri}")
+            ingest.document.publish()
+        except CannotPublishUnpublishableDocument as err:
+            raise CannotPublishException(*err.args) from err
     else:
         print(f"unpublishing {ingest.uri}")
         ingest.document.unpublish()

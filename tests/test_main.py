@@ -229,7 +229,11 @@ class TestHandler:
     @patch("src.ds_caselaw_ingester.lambda_function.boto3.session.Session")
     @patch(
         "src.ds_caselaw_ingester.lambda_function.perform_ingest",
-        side_effect=[exceptions.FileNotFoundException("test"), exceptions.DocxFilenameNotFoundException("test2")],
+        side_effect=[
+            exceptions.FileNotFoundException("test"),
+            exceptions.DocxFilenameNotFoundException("test2"),
+            exceptions.CannotPublishException(),
+        ],
     )
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest")
     @patch("src.ds_caselaw_ingester.lambda_function.rollbar.report_exc_info")
@@ -244,12 +248,14 @@ class TestHandler:
         capsys,
     ):
         message = s3_message_raw
-        event = {"Records": [{"Sns": {"Message": message}}, {"Sns": {"Message": message}}]}
+        event = {
+            "Records": [{"Sns": {"Message": message}}, {"Sns": {"Message": message}}, {"Sns": {"Message": message}}],
+        }
         lambda_function.handler(event=event, context=None)
 
         log = capsys.readouterr().out
         # rollbar is called each time it fails
-        mock_rollbar_call.assert_has_calls([call(level="warning"), call(level="warning")])
+        mock_rollbar_call.assert_has_calls([call(level="warning"), call(level="warning"), call(level="warning")])
 
         # stacktraces are in the log
         assert "Traceback (most recent call last):" in log

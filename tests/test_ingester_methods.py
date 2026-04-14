@@ -6,9 +6,11 @@ from unittest.mock import ANY, MagicMock, patch
 import boto3
 import pytest
 from botocore.exceptions import NoCredentialsError
+from caselawclient.models.documents.exceptions import CannotPublishUnpublishableDocument
 from caselawclient.models.utilities.aws import S3PrefixString
 
 from src.ds_caselaw_ingester import exceptions, ingester
+from src.ds_caselaw_ingester.exceptions import ReportableException
 
 TDR_TARBALL_PATH = os.path.join(
     os.path.dirname(__file__),
@@ -248,3 +250,13 @@ class TestIngesterExtractDocxFilenameMethod:
         metadata = {"parameters": {"TRE": {"payload": {}}}}
         with pytest.raises(exceptions.DocxFilenameNotFoundException):
             ingester.extract_source_filename(metadata, "anything")
+
+
+class TestPerformIngest:
+    def test_perform_ingest_raises_reportable_error_if_unpublishable(self):
+        """If the document is not publishable, ensure processing continues with the next document and rollbar is informed."""
+        ingest = MagicMock()
+        ingest.will_publish.return_value = True
+        ingest.document.publish.side_effect = CannotPublishUnpublishableDocument("Publishing failed")
+        with pytest.raises(ReportableException, match="^Publishing failed$"):
+            ingester.perform_ingest(ingest)

@@ -231,10 +231,14 @@ class TestHandler:
         "src.ds_caselaw_ingester.lambda_function.perform_ingest",
         side_effect=[exceptions.FileNotFoundException("test"), exceptions.DocxFilenameNotFoundException("test2")],
     )
+    @patch("src.ds_caselaw_ingester.lambda_function.Ingest")
     @patch("src.ds_caselaw_ingester.lambda_function.rollbar.report_exc_info")
+    @patch("src.ds_caselaw_ingester.lambda_function.api_client", autospec=True)
     def test_handler_exception_handled(
         self,
+        mock_api_client,
         mock_rollbar_call,
+        mock_ingest,
         mock_perform_ingest,
         boto_session,
         capsys,

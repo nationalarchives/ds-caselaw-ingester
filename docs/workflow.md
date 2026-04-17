@@ -9,18 +9,27 @@ This describes the sequence of events which happens when a document is ingested,
 
 sequenceDiagram
     participant SNS as Amazon SNS
+    participant SQS as Amazon SQS
+    participant DLQ as Dead-letter queue<br>(SQS)
     participant lambda as lambda_function
     participant perform_ingest
 
     activate SNS
-    SNS ->> lambda : SNS Event
+    SNS ->> SQS : Publish notification
     deactivate SNS
+
+    activate SQS
+    SQS ->> lambda : SQS Event (batch of records)
+    deactivate SQS
 
     activate lambda
 
-    lambda ->> lambda : Unpack event to list of Messages
+    lambda ->> lambda : Initialise empty batchItemFailures list
 
-    loop for each Message
+    loop for each SQS record
+
+        lambda ->> lambda : Extract SNS envelope from record body
+        lambda ->> lambda : Decode Message from SNS envelope
 
         create participant Ingest
         lambda ->> Ingest : Create new Ingest instance
@@ -160,6 +169,18 @@ sequenceDiagram
 
         deactivate perform_ingest
 
+        break on ReportableException or unexpected Exception
+            lambda ->> lambda : Report to Rollbar
+            lambda ->> lambda : Add record messageId to batchItemFailures
+            note right of lambda: Processing continues with the next record
+        end
+
+    end
+
+    opt batchItemFailures is not empty
+        lambda -->> SQS : Return {batchItemFailures: [...]}
+        note right of SQS: Failed messages become visible again.<br>After max retries, SQS moves them to the DLQ.
+        SQS -->> DLQ : Messages exceeding max receive count
     end
 
     deactivate lambda

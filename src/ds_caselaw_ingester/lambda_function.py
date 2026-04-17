@@ -136,11 +136,26 @@ class S3Message(V2Message):
         return local_tar_filename
 
 
-def all_messages(event) -> list[Message]:
-    """All the messages in the SNS event, as Message subclasses"""
+def _extract_raw_message(record: dict) -> dict:
+    """Extract the decoded message dict from either an SNS or SQS event record.
+
+    SQS records (from an SNS subscription with raw_message_delivery=false)
+    contain the SNS notification envelope in the ``body`` field.
+    """
     decoder = json.decoder.JSONDecoder()
-    messages_as_decoded_json = [decoder.decode(record["Sns"]["Message"]) for record in event["Records"]]
-    return [Message.from_message(message) for message in messages_as_decoded_json]
+    if record.get("eventSource") == "aws:sqs":
+        sns_notification = decoder.decode(record["body"])
+        return decoder.decode(sns_notification["Message"])
+    return decoder.decode(record["Sns"]["Message"])
+
+
+def all_messages(event) -> list[Message]:
+    """All the messages in the event, as Message subclasses.
+
+    Supports both direct SNS trigger events and SQS events
+    (where each record body wraps an SNS notification).
+    """
+    return [Message.from_message(_extract_raw_message(record)) for record in event["Records"]]
 
 
 # called by tests
@@ -171,8 +186,12 @@ def get_s3_client() -> S3Client:
 @rollbar.lambda_function
 def handler(event, context):
     s3_client = get_s3_client()
-    for message in all_messages(event):
+    batch_item_failures = []
+
+    for record in event.get("Records", []):
+        message_id = record.get("messageId")  # Present only for SQS records
         try:
+            message = Message.from_message(_extract_raw_message(record))
             print(f"Received Message: {message.message}")
             # Download the tarfile specified in the message, and inject into the ingester
             local_tar_filename = message.save_s3_response(s3_client=s3_client)
@@ -191,3 +210,13 @@ def handler(event, context):
         except ReportableException:
             rollbar.report_exc_info(level="warning")
             print(traceback.format_exc())
+            if message_id:
+                batch_item_failures.append({"itemIdentifier": message_id})
+        except Exception:  # noqa: BLE001 — catch-all required for SQS partial batch failure reporting
+            rollbar.report_exc_info(level="error")
+            print(traceback.format_exc())
+            if message_id:
+                batch_item_failures.append({"itemIdentifier": message_id})
+
+    if batch_item_failures:
+        return {"batchItemFailures": batch_item_failures}

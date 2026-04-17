@@ -33,7 +33,7 @@ variable "max_receive_count" {
 }
 
 variable "tags" {
-  description = "Tags to apply to all resources"
+  description = "Tags to apply to all resources, e.g. { Project = \"ds-caselaw-ingester\" }"
   type        = map(string)
   default     = {}
 }

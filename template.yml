@@ -56,6 +56,17 @@ Parameters:
   SqsQueueUrl:
     Description: "SQS_QUEUE_URL"
     Type: "String"
+  IngestQueueArn:
+    Description: "ARN of the SQS ingest queue (created by Terraform)"
+    Type: "String"
+  IngestQueueBatchSize:
+    Description: "Number of SQS messages per Lambda invocation"
+    Type: "Number"
+    Default: 1
+  ReservedConcurrentExecutions:
+    Description: "Maximum concurrent Lambda executions"
+    Type: "Number"
+    Default: 5
   VpcSubnetId0:
     Description: "VPC Subnet ID 0"
     Type: "String"
@@ -80,6 +91,15 @@ Resources:
       Architectures:
         - x86_64
       Timeout: 420
+      ReservedConcurrentExecutions: !Ref ReservedConcurrentExecutions
+      Events:
+        IngestQueue:
+          Type: SQS
+          Properties:
+            Queue: !Ref IngestQueueArn
+            BatchSize: !Ref IngestQueueBatchSize
+            FunctionResponseTypes:
+              - ReportBatchItemFailure
       Environment:
         Variables:
           PRIVATE_ASSET_BUCKET: !Ref AwsBucketName

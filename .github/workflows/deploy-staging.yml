@@ -12,6 +12,9 @@ jobs:
     uses: ./.github/workflows/terraform.yml
     with:
       environment: staging
+    permissions:
+      id-token: write
+      contents: read
     secrets:
       AWS_OIDC_ROLE_ARN: ${{ secrets.AWS_OIDC_STAGING_ROLE_ARN }}
       TF_BACKEND_BUCKET: ${{ secrets.TF_BACKEND_BUCKET }}

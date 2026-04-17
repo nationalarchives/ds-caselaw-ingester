@@ -1,0 +1,91 @@
+name: Terraform Plan and Apply
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "Environment to deploy to"
+        required: true
+        type: string
+    secrets:
+      AWS_OIDC_ROLE_ARN:
+        description: "The OIDC role ARN to assume for this environment"
+        required: true
+      TF_BACKEND_BUCKET:
+        description: "S3 bucket for Terraform state"
+        required: true
+      TF_VAR_SNS_TOPIC_ARNS:
+        description: "JSON list of SNS topic ARNs"
+        required: true
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to deploy to"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      apply:
+        description: "Run terraform apply?"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+env:
+  AWS_REGION: eu-west-2
+  TERRAFORM_VERSION: 1.9.0
+  TF_IN_AUTOMATION: true
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    name: Terraform ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TF_VAR_environment: ${{ inputs.environment }}
+      TF_VAR_sns_topic_arns: ${{ secrets.TF_VAR_SNS_TOPIC_ARNS }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 # v6.1.0
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN || (inputs.environment == 'production' && secrets.AWS_OIDC_PRODUCTION_ROLE_ARN || secrets.AWS_OIDC_STAGING_ROLE_ARN) }}
+          role-session-name: GitHubActions-Terraform-${{ inputs.environment }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@5e8dbf3c6d9deaf4193ca7a8fb23f2ac83bb6c85 # v4.0.0
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: true
+
+      - name: Terraform Init
+        run: terraform init -input=false -backend-config="bucket=${{ secrets.TF_BACKEND_BUCKET }}"
+        working-directory: terraform
+
+      - name: Terraform Validate
+        run: terraform validate -no-color
+        working-directory: terraform
+
+      - name: Terraform Plan
+        run: terraform plan -input=false
+        working-directory: terraform
+
+      - name: Terraform Apply
+        if: github.event_name != 'workflow_dispatch' || inputs.apply == 'true'
+        run: terraform apply -auto-approve -input=false
+        working-directory: terraform

@@ -25,6 +25,21 @@ Install both from the requirements file using:
 python3 -m pip install -r requirements/local.txt
 ```
 
+For working on infrastructure, you'll need [Terraform](https://developer.hashicorp.com/terraform/install) (>= 1.5) and [TFLint](https://github.com/terraform-linters/tflint) installed. These are also used by the pre-commit hooks.
+
+### Working on Terraform
+
+The SQS queue infrastructure lives in `terraform/`. To validate and lint changes locally:
+
+```bash
+cd terraform
+terraform init -backend=false
+terraform validate
+terraform fmt
+```
+
+To preview what your changes will do, run `terraform plan` locally with AWS credentials (see [docs/deploy.md](docs/deploy.md)). Terraform plans also run automatically on PRs. **Never apply Terraform directly from your machine** — merges to `main` deploy to staging, and tagged releases deploy to production.
+
 ### Setup Localstack
 
 First, copy `.env.example` to `.env` and fill in the missing variables. If you are using Localstack via Docker, leave `MARKLOGIC_HOST` as `host.docker.internal`.
@@ -116,10 +131,6 @@ To test a tarfile locally:
 
 <!-- last_review: 2026-04-14 -->
 
-### Staging
+Both the Lambda (SAM) and SQS infrastructure (Terraform) are deployed automatically via GitHub Actions. Pushes to `main` deploy to staging; tagged releases deploy to production.
 
-Every change to the `main` branch is automatically deployed to the staging environment.
-
-### Production
-
-To deploy to production, create a tagged release following the [release process](#release-process).
+See [docs/deploy.md](docs/deploy.md) for full details.

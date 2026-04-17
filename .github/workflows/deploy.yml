@@ -5,14 +5,25 @@ on:
     branches:
       - main
 
-permissions:
-  id-token: write
-  contents: read
+permissions: {}
 
 jobs:
+  terraform:
+    uses: ./.github/workflows/terraform.yml
+    with:
+      environment: staging
+    secrets:
+      AWS_OIDC_ROLE_ARN: ${{ secrets.AWS_OIDC_STAGING_ROLE_ARN }}
+      TF_BACKEND_BUCKET: ${{ secrets.TF_BACKEND_BUCKET }}
+      TF_VAR_SNS_TOPIC_ARNS: ${{ secrets.TF_VAR_SNS_TOPIC_ARNS }}
+
   build-deploy:
+    needs: terraform
     runs-on: ubuntu-latest
     environment: staging
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -41,6 +52,7 @@ jobs:
           RollbarToken=${{ secrets.ROLLBAR_TOKEN }}
           SnsTopic=${{ vars.SNS_TOPIC }}
           SqsQueueUrl=${{ vars.SQS_QUEUE_URL }}
+          IngestQueueArn=${{ vars.INGEST_QUEUE_ARN }}
           VpcSubnetId0=${{ vars.VPC_SUBNET_ID_0 }}
           VpcSubnetId1=${{ vars.VPC_SUBNET_ID_1 }}
           VpcSubnetId2=${{ vars.VPC_SUBNET_ID_2 }}

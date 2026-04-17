@@ -11,6 +11,10 @@ jobs:
     uses: ./.github/workflows/terraform.yml
     with:
       environment: production
+    permissions:
+      id-token: write
+      contents: read
+
     secrets:
       AWS_OIDC_ROLE_ARN: ${{ secrets.AWS_OIDC_PRODUCTION_ROLE_ARN }}
       TF_BACKEND_BUCKET: ${{ secrets.TF_BACKEND_BUCKET }}

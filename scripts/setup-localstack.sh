@@ -69,3 +69,29 @@ awslocal s3api create-bucket --bucket staging-tre-court-document-pack-out
 awslocal s3 cp aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz s3://staging-tre-court-document-pack-out/QX/e31b117f-ff09-49b6-a697-7952c7a67384/QX.tar.gz
 awslocal s3 cp aws_examples/s3/te-editorial-out-int/press-summary.tar.gz s3://staging-tre-court-document-pack-out/QX/press-summary/QX.tar.gz
 awslocal sqs create-queue --queue-name retry-queue
+
+# Ingest queue with DLQ for buffering SNS messages
+awslocal sqs create-queue --queue-name ingest-dlq
+awslocal sqs create-queue --queue-name ingest-queue \
+  --attributes '{
+    "MessageRetentionPeriod": "1209600",
+    "VisibilityTimeout": "2520",
+    "RedrivePolicy": "{\"deadLetterTargetArn\":\"arn:aws:sqs:us-east-1:000000000000:ingest-dlq\",\"maxReceiveCount\":\"5\"}"
+  }'
+
+# Subscribe the ingest queue to SNS topics
+awslocal sns subscribe \
+  --topic-arn arn:aws:sns:us-east-1:000000000000:judgments \
+  --protocol sqs \
+  --notification-endpoint arn:aws:sqs:us-east-1:000000000000:ingest-queue
+
+awslocal sns subscribe \
+  --topic-arn arn:aws:sns:us-east-1:000000000000:inbound-sns \
+  --protocol sqs \
+  --notification-endpoint arn:aws:sqs:us-east-1:000000000000:ingest-queue
+
+# Create SQS → Lambda event source mapping
+awslocal lambda create-event-source-mapping \
+  --function-name te-lambda \
+  --event-source-arn arn:aws:sqs:us-east-1:000000000000:ingest-queue \
+  --batch-size 1

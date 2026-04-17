@@ -136,7 +136,7 @@ class S3Message(V2Message):
         return local_tar_filename
 
 
-def _extract_raw_message(record: dict) -> dict:
+def extract_raw_message(record: dict) -> dict:
     """Extract the decoded message dict from either an SNS or SQS event record.
 
     SQS records (from an SNS subscription with raw_message_delivery=false)
@@ -155,7 +155,7 @@ def all_messages(event) -> list[Message]:
     Supports both direct SNS trigger events and SQS events
     (where each record body wraps an SNS notification).
     """
-    return [Message.from_message(_extract_raw_message(record)) for record in event["Records"]]
+    return [Message.from_message(extract_raw_message(record)) for record in event["Records"]]
 
 
 # called by tests
@@ -191,7 +191,7 @@ def handler(event, context):
     for record in event.get("Records", []):
         message_id = record.get("messageId")  # Present only for SQS records
         try:
-            message = Message.from_message(_extract_raw_message(record))
+            message = Message.from_message(extract_raw_message(record))
             print(f"Received Message: {message.message}")
             # Download the tarfile specified in the message, and inject into the ingester
             local_tar_filename = message.save_s3_response(s3_client=s3_client)

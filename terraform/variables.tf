@@ -29,7 +29,7 @@ variable "visibility_timeout_seconds" {
 variable "max_receive_count" {
   description = "Number of times a message can be received before being sent to the DLQ"
   type        = number
-  default     = 5
+  default     = 1
 }
 
 variable "tags" {

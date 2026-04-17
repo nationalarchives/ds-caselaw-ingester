@@ -988,6 +988,31 @@ class TestSQSHandler:
         # SNS records have no messageId, so no batch failures reported
         assert result is None
 
+    @patch("src.ds_caselaw_ingester.lambda_function.boto3.session.Session")
+    @patch(
+        "src.ds_caselaw_ingester.lambda_function.perform_ingest",
+        side_effect=RuntimeError("unexpected"),
+    )
+    @patch("src.ds_caselaw_ingester.lambda_function.Ingest")
+    @patch("src.ds_caselaw_ingester.lambda_function.rollbar.report_exc_info")
+    @patch("src.ds_caselaw_ingester.lambda_function.api_client", autospec=True)
+    def test_sns_handler_unexpected_exception_skips_batch_failure(
+        self,
+        mock_api_client,
+        mock_rollbar_call,
+        mock_ingest,
+        mock_perform_ingest,
+        boto_session,
+    ):
+        """Direct SNS unexpected errors are reported but don't produce batch failures."""
+        message = v2_message_raw
+        event = {"Records": [{"Sns": {"Message": message}}]}
+        result = lambda_function.handler(event=event, context=None)
+
+        mock_rollbar_call.assert_called_with(level="error")
+        # SNS records have no messageId, so no batch failures reported
+        assert result is None
+
 
 class TestExtractRawMessage:
     """Tests for the extract_raw_message helper."""

@@ -157,12 +157,12 @@ sequenceDiagram
         participant S3_published as Published bucket<br>(S3)
 
         alt Document is set to auto-publish
-            perform_ingest ->> document: publish()
-            Ingest <<->> S3_unpublished : Get list of assets with document prefix
+            perform_ingest ->>+ document: publish()
+            document <<->> S3_unpublished : Get list of assets with document prefix
             loop For each asset
-                Ingest ->> S3_published : Copy asset to published bucket
+                document ->> S3_published : Copy asset to published bucket
             end
-            deactivate Ingest
+            deactivate document
         else Document is not set to auto-publish
             perform_ingest ->> document: unpublish()
         end

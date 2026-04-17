@@ -57,6 +57,33 @@ s3_message = {
 v2_message = json.loads(v2_message_raw)
 s3_message_raw = json.dumps(s3_message)
 
+# SQS event wrapping an SNS notification (raw_message_delivery=false)
+sqs_v2_event = {
+    "Records": [
+        {
+            "messageId": "msg-001",
+            "receiptHandle": "test-receipt-handle",
+            "body": json.dumps({"Type": "Notification", "Message": v2_message_raw}),
+            "eventSource": "aws:sqs",
+            "eventSourceARN": "arn:aws:sqs:eu-west-2:123456789012:test-queue",
+            "awsRegion": "eu-west-2",
+        },
+    ],
+}
+
+sqs_s3_event = {
+    "Records": [
+        {
+            "messageId": "msg-002",
+            "receiptHandle": "test-receipt-handle-2",
+            "body": json.dumps({"Type": "Notification", "Message": s3_message_raw}),
+            "eventSource": "aws:sqs",
+            "eventSourceARN": "arn:aws:sqs:eu-west-2:123456789012:test-queue",
+            "awsRegion": "eu-west-2",
+        },
+    ],
+}
+
 
 @fixture
 @patch(

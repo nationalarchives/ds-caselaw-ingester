@@ -55,3 +55,13 @@ repos:
     rev: v1.24.1
     hooks:
       - id: zizmor
+
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.105.0
+    hooks:
+      - id: terraform_fmt
+      - id: terraform_validate
+        args:
+          - --hook-config=--retry-once-with-cleanup=true
+          - --tf-init-args=-backend=false
+      - id: terraform_tflint

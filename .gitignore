@@ -1,3 +1,4 @@
+.venv
 venv
 package
 dist
@@ -7,6 +8,12 @@ dist
 *.zip
 .DS_Store
 .aws-sam
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
 __pycache__
 
 tmp

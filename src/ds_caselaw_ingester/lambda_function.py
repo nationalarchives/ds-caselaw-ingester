@@ -149,15 +149,6 @@ def extract_raw_message(record: dict) -> dict:
     return decoder.decode(record["Sns"]["Message"])
 
 
-def all_messages(event) -> list[Message]:
-    """All the messages in the event, as Message subclasses.
-
-    Supports both direct SNS trigger events and SQS events
-    (where each record body wraps an SNS notification).
-    """
-    return [Message.from_message(extract_raw_message(record)) for record in event["Records"]]
-
-
 # called by tests
 def get_consignment_reference(message):
     return Message.from_message(message).get_consignment_reference()

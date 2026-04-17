@@ -10,7 +10,7 @@ variable "aws_region" {
 }
 
 variable "sns_topic_arns" {
-  description = "List of SNS topic ARNs that publish ingest messages (owned by another team)"
+  description = "List of SNS topic ARNs that publish ingest messages"
   type        = list(string)
 }
 

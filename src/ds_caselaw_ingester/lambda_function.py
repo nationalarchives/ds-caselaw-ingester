@@ -209,5 +209,4 @@ def handler(event, context):
             if message_id:
                 batch_item_failures.append({"itemIdentifier": message_id})
 
-    if batch_item_failures:
-        return {"batchItemFailures": batch_item_failures}
+    return {"batchItemFailures": batch_item_failures}

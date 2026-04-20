@@ -53,9 +53,6 @@ Parameters:
   SnsTopic:
     Description: "SNS_TOPIC"
     Type: "String"
-  SqsQueueUrl:
-    Description: "SQS_QUEUE_URL"
-    Type: "String"
   IngestQueueArn:
     Description: "ARN of the SQS ingest queue (created by Terraform)"
     Type: "String"
@@ -116,7 +113,6 @@ Resources:
           ROLLBAR_ENV: !Ref RollbarEnv
           ROLLBAR_TOKEN: !Ref RollbarToken
           SNS_TOPIC: !Ref SnsTopic
-          SQS_QUEUE_URL: !Ref SqsQueueUrl
       VpcConfig:
         SubnetIds:
           - !Ref VpcSubnetId0

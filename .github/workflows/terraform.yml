@@ -17,6 +17,10 @@ on:
       TF_VAR_SNS_TOPIC_ARNS:
         description: "JSON list of SNS topic ARNs"
         required: true
+    outputs:
+      ingest_queue_arn:
+        description: "ARN of the SQS ingest queue"
+        value: ${{ jobs.terraform.outputs.ingest_queue_arn }}
   workflow_dispatch:
     inputs:
       environment:
@@ -48,6 +52,8 @@ jobs:
     name: Terraform ${{ inputs.environment }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
+    outputs:
+      ingest_queue_arn: ${{ steps.tf-outputs.outputs.ingest_queue_arn }}
     permissions:
       contents: read
       id-token: write
@@ -88,4 +94,10 @@ jobs:
       - name: Terraform Apply
         if: github.event_name != 'workflow_dispatch' || inputs.apply == 'true'
         run: terraform apply -auto-approve -input=false
+        working-directory: terraform
+
+      - name: Export Terraform Outputs
+        id: tf-outputs
+        run: |
+          echo "ingest_queue_arn=$(terraform output -raw ingest_queue_arn)" >> "$GITHUB_OUTPUT"
         working-directory: terraform

@@ -65,3 +65,9 @@ repos:
           - --hook-config=--retry-once-with-cleanup=true
           - --tf-init-args=-backend=false
       - id: terraform_tflint
+
+  - repo: https://github.com/aws-cloudformation/cfn-lint
+    rev: v1.48.1
+    hooks:
+      - id: cfn-lint
+        files: template.yml

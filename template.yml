@@ -97,7 +97,7 @@ Resources:
             ScalingConfig:
               MaximumConcurrency: !Ref MaximumConcurrency
             FunctionResponseTypes:
-              - ReportBatchItemFailure
+              - ReportBatchItemFailures
       Environment:
         Variables:
           PRIVATE_ASSET_BUCKET: !Ref AwsBucketName

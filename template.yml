@@ -60,8 +60,8 @@ Parameters:
     Description: "Number of SQS messages per Lambda invocation"
     Type: "Number"
     Default: 1
-  ReservedConcurrentExecutions:
-    Description: "Maximum concurrent Lambda executions"
+  MaximumConcurrency:
+    Description: "Maximum concurrent Lambda invocations from the SQS event source"
     Type: "Number"
     Default: 5
   VpcSubnetId0:
@@ -88,13 +88,14 @@ Resources:
       Architectures:
         - x86_64
       Timeout: 420
-      ReservedConcurrentExecutions: !Ref ReservedConcurrentExecutions
       Events:
         IngestQueue:
           Type: SQS
           Properties:
             Queue: !Ref IngestQueueArn
             BatchSize: !Ref IngestQueueBatchSize
+            ScalingConfig:
+              MaximumConcurrency: !Ref MaximumConcurrency
             FunctionResponseTypes:
               - ReportBatchItemFailure
       Environment:

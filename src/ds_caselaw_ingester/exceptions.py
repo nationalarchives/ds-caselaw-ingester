@@ -1,36 +1,41 @@
-class ReportableException(Exception):
+class IngestionError(Exception):
+    """A known, non-transient ingestion failure (e.g. bad XML, unknown court).
+
+    Retrying these at the AWS level will not help — the underlying document or
+    message is fundamentally broken. Subclass this for specific failure modes so
+    they show up with meaningful names in Rollbar and tracebacks.
+    """
+
+
+class S3HTTPError(IngestionError):
     pass
 
 
-class S3HTTPError(ReportableException):
+class MaximumRetriesExceededException(IngestionError):
     pass
 
 
-class MaximumRetriesExceededException(ReportableException):
+class InvalidXMLException(IngestionError):
     pass
 
 
-class InvalidXMLException(ReportableException):
+class InvalidMessageException(IngestionError):
     pass
 
 
-class InvalidMessageException(ReportableException):
+class ErrorLogWouldOverwritePublishedDocument(IngestionError):
     pass
 
 
-class ErrorLogWouldOverwritePublishedDocument(ReportableException):
+class FileNotFoundException(IngestionError):
     pass
 
 
-class FileNotFoundException(ReportableException):
+class DocxFilenameNotFoundException(IngestionError):
     pass
 
 
-class DocxFilenameNotFoundException(ReportableException):
-    pass
-
-
-class DocumentInsertionError(ReportableException):
+class DocumentInsertionError(IngestionError):
     pass
 
 
@@ -38,9 +43,9 @@ class MultipleResolutionsFoundError(DocumentInsertionError):
     pass
 
 
-class DocumentXMLNotYetInDatabase(ReportableException):
+class DocumentXMLNotYetInDatabase(IngestionError):
     pass
 
 
-class CannotPublishException(ReportableException):
+class CannotPublishException(IngestionError):
     pass

@@ -255,7 +255,7 @@ class TestHandler:
 
         log = capsys.readouterr().out
         # rollbar is called each time it fails
-        mock_rollbar_call.assert_has_calls([call(level="warning"), call(level="warning"), call(level="warning")])
+        mock_rollbar_call.assert_has_calls([call(level="error"), call(level="error"), call(level="error")])
 
         # stacktraces are in the log
         assert "Traceback (most recent call last):" in log
@@ -892,28 +892,6 @@ class TestSQSHandler:
         """Failed SQS messages are reported as batchItemFailures so only they are retried."""
         result = lambda_function.handler(event=sqs_v2_event, context=None)
 
-        mock_rollbar_call.assert_called_with(level="warning")
-        assert result == {"batchItemFailures": [{"itemIdentifier": "msg-001"}]}
-
-    @patch("src.ds_caselaw_ingester.lambda_function.boto3.session.Session")
-    @patch(
-        "src.ds_caselaw_ingester.lambda_function.perform_ingest",
-        side_effect=RuntimeError("unexpected"),
-    )
-    @patch("src.ds_caselaw_ingester.lambda_function.Ingest")
-    @patch("src.ds_caselaw_ingester.lambda_function.rollbar.report_exc_info")
-    @patch("src.ds_caselaw_ingester.lambda_function.api_client", autospec=True)
-    def test_sqs_handler_unexpected_exception_reports_batch_failure(
-        self,
-        mock_api_client,
-        mock_rollbar_call,
-        mock_ingest,
-        mock_perform_ingest,
-        boto_session,
-    ):
-        """Non-ReportableException errors also report batch item failures for SQS."""
-        result = lambda_function.handler(event=sqs_v2_event, context=None)
-
         mock_rollbar_call.assert_called_with(level="error")
         assert result == {"batchItemFailures": [{"itemIdentifier": "msg-001"}]}
 
@@ -980,31 +958,6 @@ class TestSQSHandler:
         capsys,
     ):
         """Direct SNS events still work (backward compatibility)."""
-        message = v2_message_raw
-        event = {"Records": [{"Sns": {"Message": message}}]}
-        result = lambda_function.handler(event=event, context=None)
-
-        mock_rollbar_call.assert_called_with(level="warning")
-        # SNS records have no messageId, so no batch failures reported
-        assert result is None
-
-    @patch("src.ds_caselaw_ingester.lambda_function.boto3.session.Session")
-    @patch(
-        "src.ds_caselaw_ingester.lambda_function.perform_ingest",
-        side_effect=RuntimeError("unexpected"),
-    )
-    @patch("src.ds_caselaw_ingester.lambda_function.Ingest")
-    @patch("src.ds_caselaw_ingester.lambda_function.rollbar.report_exc_info")
-    @patch("src.ds_caselaw_ingester.lambda_function.api_client", autospec=True)
-    def test_sns_handler_unexpected_exception_skips_batch_failure(
-        self,
-        mock_api_client,
-        mock_rollbar_call,
-        mock_ingest,
-        mock_perform_ingest,
-        boto_session,
-    ):
-        """Direct SNS unexpected errors are reported but don't produce batch failures."""
         message = v2_message_raw
         event = {"Records": [{"Sns": {"Message": message}}]}
         result = lambda_function.handler(event=event, context=None)

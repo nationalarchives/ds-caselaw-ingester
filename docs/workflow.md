@@ -169,7 +169,7 @@ sequenceDiagram
 
         deactivate perform_ingest
 
-        break on ReportableException or unexpected Exception
+        break on IngestionError or unexpected Exception
             lambda ->> lambda : Report to Rollbar
             lambda ->> lambda : Add record messageId to batchItemFailures
             note right of lambda: Processing continues with the next record

@@ -18,7 +18,7 @@ from caselawclient.Client import (
 from dotenv import load_dotenv
 from mypy_boto3_s3.client import S3Client
 
-from .exceptions import InvalidMessageException, ReportableException
+from .exceptions import InvalidMessageException
 from .ingester import Ingest, perform_ingest
 
 logger = logging.getLogger("ingester")
@@ -203,11 +203,6 @@ def handler(event, context):
                 )
 
                 perform_ingest(ingest)
-        except ReportableException:
-            rollbar.report_exc_info(level="warning")
-            print(traceback.format_exc())
-            if message_id:
-                batch_item_failures.append({"itemIdentifier": message_id})
         except Exception:  # noqa: BLE001 — catch-all required for SQS partial batch failure reporting
             rollbar.report_exc_info(level="error")
             print(traceback.format_exc())

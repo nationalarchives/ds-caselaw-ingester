@@ -136,17 +136,23 @@ class S3Message(V2Message):
         return local_tar_filename
 
 
-def extract_raw_message(record: dict) -> dict:
-    """Extract the decoded message dict from either an SNS or SQS event record.
+def all_messages(event: dict) -> list[tuple[str | None, Message]]:
+    """Parse all records in an SQS or SNS event into (message_id, Message) pairs.
 
-    SQS records (from an SNS subscription with raw_message_delivery=false)
-    contain the SNS notification envelope in the ``body`` field.
+    message_id is the SQS messageId (used for batch failure reporting), or None for
+    direct SNS invocations.
     """
     decoder = json.decoder.JSONDecoder()
-    if record.get("eventSource") == "aws:sqs":
-        sns_notification = decoder.decode(record["body"])
-        return decoder.decode(sns_notification["Message"])
-    return decoder.decode(record["Sns"]["Message"])
+    results = []
+    for record in event.get("Records", []):
+        message_id = record.get("messageId")  # Present only for SQS records
+        if record.get("eventSource") == "aws:sqs":
+            sns_notification = decoder.decode(record["body"])
+            raw = decoder.decode(sns_notification["Message"])
+        else:
+            raw = decoder.decode(record["Sns"]["Message"])
+        results.append((message_id, Message.from_message(raw)))
+    return results
 
 
 # called by tests
@@ -179,11 +185,10 @@ def handler(event, context):
     s3_client = get_s3_client()
     batch_item_failures = []
 
-    for record in event.get("Records", []):
-        message_id = record.get("messageId")  # Present only for SQS records
+    for message_id, message in all_messages(event):
+        print(f"Received Message: {message.message}")
+
         try:
-            message = Message.from_message(extract_raw_message(record))
-            print(f"Received Message: {message.message}")
             # Download the tarfile specified in the message, and inject into the ingester
             local_tar_filename = message.save_s3_response(s3_client=s3_client)
             print(f"Tarfile saved locally as {local_tar_filename}")

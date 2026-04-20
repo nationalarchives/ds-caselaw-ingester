@@ -1014,19 +1014,20 @@ class TestSQSHandler:
         assert result is None
 
 
-class TestExtractRawMessage:
-    """Tests for the extract_raw_message helper."""
+class TestAllMessages:
+    """Tests for the all_messages helper."""
 
-    def test_extracts_from_sns_record(self):
-        record = {"Sns": {"Message": v2_message_raw}}
-        result = lambda_function.extract_raw_message(record)
-        assert result["parameters"]["reference"] == "TDR-2022-DNWR"
+    def test_parses_sns_event(self):
+        event = {"Records": [{"Sns": {"Message": v2_message_raw}}]}
+        results = lambda_function.all_messages(event)
+        assert len(results) == 1
+        message_id, message = results[0]
+        assert message_id is None
+        assert message.get_consignment_reference() == "TDR-2022-DNWR"
 
-    def test_extracts_from_sqs_record(self):
-        record = {
-            "messageId": "test",
-            "body": json.dumps({"Type": "Notification", "Message": v2_message_raw}),
-            "eventSource": "aws:sqs",
-        }
-        result = lambda_function.extract_raw_message(record)
-        assert result["parameters"]["reference"] == "TDR-2022-DNWR"
+    def test_parses_sqs_event(self):
+        results = lambda_function.all_messages(sqs_v2_event)
+        assert len(results) == 1
+        message_id, message = results[0]
+        assert message_id == "msg-001"
+        assert message.get_consignment_reference() == "TDR-2022-DNWR"

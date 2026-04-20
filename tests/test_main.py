@@ -255,7 +255,7 @@ class TestHandler:
 
         log = capsys.readouterr().out
         # rollbar is called each time it fails
-        mock_rollbar_call.assert_has_calls([call(level="warning"), call(level="warning"), call(level="warning")])
+        mock_rollbar_call.assert_has_calls([call(level="error"), call(level="error"), call(level="error")])
 
         # stacktraces are in the log
         assert "Traceback (most recent call last):" in log

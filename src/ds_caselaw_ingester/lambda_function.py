@@ -18,7 +18,7 @@ from caselawclient.Client import (
 from dotenv import load_dotenv
 from mypy_boto3_s3.client import S3Client
 
-from .exceptions import InvalidMessageException, ReportableException
+from .exceptions import InvalidMessageException
 from .ingester import Ingest, perform_ingest
 
 logger = logging.getLogger("ingester")
@@ -136,11 +136,23 @@ class S3Message(V2Message):
         return local_tar_filename
 
 
-def all_messages(event) -> list[Message]:
-    """All the messages in the SNS event, as Message subclasses"""
+def all_messages(event: dict) -> list[tuple[str | None, Message]]:
+    """Parse all records in an SQS or SNS event into (message_id, Message) pairs.
+
+    message_id is the SQS messageId (used for batch failure reporting), or None for
+    direct SNS invocations.
+    """
     decoder = json.decoder.JSONDecoder()
-    messages_as_decoded_json = [decoder.decode(record["Sns"]["Message"]) for record in event["Records"]]
-    return [Message.from_message(message) for message in messages_as_decoded_json]
+    results = []
+    for record in event.get("Records", []):
+        message_id = record.get("messageId")  # Present only for SQS records
+        if record.get("eventSource") == "aws:sqs":
+            sns_notification = decoder.decode(record["body"])
+            raw = decoder.decode(sns_notification["Message"])
+        else:
+            raw = decoder.decode(record["Sns"]["Message"])
+        results.append((message_id, Message.from_message(raw)))
+    return results
 
 
 # called by tests
@@ -171,9 +183,12 @@ def get_s3_client() -> S3Client:
 @rollbar.lambda_function
 def handler(event, context):
     s3_client = get_s3_client()
-    for message in all_messages(event):
+    batch_item_failures = []
+
+    for message_id, message in all_messages(event):
+        print(f"Received Message: {message.message}")
+
         try:
-            print(f"Received Message: {message.message}")
             # Download the tarfile specified in the message, and inject into the ingester
             local_tar_filename = message.save_s3_response(s3_client=s3_client)
             print(f"Tarfile saved locally as {local_tar_filename}")
@@ -188,6 +203,10 @@ def handler(event, context):
                 )
 
                 perform_ingest(ingest)
-        except ReportableException:
-            rollbar.report_exc_info(level="warning")
+        except Exception:  # noqa: BLE001 — catch-all required for SQS partial batch failure reporting
+            rollbar.report_exc_info(level="error")
             print(traceback.format_exc())
+            if message_id:
+                batch_item_failures.append({"itemIdentifier": message_id})
+
+    return {"batchItemFailures": batch_item_failures}

@@ -53,9 +53,17 @@ Parameters:
   SnsTopic:
     Description: "SNS_TOPIC"
     Type: "String"
-  SqsQueueUrl:
-    Description: "SQS_QUEUE_URL"
+  IngestQueueArn:
+    Description: "ARN of the SQS ingest queue (created by Terraform)"
     Type: "String"
+  IngestQueueBatchSize:
+    Description: "Number of SQS messages per Lambda invocation"
+    Type: "Number"
+    Default: 1
+  MaximumConcurrency:
+    Description: "Maximum concurrent Lambda invocations from the SQS event source"
+    Type: "Number"
+    Default: 5
   VpcSubnetId0:
     Description: "VPC Subnet ID 0"
     Type: "String"
@@ -80,6 +88,16 @@ Resources:
       Architectures:
         - x86_64
       Timeout: 420
+      Events:
+        IngestQueue:
+          Type: SQS
+          Properties:
+            Queue: !Ref IngestQueueArn
+            BatchSize: !Ref IngestQueueBatchSize
+            ScalingConfig:
+              MaximumConcurrency: !Ref MaximumConcurrency
+            FunctionResponseTypes:
+              - ReportBatchItemFailure
       Environment:
         Variables:
           PRIVATE_ASSET_BUCKET: !Ref AwsBucketName
@@ -96,7 +114,6 @@ Resources:
           ROLLBAR_ENV: !Ref RollbarEnv
           ROLLBAR_TOKEN: !Ref RollbarToken
           SNS_TOPIC: !Ref SnsTopic
-          SQS_QUEUE_URL: !Ref SqsQueueUrl
       VpcConfig:
         SubnetIds:
           - !Ref VpcSubnetId0

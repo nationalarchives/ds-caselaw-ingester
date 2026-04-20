@@ -10,7 +10,7 @@ from caselawclient.models.documents.exceptions import CannotPublishUnpublishable
 from caselawclient.models.utilities.aws import S3PrefixString
 
 from src.ds_caselaw_ingester import exceptions, ingester
-from src.ds_caselaw_ingester.exceptions import ReportableException
+from src.ds_caselaw_ingester.exceptions import IngestionError
 
 TDR_TARBALL_PATH = os.path.join(
     os.path.dirname(__file__),
@@ -258,5 +258,5 @@ class TestPerformIngest:
         ingest = MagicMock()
         ingest.will_publish.return_value = True
         ingest.document.publish.side_effect = CannotPublishUnpublishableDocument("Publishing failed")
-        with pytest.raises(ReportableException, match="^Publishing failed$"):
+        with pytest.raises(IngestionError, match="^Publishing failed$"):
             ingester.perform_ingest(ingest)

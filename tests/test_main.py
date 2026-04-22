@@ -40,7 +40,7 @@ def assert_log_sensible(log):
 
 
 class TestHandler:
-    @patch("src.ds_caselaw_ingester.lambda_function.api_client", autospec=True)
+    @patch("src.ds_caselaw_ingester.lambda_function.MarklogicApiClient", autospec=True)
     @patch("src.ds_caselaw_ingester.lambda_function.boto3.session.Session")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
@@ -70,7 +70,7 @@ class TestHandler:
         capsys,
     ):
         boto_session.return_value.client.return_value.download_file = create_fake_tdr_file
-        doc = apiclient.get_document_by_uri.return_value
+        doc = apiclient.return_value.get_document_by_uri.return_value
         doc.neutral_citation = None
         mock_doc.return_value = doc
 
@@ -98,7 +98,7 @@ class TestHandler:
         doc.identifiers.add.assert_not_called()
         doc.identifiers.save.assert_not_called()
 
-    @patch("src.ds_caselaw_ingester.lambda_function.api_client", autospec=True)
+    @patch("src.ds_caselaw_ingester.lambda_function.MarklogicApiClient", autospec=True)
     @patch("src.ds_caselaw_ingester.lambda_function.boto3.session.Session")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
@@ -132,7 +132,7 @@ class TestHandler:
         """Test that, with appropriate stubs, an S3 message passes through the parsing process"""
         boto_session.return_value.client.return_value.download_file = create_fake_bulk_file
         mock_uuid4.return_value = "a1b2-c3d4"
-        doc = apiclient.get_document_by_uri.return_value
+        doc = apiclient.return_value.get_document_by_uri.return_value
         doc.neutral_citation = "[2012] UKUT 82 (IAC)"
         mock_doc.return_value = doc
 
@@ -166,7 +166,7 @@ class TestHandler:
         assert type(doc.identifiers.add.call_args_list[0].args[0]) is NeutralCitationNumber
         doc.save_identifiers.assert_called()
 
-    @patch("src.ds_caselaw_ingester.lambda_function.api_client", autospec=True)
+    @patch("src.ds_caselaw_ingester.lambda_function.MarklogicApiClient", autospec=True)
     @patch("src.ds_caselaw_ingester.lambda_function.boto3.session.Session")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
@@ -191,7 +191,7 @@ class TestHandler:
         capsys,
     ):
         boto_session.return_value.client.return_value.download_file = create_fake_error_file
-        mock_doc.return_value = apiclient.get_document_by_uri.return_value
+        mock_doc.return_value = apiclient.return_value.get_document_by_uri.return_value
 
         message = error_message_raw
 
@@ -237,7 +237,7 @@ class TestHandler:
     )
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest")
     @patch("src.ds_caselaw_ingester.lambda_function.rollbar.report_exc_info")
-    @patch("src.ds_caselaw_ingester.lambda_function.api_client", autospec=True)
+    @patch("src.ds_caselaw_ingester.lambda_function.MarklogicApiClient", autospec=True)
     def test_handler_exception_handled(
         self,
         mock_api_client,
@@ -557,7 +557,14 @@ class TestLambda:
         assert call.args[3] == "v2-a1b2-c3d4.docx"
 
     def test_user_agent(self):
-        assert "ingester" in lambda_function.api_client.session.headers["User-Agent"]
+        """The handler must construct the MarklogicApiClient with an 'ingester' User-Agent."""
+        with (
+            patch("src.ds_caselaw_ingester.lambda_function.MarklogicApiClient") as mock_client,
+            patch("src.ds_caselaw_ingester.lambda_function.all_messages", return_value=[]),
+        ):
+            lambda_function.handler(event={"Records": []}, context=None)
+        kwargs = mock_client.call_args.kwargs
+        assert "ingester" in kwargs["user_agent"]
 
     @patch("os.path.exists", return_value=True)
     @patch("os.getenv", return_value="")

@@ -64,6 +64,11 @@ module "ingest_queue" {
 # This requires sns:Subscribe permission on the topic. If the topic is in
 # another account or you lack permission, remove this resource and ask the
 # topic owner to create the subscription pointing at the queue ARN in outputs.
+#
+# A message-body filter policy is applied so that only ingestible
+# CourtDocumentPackageAvailable messages are delivered to the queue.
+# All other message types published on these topics are dropped at the
+# SNS layer and never reach the ingester Lambda.
 resource "aws_sns_topic_subscription" "ingest_queue_subscription" {
   for_each = toset(var.sns_topic_arns)
 
@@ -71,4 +76,13 @@ resource "aws_sns_topic_subscription" "ingest_queue_subscription" {
   protocol             = "sqs"
   endpoint             = module.ingest_queue.sqs_arn
   raw_message_delivery = false # Preserve SNS envelope for auditability
+
+  filter_policy_scope = "MessageBody"
+  filter_policy = jsonencode({
+    properties = {
+      messageType = [
+        "uk.gov.nationalarchives.tre.messages.courtdocumentpackage.available.CourtDocumentPackageAvailable",
+      ]
+    }
+  })
 }

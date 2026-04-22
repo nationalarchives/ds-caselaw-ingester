@@ -59,9 +59,10 @@ terraform apply
 
 Set via `TF_VAR_*` environment variables or `-var`:
 
-| Variable         | Description                                 |
-| ---------------- | ------------------------------------------- |
-| `environment`    | Environment name (`staging`, `production`)  |
-| `sns_topic_arns` | JSON list of SNS topic ARNs to subscribe to |
+| Variable                     | Description                                 |
+| ---------------------------- | ------------------------------------------- |
+| `environment`                | Environment name (`staging`, `production`)  |
+| `s3_bulk_upload_bucket_name` | Name of the bulk upload route s3 bucket.    |
+| `sns_topic_arns`             | JSON list of SNS topic ARNs to subscribe to |
 
 All other variables have sensible defaults. See `terraform/variables.tf` for the full list.

@@ -32,6 +32,11 @@ variable "max_receive_count" {
   default     = 1
 }
 
+variable "s3_bulk_upload_bucket_name" {
+  description = "Name of the S3 bucket whose ObjectCreated events should be delivered to the ingest queue"
+  type        = string
+}
+
 variable "tags" {
   description = "Tags to apply to all resources, e.g. { Project = \"ds-caselaw-ingester\" }"
   type        = map(string)

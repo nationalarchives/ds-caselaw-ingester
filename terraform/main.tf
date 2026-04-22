@@ -40,6 +40,18 @@ module "ingest_queue" {
         }
       },
       {
+        Sid       = "AllowS3Publish"
+        Effect    = "Allow"
+        Principal = { Service = "s3.amazonaws.com" }
+        Action    = "sqs:SendMessage"
+        Resource  = "*"
+        Condition = {
+          ArnEquals = {
+            "aws:SourceArn" = "arn:aws:s3:::${var.s3_bulk_upload_bucket_name}"
+          }
+        }
+      },
+      {
         Sid       = "DenyInsecureTransport"
         Effect    = "Deny"
         Principal = { AWS = "*" }
@@ -85,4 +97,19 @@ resource "aws_sns_topic_subscription" "ingest_queue_subscription" {
       ]
     }
   })
+}
+
+# Direct S3 → SQS notification: deliver an event to the ingest queue whenever
+# an object is created in the bulk-upload bucket.
+resource "aws_s3_bucket_notification" "bulk_upload_ingest" {
+  bucket = var.s3_bulk_upload_bucket_name
+
+  queue {
+    queue_arn = module.ingest_queue.sqs_arn
+    events    = ["s3:ObjectCreated:*"]
+  }
+
+  # The SQS queue policy must permit S3 to publish before AWS will accept
+  # the notification configuration, so depend on the queue being fully provisioned.
+  depends_on = [module.ingest_queue]
 }

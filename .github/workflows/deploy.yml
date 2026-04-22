@@ -34,6 +34,7 @@ jobs:
     secrets:
       AWS_OIDC_ROLE_ARN: ${{ secrets.AWS_OIDC_ROLE_ARN }}
       TF_BACKEND_BUCKET: ${{ secrets.TF_BACKEND_BUCKET }}
+      TF_VAR_S3_BULK_UPLOAD_BUCKET_NAME: ${{ secrets.TF_VAR_S3_BULK_UPLOAD_BUCKET_NAME }}
       TF_VAR_SNS_TOPIC_ARNS: ${{ secrets.TF_VAR_SNS_TOPIC_ARNS }}
 
   build-deploy:

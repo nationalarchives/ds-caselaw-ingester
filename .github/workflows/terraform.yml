@@ -14,6 +14,9 @@ on:
       TF_BACKEND_BUCKET:
         description: "S3 bucket for Terraform state"
         required: true
+      TF_VAR_S3_BULK_UPLOAD_BUCKET_NAME:
+        description: "Name of the S3 bucket for bulk uploads"
+        required: true
       TF_VAR_SNS_TOPIC_ARNS:
         description: "JSON list of SNS topic ARNs"
         required: true
@@ -60,6 +63,7 @@ jobs:
     env:
       TF_VAR_environment: ${{ inputs.environment }}
       TF_VAR_sns_topic_arns: ${{ secrets.TF_VAR_SNS_TOPIC_ARNS }}
+      TF_VAR_s3_bulk_upload_bucket_name: ${{ secrets.TF_VAR_S3_BULK_UPLOAD_BUCKET_NAME }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

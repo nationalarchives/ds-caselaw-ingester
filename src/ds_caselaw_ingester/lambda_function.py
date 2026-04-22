@@ -34,6 +34,29 @@ MARKLOGIC_USE_HTTPS: bool = bool(os.getenv("MARKLOGIC_USE_HTTPS", default=False)
 
 PRIVATE_ASSET_BUCKET: str = os.environ["PRIVATE_ASSET_BUCKET"]
 
+API_CLIENT = MarklogicApiClient(
+    host=MARKLOGIC_HOST,
+    username=MARKLOGIC_USER,
+    password=MARKLOGIC_PASSWORD,
+    use_https=MARKLOGIC_USE_HTTPS,
+    user_agent=f"ds-caselaw-ingester/unknown {DEFAULT_USER_AGENT}",
+)
+
+
+def get_s3_client() -> S3Client:
+    if os.getenv("AWS_ACCESS_KEY_ID") and os.getenv("AWS_SECRET_KEY") and os.getenv("AWS_ENDPOINT_URL"):
+        session = boto3.session.Session(
+            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.getenv("AWS_SECRET_KEY"),
+        )
+        return session.client("s3", endpoint_url=os.getenv("AWS_ENDPOINT_URL"))
+
+    session = boto3.session.Session()
+    return session.client("s3")
+
+
+S3_CLIENT = get_s3_client()
+
 
 class Message(ABC):
     @classmethod
@@ -159,29 +182,8 @@ def extract_lambda_versions(versions: list[dict[str, str]]) -> list[tuple[str, s
     return version_tuples
 
 
-def get_s3_client() -> S3Client:
-    if os.getenv("AWS_ACCESS_KEY_ID") and os.getenv("AWS_SECRET_KEY") and os.getenv("AWS_ENDPOINT_URL"):
-        session = boto3.session.Session(
-            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-            aws_secret_access_key=os.getenv("AWS_SECRET_KEY"),
-        )
-        return session.client("s3", endpoint_url=os.getenv("AWS_ENDPOINT_URL"))
-
-    session = boto3.session.Session()
-    return session.client("s3")
-
-
 @rollbar.lambda_function
 def handler(event, context):
-    api_client = MarklogicApiClient(
-        host=MARKLOGIC_HOST,
-        username=MARKLOGIC_USER,
-        password=MARKLOGIC_PASSWORD,
-        use_https=MARKLOGIC_USE_HTTPS,
-        user_agent=f"ds-caselaw-ingester/unknown {DEFAULT_USER_AGENT}",
-    )
-
-    s3_client = get_s3_client()
     batch_item_failures = []
 
     for message_id, message in all_messages(event):
@@ -189,7 +191,7 @@ def handler(event, context):
 
         try:
             # Download the tarfile specified in the message, and inject into the ingester
-            local_tar_filename = message.save_s3_response(s3_client=s3_client)
+            local_tar_filename = message.save_s3_response(s3_client=S3_CLIENT)
             print(f"Tarfile saved locally as {local_tar_filename}")
             with tarfile.open(local_tar_filename, mode="r") as tarfile_reader:
                 ingest = Ingest(
@@ -197,8 +199,8 @@ def handler(event, context):
                     tarfile_reader=tarfile_reader,
                     destination_bucket=PRIVATE_ASSET_BUCKET,
                     destination_tar_filename=local_tar_filename,
-                    api_client=api_client,
-                    s3_client=s3_client,
+                    api_client=API_CLIENT,
+                    s3_client=S3_CLIENT,
                 )
 
                 perform_ingest(ingest)

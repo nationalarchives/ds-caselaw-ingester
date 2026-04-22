@@ -65,8 +65,9 @@ module "ingest_queue" {
 # another account or you lack permission, remove this resource and ask the
 # topic owner to create the subscription pointing at the queue ARN in outputs.
 #
-# A message-body filter policy is applied so that only ingestible
-# CourtDocumentPackageAvailable messages are delivered to the queue.
+# Body filters on either of:
+# 1. CourtDocumentPackageAvailable: custom application messages
+# 2. EventName is ObjectCreated:Put
 # All other message types published on these topics are dropped at the
 # SNS layer and never reach the ingester Lambda.
 resource "aws_sns_topic_subscription" "ingest_queue_subscription" {
@@ -79,10 +80,13 @@ resource "aws_sns_topic_subscription" "ingest_queue_subscription" {
 
   filter_policy_scope = "MessageBody"
   filter_policy = jsonencode({
-    properties = {
-      messageType = [
-        "uk.gov.nationalarchives.tre.messages.courtdocumentpackage.available.CourtDocumentPackageAvailable",
-      ]
-    }
+    "$or" = [
+      { properties = {
+        messageType = [
+          "uk.gov.nationalarchives.tre.messages.courtdocumentpackage.available.CourtDocumentPackageAvailable",
+        ] }
+      },
+      { eventName = ["ObjectCreated:Put"] }
+    ]
   })
 }

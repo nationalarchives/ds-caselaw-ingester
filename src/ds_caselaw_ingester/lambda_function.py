@@ -14,6 +14,7 @@ from caselawclient.Client import (
     DEFAULT_USER_AGENT,
     MarklogicApiClient,
 )
+from codeguru_profiler_agent import with_lambda_profiler
 from dotenv import load_dotenv
 from mypy_boto3_s3.client import S3Client
 
@@ -171,6 +172,7 @@ def get_s3_client() -> S3Client:
     return session.client("s3")
 
 
+@with_lambda_profiler()
 @rollbar.lambda_function
 def handler(event, context):
     api_client = MarklogicApiClient(

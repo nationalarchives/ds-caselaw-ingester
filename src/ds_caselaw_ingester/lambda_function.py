@@ -9,7 +9,6 @@ from abc import ABC, abstractmethod
 from urllib.parse import unquote_plus
 
 import boto3
-import boto3.s3
 import rollbar
 from caselawclient.Client import (
     DEFAULT_USER_AGENT,
@@ -34,14 +33,6 @@ MARKLOGIC_PASSWORD: str = os.environ["MARKLOGIC_PASSWORD"]
 MARKLOGIC_USE_HTTPS: bool = bool(os.getenv("MARKLOGIC_USE_HTTPS", default=False))
 
 PRIVATE_ASSET_BUCKET: str = os.environ["PRIVATE_ASSET_BUCKET"]
-
-api_client = MarklogicApiClient(
-    host=MARKLOGIC_HOST,
-    username=MARKLOGIC_USER,
-    password=MARKLOGIC_PASSWORD,
-    use_https=MARKLOGIC_USE_HTTPS,
-    user_agent=f"ds-caselaw-ingester/unknown {DEFAULT_USER_AGENT}",
-)
 
 
 class Message(ABC):
@@ -182,6 +173,14 @@ def get_s3_client() -> S3Client:
 
 @rollbar.lambda_function
 def handler(event, context):
+    api_client = MarklogicApiClient(
+        host=MARKLOGIC_HOST,
+        username=MARKLOGIC_USER,
+        password=MARKLOGIC_PASSWORD,
+        use_https=MARKLOGIC_USE_HTTPS,
+        user_agent=f"ds-caselaw-ingester/unknown {DEFAULT_USER_AGENT}",
+    )
+
     s3_client = get_s3_client()
     batch_item_failures = []
 

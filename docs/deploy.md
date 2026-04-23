@@ -59,9 +59,12 @@ terraform apply
 
 Set via `TF_VAR_*` environment variables or `-var`:
 
-| Variable         | Description                                 |
-| ---------------- | ------------------------------------------- |
-| `environment`    | Environment name (`staging`, `production`)  |
-| `sns_topic_arns` | JSON list of SNS topic ARNs to subscribe to |
+| Variable                         | Description                                                                                                     |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `environment`                    | Environment name (`staging`, `production`)                                                                      |
+| `tre_message_topic_arn`          | SNS topic ARN that publishes TRE messages (filtered to `CourtDocumentPackageAvailable`)                         |
+| `bulk_ingest_s3_event_topic_arn` | SNS topic ARN that fans out raw S3 event notifications for the bulk-ingest path (filtered to `ObjectCreated:*`) |
+
+In CI these are passed via the `TF_VAR_TRE_MESSAGE_TOPIC_ARN` and `TF_VAR_BULK_INGEST_S3_EVENT_TOPIC_ARN` GitHub Actions secrets.
 
 All other variables have sensible defaults. See `terraform/variables.tf` for the full list.

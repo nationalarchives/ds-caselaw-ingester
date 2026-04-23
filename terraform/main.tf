@@ -35,7 +35,7 @@ module "ingest_queue" {
         Resource  = "*"
         Condition = {
           ArnEquals = {
-            "aws:SourceArn" = var.sns_topic_arns
+            "aws:SourceArn" = [var.tre_message_topic_arn, var.bulk_ingest_s3_event_topic_arn]
           }
         }
       },
@@ -60,19 +60,17 @@ module "ingest_queue" {
   })
 }
 
-# Subscribe the SQS queue to each SNS topic.
-# This requires sns:Subscribe permission on the topic. If the topic is in
-# another account or you lack permission, remove this resource and ask the
-# topic owner to create the subscription pointing at the queue ARN in outputs.
+# Subscriptions to TRE message topics.
 #
-# A message-body filter policy is applied so that only ingestible
-# CourtDocumentPackageAvailable messages are delivered to the queue.
-# All other message types published on these topics are dropped at the
-# SNS layer and never reach the ingester Lambda.
-resource "aws_sns_topic_subscription" "ingest_queue_subscription" {
-  for_each = toset(var.sns_topic_arns)
-
-  topic_arn            = each.value
+# These topics carry application-level TRE messages with a `properties.messageType`
+# discriminator. Only `CourtDocumentPackageAvailable` messages are delivered to
+# the ingest queue; all other message types are dropped at the SNS layer.
+#
+# Requires sns:Subscribe permission on each topic. If the topic is in another
+# account or you lack permission, remove this resource and ask the topic owner
+# to create the subscription pointing at the queue ARN in outputs.
+resource "aws_sns_topic_subscription" "tre_message_subscription" {
+  topic_arn            = var.tre_message_topic_arn
   protocol             = "sqs"
   endpoint             = module.ingest_queue.sqs_arn
   raw_message_delivery = false # Preserve SNS envelope for auditability
@@ -83,6 +81,26 @@ resource "aws_sns_topic_subscription" "ingest_queue_subscription" {
       messageType = [
         "uk.gov.nationalarchives.tre.messages.courtdocumentpackage.available.CourtDocumentPackageAvailable",
       ]
+    }
+  })
+}
+
+# Subscriptions to SNS topics that fan out raw S3 event notifications.
+#
+# S3 event payloads use a different envelope (`Records[].eventName`), so they
+# need a distinct filter policy. The `prefix` match covers all `ObjectCreated:*`
+# variants (Put, Post, Copy, CompleteMultipartUpload) so multipart uploads are
+# not silently dropped.
+resource "aws_sns_topic_subscription" "bulk_ingest_s3_event_subscription" {
+  topic_arn            = var.bulk_ingest_s3_event_topic_arn
+  protocol             = "sqs"
+  endpoint             = module.ingest_queue.sqs_arn
+  raw_message_delivery = false # Preserve SNS envelope for auditability
+
+  filter_policy_scope = "MessageBody"
+  filter_policy = jsonencode({
+    Records = {
+      eventName = [{ prefix = "ObjectCreated:" }]
     }
   })
 }

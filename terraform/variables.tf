@@ -9,9 +9,24 @@ variable "aws_region" {
   default     = "eu-west-2"
 }
 
-variable "sns_topic_arns" {
-  description = "List of SNS topic ARNs that publish ingest messages"
-  type        = list(string)
+variable "tre_message_topic_arn" {
+  description = <<-EOT
+    SNS topic ARN that publishes TRE messages (envelope shape:
+    `{ "properties": { "messageType": "..." }, ... }`).
+    The subscription to this topic is filtered to only deliver
+    `CourtDocumentPackageAvailable` messages to the ingest queue.
+  EOT
+  type        = string
+}
+
+variable "bulk_ingest_s3_event_topic_arn" {
+  description = <<-EOT
+    SNS topic ARN that fans out raw S3 event notifications
+    (envelope shape: `{ "Records": [ { "eventName": "ObjectCreated:*", "s3": {...} } ] }`).
+    The subscription to this topic is filtered to only deliver
+    `ObjectCreated:*` events to the ingest queue.
+  EOT
+  type        = string
 }
 
 variable "message_retention_seconds" {

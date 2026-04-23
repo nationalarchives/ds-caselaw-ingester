@@ -34,7 +34,8 @@ jobs:
     secrets:
       AWS_OIDC_ROLE_ARN: ${{ secrets.AWS_OIDC_ROLE_ARN }}
       TF_BACKEND_BUCKET: ${{ secrets.TF_BACKEND_BUCKET }}
-      TF_VAR_SNS_TOPIC_ARNS: ${{ secrets.TF_VAR_SNS_TOPIC_ARNS }}
+      TF_VAR_TRE_MESSAGE_TOPIC_ARN: ${{ secrets.TF_VAR_TRE_MESSAGE_TOPIC_ARN }}
+      TF_VAR_BULK_INGEST_S3_EVENT_TOPIC_ARN: ${{ secrets.TF_VAR_BULK_INGEST_S3_EVENT_TOPIC_ARN }}
 
   build-deploy:
     needs: [set-env, terraform]

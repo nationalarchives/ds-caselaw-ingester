@@ -22,3 +22,4 @@ volume
 node_modules/
 
 .coverage
+.vscode/

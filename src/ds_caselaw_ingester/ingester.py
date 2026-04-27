@@ -113,11 +113,11 @@ def store_file(
     pathname: str = destination_folder + destination_filename
     try:
         s3_client.upload_fileobj(file, destination_bucket, pathname)
-        print(f"Upload Successful {pathname}")
+        logger.info("Upload Successful %s", pathname)
     except FileNotFoundError:
-        print(f"The file {pathname} was not found")
+        logger.error("The file %s was not found", pathname)
     except NoCredentialsError:
-        print("Credentials not available")
+        logger.error("Credentials not available")
 
 
 def extract_xml_file(tar: tarfile.TarFile, xml_file_name: str) -> IO[bytes] | None:
@@ -155,17 +155,16 @@ def get_best_xml(tar: tarfile.TarFile, xml_file_name: str, consignment_reference
         try:
             return parse_xml(contents)
         except ET.ParseError:
-            print(
-                f"Invalid XML file for consignment reference: {consignment_reference}."
-                f" Falling back to parser.log contents.",
+            logger.warning(
+                "Invalid XML file for consignment reference: %s. Falling back to parser.log contents.",
+                consignment_reference,
             )
             contents = create_parser_log_xml(tar)
             return parse_xml(contents)
     else:
-        print(
-            f"No XML file found in tarfile."
-            f"consignment reference: {consignment_reference}."
-            f" Falling back to parser.log contents.",
+        logger.warning(
+            "No XML file found in tarfile. consignment reference: %s. Falling back to parser.log contents.",
+            consignment_reference,
         )
         contents = create_parser_log_xml(tar)
         return parse_xml(contents)
@@ -289,7 +288,7 @@ class Ingest:
         self.s3_client = s3_client
         self.consignment_reference: str = self.message.get_consignment_reference()
         self.document: Document | None = None
-        print(f"Ingester Start: Consignment reference {self.consignment_reference}")
+        logger.info("Ingester Start: Consignment reference %s", self.consignment_reference)
 
         self.local_tarfile_reader = tarfile_reader
 
@@ -299,7 +298,7 @@ class Ingest:
         self.xml_file_name = self.metadata["parameters"]["TRE"]["payload"]["xml"]
         self.xml = get_best_xml(self.local_tarfile_reader, self.xml_file_name, self.consignment_reference)
         self.uri, self.exists_in_database = self.database_location
-        print(f"Ingesting document {self.uri}")
+        logger.info("Ingesting document %s", self.uri)
 
     def __repr__(self):
         return f"<Ingest: {self.consignment_reference}, {self.extracted_ncn}>"
@@ -378,7 +377,7 @@ class Ingest:
     def send_updated_judgment_notification(self) -> None:
         personalisation = personalise_email(self.uri, self.metadata)
         if os.getenv("ROLLBAR_ENV") != "prod":
-            print(f"Would send a notification but we're not in production.\n{personalisation}")
+            logger.info("Would send a notification but we're not in production.\n%s", personalisation)
             return
 
         notifications_client = NotificationsAPIClient(os.environ["NOTIFY_API_KEY"])
@@ -387,14 +386,18 @@ class Ingest:
             template_id=os.getenv("NOTIFY_UPDATED_JUDGMENT_TEMPLATE_ID"),
             personalisation=personalisation,
         )
-        print(f"Sent update notification to {os.getenv('NOTIFY_EDITORIAL_ADDRESS')} (Message ID: {response['id']})")
+        logger.info(
+            "Sent update notification to %s (Message ID: %s)",
+            os.getenv("NOTIFY_EDITORIAL_ADDRESS"),
+            response["id"],
+        )
 
     def send_new_judgment_notification(self) -> None:
         personalisation = personalise_email(self.uri, self.metadata)
         personalisation["doctype"] = self.ingested_document_type_string
 
         if os.getenv("ROLLBAR_ENV") != "prod":
-            print(f"Would send a notification but we're not in production.\n{personalisation}")
+            logger.info("Would send a notification but we're not in production.\n%s", personalisation)
             return
         notifications_client = NotificationsAPIClient(os.environ["NOTIFY_API_KEY"])
         response = notifications_client.send_email_notification(
@@ -402,7 +405,11 @@ class Ingest:
             template_id=os.getenv("NOTIFY_NEW_JUDGMENT_TEMPLATE_ID"),
             personalisation=personalisation,
         )
-        print(f"Sent new notification to {os.getenv('NOTIFY_EDITORIAL_ADDRESS')} (Message ID: {response['id']})")
+        logger.info(
+            "Sent new notification to %s (Message ID: %s)",
+            os.getenv("NOTIFY_EDITORIAL_ADDRESS"),
+            response["id"],
+        )
 
     def send_bulk_judgment_notification(self) -> None:
         # Not yet implemented. We currently only autopublish judgments sent in bulk.
@@ -435,7 +442,7 @@ class Ingest:
         # Determine if there's a word document -- we need to know before we save the tar.gz file
 
         source_filename = extract_source_filename(self.metadata, self.consignment_reference)
-        print(f"extracted source filename is {source_filename!r}")
+        logger.info("extracted source filename is %r", source_filename)
 
         # Copy original tarfile
         modified_targz_filename = (
@@ -451,7 +458,7 @@ class Ingest:
                 destination_filename=os.path.basename(modified_targz_filename),
                 s3_client=self.s3_client,
             )
-        print(f"saved tar.gz as {modified_targz_filename!r}")
+        logger.info("saved tar.gz as %r", modified_targz_filename)
 
         # Store source file and rename
         # The name is None for files which have been reparsed.
@@ -612,7 +619,7 @@ def perform_ingest(ingest: Ingest) -> None:
     if not ingest.document:
         raise DocumentInsertionError("Document not present in MarkLogic after attempting insert or update.")
 
-    print(f"{ingest.upload_state.title()} judgment xml for {ingest.uri}")
+    logger.info("%s judgment xml for %s", ingest.upload_state.title(), ingest.uri)
     ingest.set_document_identifiers()
 
     ingest.send_email()
@@ -627,12 +634,12 @@ def perform_ingest(ingest: Ingest) -> None:
 
     if ingest.will_publish():
         try:
-            print(f"publishing {ingest.consignment_reference} at {ingest.uri}")
+            logger.info("publishing %s at %s", ingest.consignment_reference, ingest.uri)
             ingest.document.publish()
         except CannotPublishUnpublishableDocument as err:
             raise CannotPublishException(*err.args) from err
     else:
-        print(f"unpublishing {ingest.uri}")
+        logger.info("unpublishing %s", ingest.uri)
         ingest.document.unpublish()
 
-    print("Ingestion complete")
+    logger.info("Ingestion complete")

@@ -38,7 +38,7 @@ NULL_UPDATE_METADATA = '{\n  "Judgment-Update": null,\n  "Judgment-Update-Type":
 
 class TestHandler:
     @patch("src.ds_caselaw_ingester.lambda_function.api_client", autospec=True)
-    @patch("src.ds_caselaw_ingester.lambda_function.boto3.session.Session")
+    @patch("src.ds_caselaw_ingester.lambda_function.s3_client")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
     @patch("src.ds_caselaw_ingester.ingester.VersionAnnotation")
@@ -62,11 +62,11 @@ class TestHandler:
         annotation,
         notify_new,
         notify_update,
-        boto_session,
+        mock_s3_client,
         apiclient,
         caplog: pytest.LogCaptureFixture,
     ):
-        boto_session.return_value.client.return_value.download_file = create_fake_tdr_file
+        mock_s3_client.download_file = create_fake_tdr_file
         doc = apiclient.get_document_by_uri.return_value
         doc.neutral_citation = None
         mock_doc.return_value = doc
@@ -95,7 +95,7 @@ class TestHandler:
         doc.identifiers.save.assert_not_called()
 
     @patch("src.ds_caselaw_ingester.lambda_function.api_client", autospec=True)
-    @patch("src.ds_caselaw_ingester.lambda_function.boto3.session.Session")
+    @patch("src.ds_caselaw_ingester.lambda_function.s3_client")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
     @patch("src.ds_caselaw_ingester.ingester.VersionAnnotation")
@@ -121,12 +121,12 @@ class TestHandler:
         annotation,
         notify_new,
         notify_updated,
-        boto_session,
+        mock_s3_client,
         apiclient,
         caplog: pytest.LogCaptureFixture,
     ):
         """Test that, with appropriate stubs, an S3 message passes through the parsing process"""
-        boto_session.return_value.client.return_value.download_file = create_fake_bulk_file
+        mock_s3_client.download_file = create_fake_bulk_file
         mock_uuid4.return_value = "a1b2-c3d4"
         doc = apiclient.get_document_by_uri.return_value
         doc.neutral_citation = "[2012] UKUT 82 (IAC)"
@@ -159,7 +159,7 @@ class TestHandler:
         doc.save_identifiers.assert_called()
 
     @patch("src.ds_caselaw_ingester.lambda_function.api_client", autospec=True)
-    @patch("src.ds_caselaw_ingester.lambda_function.boto3.session.Session")
+    @patch("src.ds_caselaw_ingester.lambda_function.s3_client")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
     @patch("src.ds_caselaw_ingester.ingester.VersionAnnotation")
@@ -178,11 +178,11 @@ class TestHandler:
         annotation,
         notify_new,
         notify_update,
-        boto_session,
+        mock_s3_client,
         apiclient,
         caplog: pytest.LogCaptureFixture,
     ):
-        boto_session.return_value.client.return_value.download_file = create_fake_error_file
+        mock_s3_client.download_file = create_fake_error_file
         mock_doc.return_value = apiclient.get_document_by_uri.return_value
 
         message = error_message_raw
@@ -221,7 +221,7 @@ class TestHandler:
         mock_doc.identifiers.add.assert_not_called()
         mock_doc.identifiers.save.assert_not_called()
 
-    @patch("src.ds_caselaw_ingester.lambda_function.boto3.session.Session")
+    @patch("src.ds_caselaw_ingester.lambda_function.s3_client")
     @patch(
         "src.ds_caselaw_ingester.lambda_function.perform_ingest",
         side_effect=[
@@ -239,7 +239,7 @@ class TestHandler:
         mock_rollbar_call,
         mock_ingest,
         mock_perform_ingest,
-        boto_session,
+        mock_s3_client,
         caplog,
     ):
         message = s3_message_raw

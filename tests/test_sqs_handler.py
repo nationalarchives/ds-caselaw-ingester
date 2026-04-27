@@ -20,7 +20,7 @@ class TestSQSHandler:
     """Tests for SQS event handling (SNS → SQS → Lambda path)."""
 
     @patch("src.ds_caselaw_ingester.lambda_function.api_client", autospec=True)
-    @patch("src.ds_caselaw_ingester.lambda_function.boto3.session.Session")
+    @patch("src.ds_caselaw_ingester.lambda_function.s3_client")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
     @patch("src.ds_caselaw_ingester.ingester.VersionAnnotation")
@@ -44,12 +44,12 @@ class TestSQSHandler:
         annotation,
         notify_new,
         notify_update,
-        boto_session,
+        mock_s3_client,
         apiclient,
         caplog: pytest.LogCaptureFixture,
     ):
         """Test that a V2 message arriving via SQS is processed correctly."""
-        boto_session.return_value.client.return_value.download_file = create_fake_tdr_file
+        mock_s3_client.download_file = create_fake_tdr_file
         doc = apiclient.get_document_by_uri.return_value
         doc.neutral_citation = None
         mock_doc.return_value = doc
@@ -63,7 +63,7 @@ class TestSQSHandler:
         assert result == {"batchItemFailures": []}
 
     @patch("src.ds_caselaw_ingester.lambda_function.api_client", autospec=True)
-    @patch("src.ds_caselaw_ingester.lambda_function.boto3.session.Session")
+    @patch("src.ds_caselaw_ingester.lambda_function.s3_client")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
     @patch("src.ds_caselaw_ingester.ingester.VersionAnnotation")
@@ -89,12 +89,12 @@ class TestSQSHandler:
         annotation,
         notify_new,
         notify_updated,
-        boto_session,
+        mock_s3_client,
         apiclient,
         caplog: pytest.LogCaptureFixture,
     ):
         """Test that an S3 message arriving via SQS is processed correctly."""
-        boto_session.return_value.client.return_value.download_file = create_fake_bulk_file
+        mock_s3_client.download_file = create_fake_bulk_file
         mock_uuid4.return_value = "a1b2-c3d4"
         doc = apiclient.get_document_by_uri.return_value
         doc.neutral_citation = "[2012] UKUT 82 (IAC)"
@@ -107,7 +107,7 @@ class TestSQSHandler:
 
         assert result == {"batchItemFailures": []}
 
-    @patch("src.ds_caselaw_ingester.lambda_function.boto3.session.Session")
+    @patch("src.ds_caselaw_ingester.lambda_function.s3_client")
     @patch(
         "src.ds_caselaw_ingester.lambda_function.perform_ingest",
         side_effect=exceptions.FileNotFoundException("test-sqs-failure"),
@@ -121,7 +121,7 @@ class TestSQSHandler:
         mock_rollbar_call,
         mock_ingest,
         mock_perform_ingest,
-        boto_session,
+        mock_s3_client,
     ):
         """Failed SQS messages are reported as batchItemFailures so only they are retried."""
         result = lambda_function.handler(event=sqs_v2_event, context=None)
@@ -129,7 +129,7 @@ class TestSQSHandler:
         mock_rollbar_call.assert_called_with(level="error")
         assert result == {"batchItemFailures": [{"itemIdentifier": "msg-001"}]}
 
-    @patch("src.ds_caselaw_ingester.lambda_function.boto3.session.Session")
+    @patch("src.ds_caselaw_ingester.lambda_function.s3_client")
     @patch(
         "src.ds_caselaw_ingester.lambda_function.perform_ingest",
         side_effect=[
@@ -146,7 +146,7 @@ class TestSQSHandler:
         mock_rollbar_call,
         mock_ingest,
         mock_perform_ingest,
-        boto_session,
+        mock_s3_client,
     ):
         """When one message in a batch fails, only that message is reported as failed."""
         two_message_sqs_event = {
@@ -174,7 +174,7 @@ class TestSQSHandler:
 
         assert result == {"batchItemFailures": [{"itemIdentifier": "msg-fail"}]}
 
-    @patch("src.ds_caselaw_ingester.lambda_function.boto3.session.Session")
+    @patch("src.ds_caselaw_ingester.lambda_function.s3_client")
     @patch(
         "src.ds_caselaw_ingester.lambda_function.perform_ingest",
         side_effect=exceptions.FileNotFoundException("test-sns-still-works"),
@@ -188,7 +188,7 @@ class TestSQSHandler:
         mock_rollbar_call,
         mock_ingest,
         mock_perform_ingest,
-        boto_session,
+        mock_s3_client,
     ):
         """Direct SNS events still work (backward compatibility)."""
         message = v2_message_raw

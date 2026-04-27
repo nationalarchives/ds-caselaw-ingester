@@ -43,6 +43,17 @@ api_client = MarklogicApiClient(
 )
 logger.info("Initialised MarkLogic API client")
 
+if os.getenv("AWS_ACCESS_KEY_ID") and os.getenv("AWS_SECRET_KEY") and os.getenv("AWS_ENDPOINT_URL"):
+    session = boto3.session.Session(
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("AWS_SECRET_KEY"),
+    )
+    s3_client = session.client("s3", endpoint_url=os.getenv("AWS_ENDPOINT_URL"))
+else:
+    session = boto3.session.Session()
+    s3_client = session.client("s3")
+logger.info("Initialised S3 client")
+
 
 class Message(ABC):
     @classmethod
@@ -168,24 +179,11 @@ def extract_lambda_versions(versions: list[dict[str, str]]) -> list[tuple[str, s
     return version_tuples
 
 
-def get_s3_client() -> S3Client:
-    if os.getenv("AWS_ACCESS_KEY_ID") and os.getenv("AWS_SECRET_KEY") and os.getenv("AWS_ENDPOINT_URL"):
-        session = boto3.session.Session(
-            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-            aws_secret_access_key=os.getenv("AWS_SECRET_KEY"),
-        )
-        return session.client("s3", endpoint_url=os.getenv("AWS_ENDPOINT_URL"))
-
-    session = boto3.session.Session()
-    return session.client("s3")
-
-
 @with_lambda_profiler()
 @rollbar.lambda_function
 def handler(event, context):
     logger.info("Received event")
 
-    s3_client = get_s3_client()
     batch_item_failures = []
 
     for message_id, message in all_messages(event):

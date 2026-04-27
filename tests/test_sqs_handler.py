@@ -19,7 +19,7 @@ from .helpers import (
 class TestSQSHandler:
     """Tests for SQS event handling (SNS → SQS → Lambda path)."""
 
-    @patch("src.ds_caselaw_ingester.lambda_function.MarklogicApiClient", autospec=True)
+    @patch("src.ds_caselaw_ingester.lambda_function.api_client", autospec=True)
     @patch("src.ds_caselaw_ingester.lambda_function.boto3.session.Session")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
@@ -50,7 +50,7 @@ class TestSQSHandler:
     ):
         """Test that a V2 message arriving via SQS is processed correctly."""
         boto_session.return_value.client.return_value.download_file = create_fake_tdr_file
-        doc = apiclient.return_value.get_document_by_uri.return_value
+        doc = apiclient.get_document_by_uri.return_value
         doc.neutral_citation = None
         mock_doc.return_value = doc
 
@@ -62,7 +62,7 @@ class TestSQSHandler:
         # No failures → empty batchItemFailures
         assert result == {"batchItemFailures": []}
 
-    @patch("src.ds_caselaw_ingester.lambda_function.MarklogicApiClient", autospec=True)
+    @patch("src.ds_caselaw_ingester.lambda_function.api_client", autospec=True)
     @patch("src.ds_caselaw_ingester.lambda_function.boto3.session.Session")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
@@ -96,7 +96,7 @@ class TestSQSHandler:
         """Test that an S3 message arriving via SQS is processed correctly."""
         boto_session.return_value.client.return_value.download_file = create_fake_bulk_file
         mock_uuid4.return_value = "a1b2-c3d4"
-        doc = apiclient.return_value.get_document_by_uri.return_value
+        doc = apiclient.get_document_by_uri.return_value
         doc.neutral_citation = "[2012] UKUT 82 (IAC)"
         mock_doc.return_value = doc
 
@@ -114,7 +114,7 @@ class TestSQSHandler:
     )
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest")
     @patch("src.ds_caselaw_ingester.lambda_function.rollbar.report_exc_info")
-    @patch("src.ds_caselaw_ingester.lambda_function.MarklogicApiClient", autospec=True)
+    @patch("src.ds_caselaw_ingester.lambda_function.api_client", autospec=True)
     def test_sqs_handler_returns_batch_item_failures(
         self,
         mock_api_client,
@@ -139,7 +139,7 @@ class TestSQSHandler:
     )
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest")
     @patch("src.ds_caselaw_ingester.lambda_function.rollbar.report_exc_info")
-    @patch("src.ds_caselaw_ingester.lambda_function.MarklogicApiClient", autospec=True)
+    @patch("src.ds_caselaw_ingester.lambda_function.api_client", autospec=True)
     def test_sqs_handler_partial_batch_failure(
         self,
         mock_api_client,
@@ -181,7 +181,7 @@ class TestSQSHandler:
     )
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest")
     @patch("src.ds_caselaw_ingester.lambda_function.rollbar.report_exc_info")
-    @patch("src.ds_caselaw_ingester.lambda_function.MarklogicApiClient", autospec=True)
+    @patch("src.ds_caselaw_ingester.lambda_function.api_client", autospec=True)
     def test_sns_handler_still_works(
         self,
         mock_api_client,

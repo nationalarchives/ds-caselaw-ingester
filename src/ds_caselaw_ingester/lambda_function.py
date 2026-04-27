@@ -34,6 +34,15 @@ MARKLOGIC_USE_HTTPS: bool = bool(os.getenv("MARKLOGIC_USE_HTTPS", default=False)
 
 PRIVATE_ASSET_BUCKET: str = os.environ["PRIVATE_ASSET_BUCKET"]
 
+api_client = MarklogicApiClient(
+    host=MARKLOGIC_HOST,
+    username=MARKLOGIC_USER,
+    password=MARKLOGIC_PASSWORD,
+    use_https=MARKLOGIC_USE_HTTPS,
+    user_agent=f"ds-caselaw-ingester/unknown {DEFAULT_USER_AGENT}",
+)
+logger.info("Initialised MarkLogic API client")
+
 
 class Message(ABC):
     @classmethod
@@ -175,15 +184,6 @@ def get_s3_client() -> S3Client:
 @rollbar.lambda_function
 def handler(event, context):
     logger.info("Received event")
-
-    api_client = MarklogicApiClient(
-        host=MARKLOGIC_HOST,
-        username=MARKLOGIC_USER,
-        password=MARKLOGIC_PASSWORD,
-        use_https=MARKLOGIC_USE_HTTPS,
-        user_agent=f"ds-caselaw-ingester/unknown {DEFAULT_USER_AGENT}",
-    )
-    logger.info("Initialised MarkLogic API client")
 
     s3_client = get_s3_client()
     batch_item_failures = []

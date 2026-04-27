@@ -4,6 +4,14 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to deploy to" # This will always deploy to staging because of the set-env job but giving a false option here makes it clear that it won't be going to prod
+        required: true
+        type: choice
+        options:
+          - staging
   release:
     types: [published]
 

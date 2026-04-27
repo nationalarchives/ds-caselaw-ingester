@@ -1,3 +1,4 @@
+import logging
 import os
 import tarfile
 import xml.etree.ElementTree as ET
@@ -11,6 +12,8 @@ from caselawclient.models.utilities.aws import S3PrefixString
 
 from src.ds_caselaw_ingester import exceptions, ingester
 from src.ds_caselaw_ingester.exceptions import IngestionError
+
+from .helpers import assert_log_has_message
 
 TDR_TARBALL_PATH = os.path.join(
     os.path.dirname(__file__),
@@ -79,10 +82,18 @@ class TestIngesterCopyFileMethod:
 
 
 class TestIngesterStoreFileMethod:
-    @patch("builtins.print")
-    def test_store_file_success(self, mock_print):
+    @pytest.mark.parametrize(
+        "side_effect,expected_level,expected_message",
+        [
+            (None, logging.INFO, "Upload Successful folder/filename.ext"),
+            (FileNotFoundError, logging.ERROR, "The file folder/filename.ext was not found"),
+            (NoCredentialsError, logging.ERROR, "Credentials not available"),
+        ],
+    )
+    def test_store_file(self, caplog: pytest.LogCaptureFixture, side_effect, expected_level, expected_message):
+        caplog.set_level(logging.DEBUG, logger="ingester")
         session = boto3.Session
-        session.upload_fileobj = MagicMock()
+        session.upload_fileobj = MagicMock(side_effect=side_effect)
         ingester.store_file(
             file=None,
             destination_bucket="bucket",
@@ -90,35 +101,7 @@ class TestIngesterStoreFileMethod:
             destination_filename="filename.ext",
             s3_client=session,
         )
-        mock_print.assert_called_with("Upload Successful folder/filename.ext")
-        session.upload_fileobj.assert_called_with(None, ANY, "folder/filename.ext")
-
-    @patch("builtins.print")
-    def test_store_file_file_not_found(self, mock_print):
-        session = boto3.Session
-        session.upload_fileobj = MagicMock(side_effect=FileNotFoundError)
-        ingester.store_file(
-            file=None,
-            destination_bucket="bucket",
-            destination_folder=S3PrefixString("folder/"),
-            destination_filename="filename.ext",
-            s3_client=session,
-        )
-        mock_print.assert_called_with("The file folder/filename.ext was not found")
-        session.upload_fileobj.assert_called_with(None, ANY, "folder/filename.ext")
-
-    @patch("builtins.print")
-    def test_store_file_file_no_credentials(self, mock_print):
-        session = boto3.Session
-        session.upload_fileobj = MagicMock(side_effect=NoCredentialsError)
-        ingester.store_file(
-            file=None,
-            destination_bucket="bucket",
-            destination_folder=S3PrefixString("folder/"),
-            destination_filename="filename.ext",
-            s3_client=session,
-        )
-        mock_print.assert_called_with("Credentials not available")
+        assert_log_has_message(caplog, expected_message, expected_level)
         session.upload_fileobj.assert_called_with(None, ANY, "folder/filename.ext")
 
 

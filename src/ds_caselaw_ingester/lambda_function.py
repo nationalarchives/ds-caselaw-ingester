@@ -4,7 +4,6 @@ import json
 import logging
 import os
 import tarfile
-import traceback
 from abc import ABC, abstractmethod
 from urllib.parse import unquote_plus
 
@@ -82,13 +81,13 @@ class V2Message(Message):
     def save_s3_response(self, s3_client: S3Client) -> str:
         s3_bucket = self.message.get("parameters", {}).get("s3Bucket")
         s3_key = self.message.get("parameters", {}).get("s3Key")
-        print(f"downloading {s3_key}")
+        logger.info("downloading %s", s3_key)
         reference = self.get_consignment_reference()
         local_tar_filename = os.path.join("/tmp", f"{reference}.tar.gz")
         s3_client.download_file(s3_bucket, s3_key, local_tar_filename)
         if not os.path.exists(local_tar_filename):
             raise RuntimeError(f"File {local_tar_filename} not created")
-        print(f"tar.gz saved locally as {local_tar_filename}")
+        logger.info("tar.gz saved locally as %s", local_tar_filename)
         return local_tar_filename
 
 
@@ -118,13 +117,13 @@ class S3Message(V2Message):
     def save_s3_response(self, s3_client: S3Client) -> str:
         s3_key = unquote_plus(self.message["s3"]["object"]["key"])
         s3_bucket = self.message["s3"]["bucket"]["name"]
-        print(f"downloading {s3_key}")
+        logger.info("downloading %s", s3_key)
         reference = self.get_consignment_reference()
         local_tar_filename = os.path.join("/tmp", f"{reference}.tar.gz")
         s3_client.download_file(s3_bucket, s3_key, local_tar_filename)
         if not os.path.exists(local_tar_filename):
             raise RuntimeError(f"File {local_tar_filename} not created")
-        print(f"tar.gz saved locally as {local_tar_filename}")
+        logger.info("tar.gz saved locally as %s", local_tar_filename)
         return local_tar_filename
 
 
@@ -175,6 +174,8 @@ def get_s3_client() -> S3Client:
 @with_lambda_profiler()
 @rollbar.lambda_function
 def handler(event, context):
+    logger.info("Received event")
+
     api_client = MarklogicApiClient(
         host=MARKLOGIC_HOST,
         username=MARKLOGIC_USER,
@@ -182,17 +183,18 @@ def handler(event, context):
         use_https=MARKLOGIC_USE_HTTPS,
         user_agent=f"ds-caselaw-ingester/unknown {DEFAULT_USER_AGENT}",
     )
+    logger.info("Initialised MarkLogic API client")
 
     s3_client = get_s3_client()
     batch_item_failures = []
 
     for message_id, message in all_messages(event):
-        print(f"Received Message: {message.message}")
+        logger.info("Received messageId: %s with message: %s", message_id or "_", message.message)
 
         try:
             # Download the tarfile specified in the message, and inject into the ingester
             local_tar_filename = message.save_s3_response(s3_client=s3_client)
-            print(f"Tarfile saved locally as {local_tar_filename}")
+            logger.info("Tarfile saved locally as %s", local_tar_filename)
             with tarfile.open(local_tar_filename, mode="r") as tarfile_reader:
                 ingest = Ingest(
                     message=message,
@@ -206,7 +208,7 @@ def handler(event, context):
                 perform_ingest(ingest)
         except Exception:  # noqa: BLE001 — catch-all required for SQS partial batch failure reporting
             rollbar.report_exc_info(level="error")
-            print(traceback.format_exc())
+            logger.exception("Error processing message")
             if message_id:
                 batch_item_failures.append({"itemIdentifier": message_id})
 

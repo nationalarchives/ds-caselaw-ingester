@@ -1,14 +1,19 @@
 import json
 from unittest.mock import PropertyMock, patch
 
+import pytest
 from caselawclient.factories import IdentifierResolutionsFactory
 from caselawclient.types import DocumentURIString
 
 from src.ds_caselaw_ingester import exceptions, lambda_function
 
 from .conftest import sqs_s3_event, sqs_v2_event, v2_message_raw
-from .helpers import create_fake_bulk_file, create_fake_tdr_file
-from .test_main import assert_log_sensible
+from .helpers import (
+    assert_log_has_message_starting,
+    assert_log_shows_successful_ingest,
+    create_fake_bulk_file,
+    create_fake_tdr_file,
+)
 
 
 class TestSQSHandler:
@@ -41,7 +46,7 @@ class TestSQSHandler:
         notify_update,
         boto_session,
         apiclient,
-        capsys,
+        caplog: pytest.LogCaptureFixture,
     ):
         """Test that a V2 message arriving via SQS is processed correctly."""
         boto_session.return_value.client.return_value.download_file = create_fake_tdr_file
@@ -51,8 +56,7 @@ class TestSQSHandler:
 
         result = lambda_function.handler(event=sqs_v2_event, context=None)
 
-        log = capsys.readouterr().out
-        assert_log_sensible(log)
+        assert_log_shows_successful_ingest(caplog)
         notify_update.assert_called()
         notify_new.assert_not_called()
         # No failures → empty batchItemFailures
@@ -87,7 +91,7 @@ class TestSQSHandler:
         notify_updated,
         boto_session,
         apiclient,
-        capsys,
+        caplog: pytest.LogCaptureFixture,
     ):
         """Test that an S3 message arriving via SQS is processed correctly."""
         boto_session.return_value.client.return_value.download_file = create_fake_bulk_file
@@ -98,9 +102,9 @@ class TestSQSHandler:
 
         result = lambda_function.handler(event=sqs_s3_event, context=None)
 
-        log = capsys.readouterr().out
-        assert "Ingester Start: Consignment reference BULK-0" in log
-        assert "Ingestion complete" in log
+        assert_log_has_message_starting(caplog, "Ingester Start: Consignment reference BULK-0")
+        assert_log_shows_successful_ingest(caplog)
+
         assert result == {"batchItemFailures": []}
 
     @patch("src.ds_caselaw_ingester.lambda_function.boto3.session.Session")
@@ -185,7 +189,6 @@ class TestSQSHandler:
         mock_ingest,
         mock_perform_ingest,
         boto_session,
-        capsys,
     ):
         """Direct SNS events still work (backward compatibility)."""
         message = v2_message_raw

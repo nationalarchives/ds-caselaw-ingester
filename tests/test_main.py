@@ -1,12 +1,12 @@
 import copy
 import json
+import logging
 import os
 import xml.etree.ElementTree as ET
 from unittest.mock import ANY, MagicMock, PropertyMock, call, patch
 
 import pytest
 import rollbar
-from callee import Contains
 from caselawclient.Client import (
     MarklogicCommunicationError,
 )
@@ -21,22 +21,19 @@ from notifications_python_client.notifications import NotificationsAPIClient
 from src.ds_caselaw_ingester import exceptions, ingester, lambda_function
 
 from .conftest import error_message_raw, s3_message_raw, v2_message, v2_message_raw
-from .helpers import create_fake_bulk_file, create_fake_error_file, create_fake_tdr_file
+from .helpers import (
+    assert_log_does_not_have_message_starting,
+    assert_log_has_message,
+    assert_log_has_message_starting,
+    assert_log_shows_successful_ingest,
+    create_fake_bulk_file,
+    create_fake_error_file,
+    create_fake_tdr_file,
+)
 
 rollbar.init(access_token=None, enabled=False)
 
 NULL_UPDATE_METADATA = '{\n  "Judgment-Update": null,\n  "Judgment-Update-Type": null,\n  "Judgment-Update-Details": null,\n  "Judgment-Neutral-Citation": null,\n  "Judgment-No-Neutral-Citation": null,\n  "Judgment-Reference": null\n}'
-
-
-def assert_log_sensible(log):
-    assert "Ingester Start: Consignment reference" in log
-    assert "tar.gz saved locally as" in log
-    assert "Ingesting document" in log
-    assert "Updated judgment xml" in log
-    assert "Upload Successful" in log
-    assert "Ingestion complete" in log
-    assert "Invalid XML file" not in log
-    assert "No XML file found" not in log
 
 
 class TestHandler:
@@ -67,7 +64,7 @@ class TestHandler:
         notify_update,
         boto_session,
         apiclient,
-        capsys,
+        caplog: pytest.LogCaptureFixture,
     ):
         boto_session.return_value.client.return_value.download_file = create_fake_tdr_file
         doc = apiclient.return_value.get_document_by_uri.return_value
@@ -78,10 +75,9 @@ class TestHandler:
         event = {"Records": [{"Sns": {"Message": message}}, {"Sns": {"Message": message}}]}
         lambda_function.handler(event=event, context=None)
 
-        log = capsys.readouterr().out
-        assert_log_sensible(log)
-        assert "\npublishing" not in log
-        assert "image1.png" in log
+        assert_log_shows_successful_ingest(caplog)
+        assert_log_does_not_have_message_starting(caplog, "publishing")
+        assert "image1.png" in caplog.text
         notify_update.assert_called()
         assert notify_update.call_count == 2
         notify_new.assert_not_called()
@@ -127,7 +123,7 @@ class TestHandler:
         notify_updated,
         boto_session,
         apiclient,
-        capsys,
+        caplog: pytest.LogCaptureFixture,
     ):
         """Test that, with appropriate stubs, an S3 message passes through the parsing process"""
         boto_session.return_value.client.return_value.download_file = create_fake_bulk_file
@@ -140,16 +136,12 @@ class TestHandler:
         event = {"Records": [{"Sns": {"Message": message}}, {"Sns": {"Message": message}}]}
         lambda_function.handler(event=event, context=None)
 
-        log = capsys.readouterr().out
-        assert "Ingester Start: Consignment reference BULK-0" in log
-        assert "tar.gz saved locally as /tmp/BULK-0.tar.gz" in log
-        assert "Ingesting document" in log
-        assert "Updated judgment xml" in log
-        assert "Upload Successful" in log
-        assert "Ingestion complete" in log
-        assert "\npublishing" in log
-        assert "Invalid XML file" not in log
-        assert "No XML file found" not in log
+        assert_log_shows_successful_ingest(caplog)
+
+        assert_log_has_message(caplog, "Ingester Start: Consignment reference BULK-0")
+        assert_log_has_message(caplog, "tar.gz saved locally as /tmp/BULK-0.tar.gz")
+        assert_log_has_message_starting(caplog, "publishing")
+
         doc.publish.assert_called_with()
         notify_new.assert_not_called()
         notify_updated.assert_not_called()
@@ -188,7 +180,7 @@ class TestHandler:
         notify_update,
         boto_session,
         apiclient,
-        capsys,
+        caplog: pytest.LogCaptureFixture,
     ):
         boto_session.return_value.client.return_value.download_file = create_fake_error_file
         mock_doc.return_value = apiclient.return_value.get_document_by_uri.return_value
@@ -198,18 +190,21 @@ class TestHandler:
         event = {"Records": [{"Sns": {"Message": message}}, {"Sns": {"Message": message}}]}
         lambda_function.handler(event=event, context=None)
 
-        log = capsys.readouterr().out
-        assert "tar.gz saved locally as /tmp/TDR-2025-CN7V.tar.gz" in log
-        assert "No XML file found in tarfile." in log
-        assert "Ingesting document uuid" in log
-        assert "Inserted judgment xml for uuid" in log
-        assert "extracted source filename is 'failures_TDR-2025-CN7V.docx'" in log
-        assert "Upload Successful uuid/TDR-2025-CN7V.tar.gz" in log
-        assert "saved tar.gz as '/tmp/TDR-2025-CN7V.tar.gz'" in log
-        assert "Upload Successful uuid/uuid.docx" in log
-        assert "Upload Successful uuid/parser.log" in log
-        assert "Ingestion complete" in log
-        assert "\npublishing" not in log
+        assert_log_has_message(caplog, "tar.gz saved locally as /tmp/TDR-2025-CN7V.tar.gz")
+        assert_log_has_message(
+            caplog,
+            "No XML file found in tarfile. consignment reference: TDR-2025-CN7V. Falling back to parser.log contents.",
+            logging.WARNING,
+        )
+        assert_log_has_message(caplog, "Ingesting document uuid")
+        assert_log_has_message(caplog, "Inserted judgment xml for uuid")
+        assert_log_has_message(caplog, "extracted source filename is 'failures_TDR-2025-CN7V.docx'")
+        assert_log_has_message(caplog, "Upload Successful uuid/TDR-2025-CN7V.tar.gz")
+        assert_log_has_message(caplog, "saved tar.gz as '/tmp/TDR-2025-CN7V.tar.gz'")
+        assert_log_has_message(caplog, "Upload Successful uuid/uuid.docx")
+        assert_log_has_message(caplog, "Upload Successful uuid/parser.log")
+        assert_log_has_message(caplog, "Ingestion complete")
+        assert_log_does_not_have_message_starting(caplog, "publishing")
         notify_new.assert_called()
         assert notify_new.call_count == 2
         notify_update.assert_not_called()
@@ -245,7 +240,7 @@ class TestHandler:
         mock_ingest,
         mock_perform_ingest,
         boto_session,
-        capsys,
+        caplog,
     ):
         message = s3_message_raw
         event = {
@@ -253,16 +248,16 @@ class TestHandler:
         }
         lambda_function.handler(event=event, context=None)
 
-        log = capsys.readouterr().out
         # rollbar is called each time it fails
         mock_rollbar_call.assert_has_calls([call(level="error"), call(level="error"), call(level="error")])
 
         # stacktraces are in the log
-        assert "Traceback (most recent call last):" in log
-        assert "ds_caselaw_ingester.exceptions.FileNotFoundException: test" in log
+        assert_log_has_message(caplog, "Error processing message", logging.ERROR)
+        assert "Traceback (most recent call last):" in caplog.text
+        assert "ds_caselaw_ingester.exceptions.FileNotFoundException: test" in caplog.text
 
         # the first invocation does not block the second
-        assert "ds_caselaw_ingester.exceptions.DocxFilenameNotFoundException: test2" in log
+        assert "ds_caselaw_ingester.exceptions.DocxFilenameNotFoundException: test2" in caplog.text
 
 
 class TestLambda:
@@ -304,8 +299,7 @@ class TestLambda:
         },
         clear=True,
     )
-    @patch("builtins.print")
-    def test_send_new_judgment_notification(self, mock_print, v2_ingest):
+    def test_send_new_judgment_notification(self, v2_ingest, caplog: pytest.LogCaptureFixture):
         v2_ingest.uri = "d-4444"
         expected_personalisation = {
             "url": "http://editor.url/detail?judgment_uri=d-4444",
@@ -322,7 +316,8 @@ class TestLambda:
             template_id="template-id",
             personalisation=expected_personalisation,
         )
-        mock_print.assert_called_with(Contains("Sent new notification to test@notifications.service.gov.uk"))
+
+        assert_log_has_message_starting(caplog, "Sent new notification to test@notifications.service.gov.uk")
 
     @patch.dict(
         os.environ,
@@ -335,8 +330,7 @@ class TestLambda:
         },
         clear=True,
     )
-    @patch("builtins.print")
-    def test_send_new_judgment_notification_with_no_tdr_section(self, mock_print, v2_ingest):
+    def test_send_new_judgment_notification_with_no_tdr_section(self, v2_ingest, caplog: pytest.LogCaptureFixture):
         v2_ingest.metadata = {}
         v2_ingest.uri = "d-444"
         expected_personalisation = {
@@ -354,15 +348,14 @@ class TestLambda:
             template_id="template-id",
             personalisation=expected_personalisation,
         )
-        mock_print.assert_called_with(Contains("Sent new notification to test@notifications.service.gov.uk"))
+        assert_log_has_message_starting(caplog, "Sent new notification to test@notifications.service.gov.uk")
 
     @patch.dict(
         os.environ,
         {"ROLLBAR_ENV": "staging"},
         clear=True,
     )
-    @patch("builtins.print")
-    def test_do_not_send_new_judgment_notification_on_staging(self, mock_print, v2_ingest):
+    def test_do_not_send_new_judgment_notification_on_staging(self, v2_ingest):
         NotificationsAPIClient.send_email_notification = MagicMock()
         v2_ingest.send_new_judgment_notification()
         NotificationsAPIClient.send_email_notification.assert_not_called()
@@ -378,8 +371,7 @@ class TestLambda:
         },
         clear=True,
     )
-    @patch("builtins.print")
-    def test_send_updated_judgment_notification(self, mock_print, v2_ingest):
+    def test_send_updated_judgment_notification(self, v2_ingest, caplog: pytest.LogCaptureFixture):
         v2_ingest.uri = "uri"
         v2_ingest.metadata = {
             "parameters": {
@@ -412,7 +404,8 @@ class TestLambda:
             template_id="template-id",
             personalisation=expected_personalisation,
         )
-        mock_print.assert_called_with(Contains("Sent update notification to test@notifications.service.gov.uk"))
+
+        assert_log_has_message_starting(caplog, "Sent update notification to test@notifications.service.gov.uk")
 
     @patch.dict(
         os.environ,
@@ -425,8 +418,7 @@ class TestLambda:
         },
         clear=True,
     )
-    @patch("builtins.print")
-    def test_send_updated_judgment_notification_with_no_tdr_section(self, mock_print, v2_ingest):
+    def test_send_updated_judgment_notification_with_no_tdr_section(self, v2_ingest, caplog: pytest.LogCaptureFixture):
         v2_ingest.metadata = {}
         v2_ingest.uri = "uri"
         expected_personalisation = {
@@ -443,7 +435,8 @@ class TestLambda:
             template_id="template-id",
             personalisation=expected_personalisation,
         )
-        mock_print.assert_called_with(Contains("Sent update notification to test@notifications.service.gov.uk"))
+
+        assert_log_has_message_starting(caplog, "Sent update notification to test@notifications.service.gov.uk")
 
     def test_get_consignment_reference_success_v2(self):
         message = copy.deepcopy(v2_message)

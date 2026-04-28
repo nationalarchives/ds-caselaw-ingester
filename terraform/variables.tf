@@ -123,3 +123,20 @@ variable "region_level_concurrency_limit" {
   type        = number
   default     = 1000
 }
+
+# --- Slack alarm delivery (see slack_alarms.tf) ---
+
+variable "slack_channel_id" {
+  description = <<-EOT
+    Slack channel ID (NOT the channel name) that CloudWatch alarm
+    notifications will be posted to via EventBridge -> Slack chat.postMessage.
+    Example: "C0123456789". The bot whose token is stored in the
+    `<env>-caselaw-ingester-alarms-slack-token` Secrets Manager secret must be
+    invited to this channel.
+
+    No default — must be provided per environment (e.g. via tfvars / CI
+    secret) so the channel ID isn't committed to this public repo.
+  EOT
+  type        = string
+  sensitive   = true
+}

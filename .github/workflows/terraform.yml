@@ -96,7 +96,7 @@ jobs:
         working-directory: terraform
 
       - name: Terraform Apply
-        if: github.event_name != 'workflow_dispatch' || inputs.apply == 'true'
+        if: inputs.apply != 'false'
         run: terraform apply -auto-approve -input=false
         working-directory: terraform
 

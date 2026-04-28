@@ -45,6 +45,8 @@ jobs:
       TF_BACKEND_BUCKET: ${{ secrets.TF_BACKEND_BUCKET }}
       TF_VAR_TRE_MESSAGE_TOPIC_ARN: ${{ secrets.TF_VAR_TRE_MESSAGE_TOPIC_ARN }}
       TF_VAR_BULK_INGEST_S3_EVENT_TOPIC_ARN: ${{ secrets.TF_VAR_BULK_INGEST_S3_EVENT_TOPIC_ARN }}
+      TF_VAR_SLACK_CHANNEL_ID: ${{ secrets.TF_VAR_SLACK_CHANNEL_ID }}
+      TF_VAR_LAMBDA_FUNCTION_NAME: ${{ secrets.TF_VAR_LAMBDA_FUNCTION_NAME }}
 
   build-deploy:
     needs: [set-env, terraform]

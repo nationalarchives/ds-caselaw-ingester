@@ -25,6 +25,12 @@ on:
       TF_VAR_BULK_INGEST_S3_EVENT_TOPIC_ARN:
         description: "SNS topic ARN that fans out raw S3 ObjectCreated:* event notifications"
         required: true
+      TF_VAR_SLACK_CHANNEL_ID:
+        description: "Slack channel ID (e.g. C0123456789) that receives CloudWatch alarm notifications"
+        required: true
+      TF_VAR_LAMBDA_FUNCTION_NAME:
+        description: "Existing AWS Lambda function name (the auto-generated SAM name, e.g. ds-caselaw-ingester-TNACaselawIngesterFunction-XXXXXX). Used as the FunctionName dimension for CloudWatch alarms."
+        required: true
     outputs:
       ingest_queue_arn:
         description: "ARN of the SQS ingest queue"
@@ -66,6 +72,8 @@ jobs:
       TF_VAR_environment: ${{ inputs.environment }}
       TF_VAR_tre_message_topic_arn: ${{ secrets.TF_VAR_TRE_MESSAGE_TOPIC_ARN }}
       TF_VAR_bulk_ingest_s3_event_topic_arn: ${{ secrets.TF_VAR_BULK_INGEST_S3_EVENT_TOPIC_ARN }}
+      TF_VAR_slack_channel_id: ${{ secrets.TF_VAR_SLACK_CHANNEL_ID }}
+      TF_VAR_lambda_function_name: ${{ secrets.TF_VAR_LAMBDA_FUNCTION_NAME }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

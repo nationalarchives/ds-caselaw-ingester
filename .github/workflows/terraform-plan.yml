@@ -1,0 +1,49 @@
+name: Terraform Plan
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "terraform/**"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to plan"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+
+permissions:
+  contents: read
+
+jobs:
+  set-env:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.set.outputs.environment }}
+    steps:
+      - id: set
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "environment=staging" >> "$GITHUB_OUTPUT"
+          else
+            echo "environment=${{ inputs.environment }}" >> "$GITHUB_OUTPUT"
+          fi
+
+  plan:
+    needs: set-env
+    uses: ./.github/workflows/terraform.yml
+    with:
+      environment: ${{ needs.set-env.outputs.environment }}
+      apply: false
+    permissions:
+      id-token: write
+      contents: read
+    secrets:
+      AWS_OIDC_ROLE_ARN: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+      TF_BACKEND_BUCKET: ${{ secrets.TF_BACKEND_BUCKET }}
+      TF_VAR_TRE_MESSAGE_TOPIC_ARN: ${{ secrets.TF_VAR_TRE_MESSAGE_TOPIC_ARN }}
+      TF_VAR_BULK_INGEST_S3_EVENT_TOPIC_ARN: ${{ secrets.TF_VAR_BULK_INGEST_S3_EVENT_TOPIC_ARN }}

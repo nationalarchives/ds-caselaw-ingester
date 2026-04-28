@@ -1,24 +1,14 @@
 import copy
 import json
-import os
 import tarfile
 from unittest.mock import Mock, PropertyMock, patch
 
-# Mock required environment variables before importing the lambda module,
-# as it reads them at import time via os.environ[...]
-os.environ.setdefault("MARKLOGIC_HOST", "test-marklogic-host")
-os.environ.setdefault("MARKLOGIC_USER", "test-user")
-os.environ.setdefault("MARKLOGIC_PASSWORD", "test-password")
-os.environ.setdefault("PRIVATE_ASSET_BUCKET", "test-private-bucket")
-os.environ.setdefault("PUBLIC_ASSET_BUCKET", "test-public-bucket")
-os.environ.setdefault("NOTIFY_API_KEY", "test-notify-key")
+from caselawclient.types import DocumentURIString
+from pytest import fixture
 
-from caselawclient.types import DocumentURIString  # noqa: E402
-from pytest import fixture  # noqa: E402
+from src.ds_caselaw_ingester import ingester, lambda_function
 
-from src.ds_caselaw_ingester import ingester, lambda_function  # noqa: E402
-
-from .helpers import create_fake_bulk_file, create_fake_tdr_file  # noqa: E402
+from .helpers import create_fake_bulk_file, create_fake_tdr_file
 
 
 def setup_api_client():

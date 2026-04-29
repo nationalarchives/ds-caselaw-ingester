@@ -7,6 +7,11 @@ on:
         description: "Environment to deploy to"
         required: true
         type: string
+      apply:
+        description: "Run terraform apply after plan"
+        required: false
+        type: boolean
+        default: true
     secrets:
       AWS_OIDC_ROLE_ARN:
         description: "The OIDC role ARN to assume for this environment"
@@ -36,11 +41,8 @@ on:
       apply:
         description: "Run terraform apply?"
         required: false
-        default: "false"
-        type: choice
-        options:
-          - "false"
-          - "true"
+        default: false
+        type: boolean
 
 env:
   AWS_REGION: eu-west-2
@@ -96,11 +98,12 @@ jobs:
         working-directory: terraform
 
       - name: Terraform Apply
-        if: github.event_name != 'workflow_dispatch' || inputs.apply == 'true'
+        if: inputs.apply
         run: terraform apply -auto-approve -input=false
         working-directory: terraform
 
       - name: Export Terraform Outputs
+        if: inputs.apply
         id: tf-outputs
         run: |
           echo "ingest_queue_arn=$(terraform output -raw ingest_queue_arn)" >> "$GITHUB_OUTPUT"

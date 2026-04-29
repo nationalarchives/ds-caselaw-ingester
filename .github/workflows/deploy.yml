@@ -36,6 +36,7 @@ jobs:
     uses: ./.github/workflows/terraform.yml
     with:
       environment: ${{ needs.set-env.outputs.environment }}
+      apply: true
     permissions:
       id-token: write
       contents: read

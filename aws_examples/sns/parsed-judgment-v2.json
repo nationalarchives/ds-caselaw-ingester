@@ -1,6 +1,6 @@
 {
   "properties": {
-    "messageType": "uk.gov.nationalarchives.tre.messages.courtdocumentpackage.available.CourtDocumentPackageAvailable",
+    "messageType": "uk.gov.nationalarchives.da.messages.courtdocumentpackage.available.CourtDocumentPackageAvailable",
     "timestamp": "2023-06-28T09:09:25.670688Z",
     "function": "staging-tre-court-document-pack-lambda",
     "producer": "TRE",

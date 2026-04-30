@@ -79,7 +79,7 @@ resource "aws_sns_topic_subscription" "tre_message_subscription" {
   filter_policy = jsonencode({
     properties = {
       messageType = [
-        "uk.gov.nationalarchives.tre.messages.courtdocumentpackage.available.CourtDocumentPackageAvailable",
+        "uk.gov.nationalarchives.da.messages.courtdocumentpackage.available.CourtDocumentPackageAvailable",
       ]
     }
   })

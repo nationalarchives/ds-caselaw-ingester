@@ -7,4 +7,3 @@ pytest==9.0.3  # https://github.com/pytest-dev/pytest
 pytest-cov==7.1.0
 callee==0.3.1
 aws-sam-cli-local
-cfn-lint==1.48.1

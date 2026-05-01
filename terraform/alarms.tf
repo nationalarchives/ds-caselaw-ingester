@@ -9,12 +9,12 @@
 #     `template.yml`, but its alarms are owned here. The function name is
 #     pinned in SAM and passed in via `var.lambda_function_name`.)
 #
-# The shared SQS module already creates the following alarms for us, so they are
+# The shared SQS module, as specified in main.tf, already creates the following alarms for us, so they are
 # intentionally NOT redefined here:
 #   - <queue>-messages-visible-alarm           (ApproximateNumberOfMessagesVisible on main queue)
 #   - <queue>-dlq-messages-visible-alarm       (ApproximateNumberOfMessagesVisible on DLQ)
-#   - <queue>-dlq-new-messages-added-alarm     (DIFF on DLQ visible+not-visible)
-#   - <queue>-unprocessed-messages-alert       (messages present but none being received)
+#   - <queue>-dlq-new-messages-added-alarm     (change in total DLQ messages, i.e. diff of ApproximateNumberOfMessagesVisible and ApproximateNumberOfMessagesNotVisible combined)
+#   - <queue>-unprocessed-messages-alert       (ApproximateNumberOfMessagesVisible > 0 but NumberOfMessagesReceived is 0, i.e. messages are waiting but no consumer is polling)
 #
 # The alarms below cover the remaining AWS-recommended SQS and Lambda alarms,
 # matching the actions_enabled=false / empty-actions style used elsewhere in

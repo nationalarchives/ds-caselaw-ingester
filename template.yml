@@ -94,6 +94,7 @@ Resources:
           Properties:
             Queue: !Ref IngestQueueArn
             BatchSize: !Ref IngestQueueBatchSize
+            Enabled: true
             ScalingConfig:
               MaximumConcurrency: !Ref MaximumConcurrency
             FunctionResponseTypes:

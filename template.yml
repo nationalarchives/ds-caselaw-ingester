@@ -63,7 +63,7 @@ Parameters:
   MaximumConcurrency:
     Description: "Maximum concurrent Lambda invocations from the SQS event source"
     Type: "Number"
-    Default: 5
+    Default: 100
   VpcSubnetId0:
     Description: "VPC Subnet ID 0"
     Type: "String"

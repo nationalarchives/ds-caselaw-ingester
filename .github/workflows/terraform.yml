@@ -29,6 +29,9 @@ on:
       ingest_queue_arn:
         description: "ARN of the SQS ingest queue"
         value: ${{ jobs.terraform.outputs.ingest_queue_arn }}
+      codeguru_profiling_group_arn:
+        description: "ARN of the CodeGuru Profiler profiling group"
+        value: ${{ jobs.terraform.outputs.codeguru_profiling_group_arn }}
   workflow_dispatch:
     inputs:
       environment:
@@ -59,6 +62,7 @@ jobs:
     environment: ${{ inputs.environment }}
     outputs:
       ingest_queue_arn: ${{ steps.tf-outputs.outputs.ingest_queue_arn }}
+      codeguru_profiling_group_arn: ${{ steps.tf-outputs.outputs.codeguru_profiling_group_arn }}
     permissions:
       contents: read
       id-token: write
@@ -107,4 +111,5 @@ jobs:
         id: tf-outputs
         run: |
           echo "ingest_queue_arn=$(terraform output -raw ingest_queue_arn)" >> "$GITHUB_OUTPUT"
+          echo "codeguru_profiling_group_arn=$(terraform output -raw codeguru_profiling_group_arn)" >> "$GITHUB_OUTPUT"
         working-directory: terraform

@@ -104,3 +104,19 @@ resource "aws_sns_topic_subscription" "bulk_ingest_s3_event_subscription" {
     }
   })
 }
+
+# CodeGuru Profiling Group for the ingester Lambda
+resource "aws_codeguruprofiler_profiling_group" "ingester" {
+  name = "${var.environment}-${lower(var.codeguru_profiling_group_name)}"
+
+  compute_platform = "AWSLambda"
+
+  agent_orchestration_config {
+    profiling_enabled = true
+  }
+
+  tags = merge(var.tags, {
+    Environment = var.environment
+    Purpose     = "Profiling for ds-caselaw-ingester Lambda"
+  })
+}

@@ -38,6 +38,7 @@ jobs:
     uses: ./.github/workflows/terraform.yml
     with:
       environment: ${{ needs.set-env.outputs.environment }}
+      deployment: false
       apply: false
     permissions:
       id-token: write

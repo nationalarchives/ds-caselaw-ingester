@@ -76,6 +76,9 @@ Parameters:
   VpcSecurityGroupId:
     Description: "VPC Security Group ID"
     Type: "String"
+  CodeGuruProfilingGroupArn:
+    Description: "CodeGuru Profiler Group ARN (created by Terraform)"
+    Type: "String"
 
 Resources:
   TNACaselawIngesterFunction:
@@ -115,6 +118,7 @@ Resources:
           ROLLBAR_ENV: !Ref RollbarEnv
           ROLLBAR_TOKEN: !Ref RollbarToken
           SNS_TOPIC: !Ref SnsTopic
+          AWS_CODEGURU_PROFILER_GROUP_ARN: !Ref CodeGuruProfilingGroupArn
       VpcConfig:
         SubnetIds:
           - !Ref VpcSubnetId0
@@ -122,6 +126,14 @@ Resources:
           - !Ref VpcSubnetId2
         SecurityGroupIds:
           - !Ref VpcSecurityGroupId
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - "codeguru-profiler:ConfigureAgent"
+                - "codeguru-profiler:PostAgentProfile"
+              Resource: !Ref CodeGuruProfilingGroupArn
 
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function

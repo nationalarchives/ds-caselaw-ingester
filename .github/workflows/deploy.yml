@@ -80,6 +80,7 @@ jobs:
           RollbarToken=${{ secrets.ROLLBAR_TOKEN }}
           SnsTopic=${{ vars.SNS_TOPIC }}
           IngestQueueArn=${{ needs.terraform.outputs.ingest_queue_arn }}
+          CodeGuruProfilingGroupArn=${{ needs.terraform.outputs.codeguru_profiling_group_arn }}
           VpcSubnetId0=${{ vars.VPC_SUBNET_ID_0 }}
           VpcSubnetId1=${{ vars.VPC_SUBNET_ID_1 }}
           VpcSubnetId2=${{ vars.VPC_SUBNET_ID_2 }}

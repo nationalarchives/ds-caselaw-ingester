@@ -52,3 +52,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "codeguru_profiling_group_name" {
+  description = "AWS CodeGuru Profiler group name for the Lambda function"
+  type        = string
+  default     = "ingester"
+}

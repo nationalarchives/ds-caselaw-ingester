@@ -114,9 +114,4 @@ resource "aws_codeguruprofiler_profiling_group" "ingester" {
   agent_orchestration_config {
     profiling_enabled = true
   }
-
-  tags = merge(var.tags, {
-    Environment = var.environment
-    Purpose     = "Profiling for ds-caselaw-ingester Lambda"
-  })
 }

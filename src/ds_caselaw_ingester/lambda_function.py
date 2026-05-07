@@ -23,22 +23,28 @@ logger.setLevel(logging.DEBUG)
 load_dotenv()
 
 rollbar.init(os.getenv("ROLLBAR_TOKEN"), environment=os.getenv("ROLLBAR_ENV"))
-
-MARKLOGIC_HOST: str = os.environ["MARKLOGIC_HOST"]
-MARKLOGIC_USER: str = os.environ["MARKLOGIC_USER"]
-MARKLOGIC_PASSWORD: str = os.environ["MARKLOGIC_PASSWORD"]
-MARKLOGIC_USE_HTTPS: bool = bool(os.getenv("MARKLOGIC_USE_HTTPS", default=False))
-
 PRIVATE_ASSET_BUCKET: str = os.environ["PRIVATE_ASSET_BUCKET"]
 
-api_client = MarklogicApiClient(
-    host=MARKLOGIC_HOST,
-    username=MARKLOGIC_USER,
-    password=MARKLOGIC_PASSWORD,
-    use_https=MARKLOGIC_USE_HTTPS,
-    user_agent=f"ds-caselaw-ingester/unknown {DEFAULT_USER_AGENT}",
-)
-logger.info("Initialised MarkLogic API client")
+
+def create_api_client():
+    MARKLOGIC_HOST: str = os.environ["MARKLOGIC_HOST"]
+    MARKLOGIC_USER: str = os.environ["MARKLOGIC_USER"]
+    MARKLOGIC_PASSWORD: str = os.environ["MARKLOGIC_PASSWORD"]
+    MARKLOGIC_USE_HTTPS: bool = bool(os.getenv("MARKLOGIC_USE_HTTPS", default=False))
+
+    api_client = MarklogicApiClient(
+        host=MARKLOGIC_HOST,
+        username=MARKLOGIC_USER,
+        password=MARKLOGIC_PASSWORD,
+        use_https=MARKLOGIC_USE_HTTPS,
+        user_agent=f"ds-caselaw-ingester/unknown {DEFAULT_USER_AGENT}",
+    )
+    logger.info("Initialised MarkLogic API client")
+
+    return api_client
+
+
+api_client = create_api_client()
 
 if os.getenv("AWS_ACCESS_KEY_ID") and os.getenv("AWS_SECRET_KEY") and os.getenv("AWS_ENDPOINT_URL"):
     session = boto3.session.Session(

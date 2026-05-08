@@ -2,9 +2,9 @@ import copy
 import json
 import logging
 import os
-import xml.etree.ElementTree as ET
 from unittest.mock import ANY, MagicMock, PropertyMock, call, patch
 
+import lxml.etree as ET
 import pytest
 import rollbar
 from caselawclient.Client import (

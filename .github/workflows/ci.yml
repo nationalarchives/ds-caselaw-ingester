@@ -36,7 +36,7 @@ jobs:
       MARKLOGIC_HOST: ml-host
       MARKLOGIC_USER: ml-user
       MARKLOGIC_PASSWORD: ml-password
-      MARKLOGIC_USE_HTTPS: 0
+      MARKLOGIC_USE_HTTPS: "false"
       PRIVATE_ASSET_BUCKET: judgments-original-versions
       PUBLIC_ASSET_BUCKET: public-asset-bucket
     name: Run unit tests

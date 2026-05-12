@@ -1,9 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "github>nationalarchives/ds-find-caselaw-docs",
-    ":pinDependencies"
-  ],
+  "extends": ["github>nationalarchives/ds-find-caselaw-docs"],
   "pip_requirements": {
     "managerFilePatterns": ["/requirements/.*\\.txt/"]
   }

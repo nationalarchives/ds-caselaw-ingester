@@ -6,7 +6,7 @@ import os
 import tarfile
 from contextlib import suppress
 from functools import cached_property
-from typing import IO, TYPE_CHECKING, Any, TypedDict
+from typing import IO, TYPE_CHECKING, TypedDict
 from uuid import uuid4
 from xml.sax.saxutils import escape
 
@@ -26,6 +26,7 @@ from caselawclient.models.press_summaries import PressSummary
 from caselawclient.models.utilities.aws import S3PrefixString
 from caselawclient.types import DocumentIdentifierSlug, DocumentIdentifierValue
 from caselawclient.xml_helpers import Element
+from ds_caselaw_utils.types.metadata_schema_autogen import DocumentProcessingMetadata, ParserProcessMetadata
 from mypy_boto3_s3.client import S3Client
 from notifications_python_client.notifications import NotificationsAPIClient
 
@@ -54,22 +55,18 @@ PRIVATE_ASSET_BUCKET: str = os.environ["PRIVATE_ASSET_BUCKET"]
 PUBLIC_ASSET_BUCKET: str = os.environ["PUBLIC_ASSET_BUCKET"]
 
 
-class TREMetadataDict(TypedDict):
-    parameters: dict[str, Any]
-
-
 class SubmitterInformationDict(TypedDict):
     name: str
     email: str
 
 
 class VersionPayloadDict(TypedDict, total=False):
-    tre_raw_metadata: TREMetadataDict
+    tre_raw_metadata: DocumentProcessingMetadata
     tdr_reference: str
     submitter: SubmitterInformationDict
 
 
-def extract_metadata(tar: tarfile.TarFile, consignment_reference: str) -> TREMetadataDict:
+def extract_metadata(tar: tarfile.TarFile, consignment_reference: str) -> DocumentProcessingMetadata:
     te_metadata_file = None
     decoder = json.decoder.JSONDecoder()
     for member in tar.getmembers():
@@ -163,7 +160,7 @@ def get_best_xml(tar: tarfile.TarFile, xml_file_name: str, consignment_reference
     return ET.fromstring(contents)
 
 
-def _build_version_annotation_payload_from_metadata(metadata: TREMetadataDict) -> VersionPayloadDict:
+def _build_version_annotation_payload_from_metadata(metadata: DocumentProcessingMetadata) -> VersionPayloadDict:
     """Turns metadata from TRE into a structured annotation payload."""
     payload: VersionPayloadDict = {
         "tre_raw_metadata": metadata,
@@ -179,7 +176,7 @@ def _build_version_annotation_payload_from_metadata(metadata: TREMetadataDict) -
     return payload
 
 
-def personalise_email(uri: str, metadata: TREMetadataDict) -> dict:
+def personalise_email(uri: str, metadata: DocumentProcessingMetadata) -> dict:
     """Doesn't contain 'doctype', re-add for new judgment notification"""
     try:
         tdr_metadata = metadata["parameters"]["TDR"]
@@ -207,7 +204,7 @@ def personalise_email(uri: str, metadata: TREMetadataDict) -> dict:
     }
 
 
-def extract_source_filename(metadata: TREMetadataDict, consignment_reference: str) -> str:
+def extract_source_filename(metadata: DocumentProcessingMetadata, consignment_reference: str) -> str:
     try:
         return metadata["parameters"]["TRE"]["payload"]["filename"]
     except KeyError as err:
@@ -227,7 +224,7 @@ def modify_filename(original: str, addition: str) -> str:
 
 
 class Metadata:
-    def __init__(self, metadata: TREMetadataDict) -> None:
+    def __init__(self, metadata: DocumentProcessingMetadata) -> None:
         self.metadata = metadata
         self.parameters = metadata.get("parameters", {})
 
@@ -410,6 +407,7 @@ class Ingest:
 
     def store_metadata(self) -> None:
         tdr_metadata = self.metadata["parameters"]["TDR"]
+        parser_metadata: ParserProcessMetadata = self.metadata["parameters"]["PARSER"]
 
         # Store source information
         self.api_client.set_property(
@@ -430,6 +428,14 @@ class Ingest:
             name="transfer-received-at",
             value=tdr_metadata["Consignment-Completed-Datetime"],
         )
+
+        # Set parser metadata
+        if "parser_run_id" in parser_metadata:
+            self.api_client.set_property(
+                self.uri,
+                name="parser-run-id",
+                value=parser_metadata["parser_run_id"],
+            )
 
     def save_files_to_s3(self) -> None:
         # Determine if there's a word document -- we need to know before we save the tar.gz file

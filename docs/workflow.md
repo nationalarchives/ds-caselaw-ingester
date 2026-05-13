@@ -129,8 +129,15 @@ sequenceDiagram
         deactivate Ingest
 
         opt If TDR parameters present
-            perform_ingest ->>+ Ingest: store_metadata()
+            perform_ingest ->>+ Ingest: store_tdr_metadata()
             note right of Ingest: Sets the TDR-based document properties (eg uploader details) in MarkLogic
+            Ingest ->> MarkLogic : Set document metadata properties
+            deactivate Ingest
+        end
+
+        opt If PARSER parameters present
+            perform_ingest ->>+ Ingest: store_parser_metadata()
+            note right of Ingest: Sets the parser-based document properties (eg parser run ID) in MarkLogic
             Ingest ->> MarkLogic : Set document metadata properties
             deactivate Ingest
         end

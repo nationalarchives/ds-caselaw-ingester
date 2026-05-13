@@ -29,34 +29,42 @@ NULL_UPDATE_METADATA = '{\n  "Judgment-Update": null,\n  "Judgment-Update-Type":
 
 
 class TestLambda:
-    def test_store_metadata(self, v2_ingest):
-        v2_ingest.metadata = {
-            "parameters": {
-                "TDR": {
-                    "Source-Organization": "Ministry of Justice",
-                    "Contact-Name": "Tom King",
-                    "Internal-Sender-Identifier": "TDR-2021-CF6L",
-                    "Consignment-Completed-Datetime": "2021-12-16T14:54:06Z",
-                    "Contact-Email": "someone@example.com",
-                    "Judgment-Neutral-Citation": "[2019] UKSC 1701",
-                },
-                "PARSER": {"parser_run_id": "607e7ef1-3b5e-431b-b115-bb1811767f5c"},
-            },
-        }
+    def test_store_tdr_metadata(self, v2_ingest):
         v2_ingest.uri = "uri"
-
         v2_ingest.api_client.set_property = MagicMock()
-        v2_ingest.store_metadata()
-        calls = [
-            call("uri", name="source-organisation", value="Ministry of Justice"),
-            call("uri", name="source-name", value="Tom King"),
-            call("uri", name="source-email", value="someone@example.com"),
-            call("uri", name="transfer-consignment-reference", value="TDR-2021-CF6L"),
-            call("uri", name="transfer-received-at", value="2021-12-16T14:54:06Z"),
-            call("uri", name="parser-run-id", value="607e7ef1-3b5e-431b-b115-bb1811767f5c"),
-        ]
-        # currently we do not store Judgment-Neutral-Citation directly.
-        v2_ingest.api_client.set_property.assert_has_calls(calls)
+
+        v2_ingest.store_tdr_metadata(
+            {
+                "Source-Organization": "Ministry of Justice",
+                "Contact-Name": "Tom King",
+                "Internal-Sender-Identifier": "TDR-2021-CF6L",
+                "Consignment-Completed-Datetime": "2021-12-16T14:54:06Z",
+                "Contact-Email": "someone@example.com",
+                "Judgment-Neutral-Citation": "[2019] UKSC 1701",
+            },
+        )
+
+        v2_ingest.api_client.set_property.assert_has_calls(
+            [
+                call("uri", name="source-organisation", value="Ministry of Justice"),
+                call("uri", name="source-name", value="Tom King"),
+                call("uri", name="source-email", value="someone@example.com"),
+                call("uri", name="transfer-consignment-reference", value="TDR-2021-CF6L"),
+                call("uri", name="transfer-received-at", value="2021-12-16T14:54:06Z"),
+            ],
+        )
+
+    def test_store_parser_metadata(self, v2_ingest):
+        v2_ingest.uri = "uri"
+        v2_ingest.api_client.set_property = MagicMock()
+
+        v2_ingest.store_parser_metadata({"parser_run_id": "607e7ef1-3b5e-431b-b115-bb1811767f5c"})
+
+        v2_ingest.api_client.set_property.assert_has_calls(
+            [
+                call("uri", name="parser-run-id", value="607e7ef1-3b5e-431b-b115-bb1811767f5c"),
+            ],
+        )
 
     @patch.dict(
         os.environ,

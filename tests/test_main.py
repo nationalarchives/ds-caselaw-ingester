@@ -272,6 +272,7 @@ class TestLambda:
                     "Contact-Email": "someone@example.com",
                     "Judgment-Neutral-Citation": "[2019] UKSC 1701",
                 },
+                "PARSER": {"parser_run_id": "607e7ef1-3b5e-431b-b115-bb1811767f5c"},
             },
         }
         v2_ingest.uri = "uri"
@@ -284,6 +285,7 @@ class TestLambda:
             call("uri", name="source-email", value="someone@example.com"),
             call("uri", name="transfer-consignment-reference", value="TDR-2021-CF6L"),
             call("uri", name="transfer-received-at", value="2021-12-16T14:54:06Z"),
+            call("uri", name="parser-run-id", value="607e7ef1-3b5e-431b-b115-bb1811767f5c"),
         ]
         # currently we do not store Judgment-Neutral-Citation directly.
         v2_ingest.api_client.set_property.assert_has_calls(calls)

@@ -26,7 +26,7 @@ from caselawclient.models.press_summaries import PressSummary
 from caselawclient.models.utilities.aws import S3PrefixString
 from caselawclient.types import DocumentIdentifierSlug, DocumentIdentifierValue
 from caselawclient.xml_helpers import Element
-from ds_caselaw_utils.types.metadata_schema_autogen import DocumentProcessingMetadata
+from ds_caselaw_utils.types.metadata_schema_autogen import DocumentProcessingMetadata, ParserProcessMetadata
 from mypy_boto3_s3.client import S3Client
 from notifications_python_client.notifications import NotificationsAPIClient
 
@@ -407,6 +407,7 @@ class Ingest:
 
     def store_metadata(self) -> None:
         tdr_metadata = self.metadata["parameters"]["TDR"]
+        parser_metadata: ParserProcessMetadata = self.metadata["parameters"]["PARSER"]
 
         # Store source information
         self.api_client.set_property(
@@ -427,6 +428,14 @@ class Ingest:
             name="transfer-received-at",
             value=tdr_metadata["Consignment-Completed-Datetime"],
         )
+
+        # Set parser metadata
+        if "parser_run_id" in parser_metadata:
+            self.api_client.set_property(
+                self.uri,
+                name="parser-run-id",
+                value=parser_metadata["parser_run_id"],
+            )
 
     def save_files_to_s3(self) -> None:
         # Determine if there's a word document -- we need to know before we save the tar.gz file

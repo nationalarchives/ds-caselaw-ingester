@@ -405,9 +405,8 @@ class Ingest:
         # Not yet implemented. We currently only autopublish judgments sent in bulk.
         pass
 
-    def store_metadata(self) -> None:
-        tdr_metadata = self.metadata["parameters"]["TDR"]
-        parser_metadata: ParserProcessMetadata = self.metadata["parameters"]["PARSER"]
+    def store_tdr_metadata(self, tdr_metadata) -> None:
+        # Store metadata relating to the TDR process
 
         # Store source information
         self.api_client.set_property(
@@ -428,6 +427,9 @@ class Ingest:
             name="transfer-received-at",
             value=tdr_metadata["Consignment-Completed-Datetime"],
         )
+
+    def store_parser_metadata(self, parser_metadata: ParserProcessMetadata) -> None:
+        # Store metadata relating to the parsing process
 
         # Set parser metadata
         if "parser_run_id" in parser_metadata:
@@ -623,10 +625,11 @@ def perform_ingest(ingest: Ingest) -> None:
 
     ingest.send_email()
 
-    # Store metadata in Marklogic
-    has_TDR_data = "TDR" in ingest.metadata["parameters"]
-    if has_TDR_data:
-        ingest.store_metadata()
+    if "TDR" in ingest.metadata["parameters"]:
+        ingest.store_tdr_metadata(ingest.metadata["parameters"]["TDR"])
+
+    if "PARSER" in ingest.metadata["parameters"]:
+        ingest.store_parser_metadata(ingest.metadata["parameters"]["PARSER"])
 
     # save files to S3
     ingest.save_files_to_s3()

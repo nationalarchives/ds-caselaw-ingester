@@ -7,12 +7,10 @@ import boto3
 import lxml.etree as ET
 import pytest
 from botocore.exceptions import NoCredentialsError
-from caselawclient.models.documents.exceptions import CannotPublishUnpublishableDocument
 from caselawclient.models.utilities.aws import S3PrefixString
 from caselawclient.xml_helpers import Element
 
-from src.ds_caselaw_ingester import exceptions, ingester
-from src.ds_caselaw_ingester.exceptions import IngestionError
+from src.ds_caselaw_ingester import exceptions, file_helpers
 
 from .helpers import assert_log_has_message
 
@@ -32,14 +30,14 @@ TARBALL_INVALID_XML_PATH = os.path.join(
 )
 
 
-class TestIngesterExtractMetadataMethod:
+class TestFileHelpersExtractMetadataMethod:
     def test_extract_metadata_success_tdr(self):
         with tarfile.open(
             TDR_TARBALL_PATH,
             mode="r",
         ) as tar:
             consignment_reference = "TDR-2022-DNWR"
-            result = ingester.extract_metadata(tar, consignment_reference)
+            result = file_helpers.extract_metadata(tar, consignment_reference)
             assert result["parameters"]["TRE"]["payload"] is not None
 
     def test_extract_metadata_not_found_tdr(self):
@@ -49,11 +47,11 @@ class TestIngesterExtractMetadataMethod:
         ) as tar:
             consignment_reference = "unknown_consignment_reference"
             with pytest.raises(exceptions.FileNotFoundException, match="Consignment Ref:"):
-                ingester.extract_metadata(tar, consignment_reference)
+                file_helpers.extract_metadata(tar, consignment_reference)
 
 
-class TestIngesterCopyFileMethod:
-    @patch.object(ingester, "store_file")
+class TestFileHelpersCopyFileMethod:
+    @patch.object(file_helpers, "store_file")
     def test_copy_file_success(self, mock_store_file):
         with tarfile.open(
             TDR_TARBALL_PATH,
@@ -61,9 +59,8 @@ class TestIngesterCopyFileMethod:
         ) as tar:
             filename = "TDR-2022-DNWR/TDR-2022-DNWR.xml"
             session = boto3.Session
-            ingester.store_file = MagicMock()
-            ingester.copy_file(tar, filename, "bucket", "new_filename", "uri", session)
-            ingester.store_file.assert_called_with(
+            file_helpers.copy_file(tar, filename, "bucket", "new_filename", "uri", session)
+            mock_store_file.assert_called_with(
                 file=ANY,
                 destination_bucket="bucket",
                 destination_folder="uri",
@@ -79,10 +76,10 @@ class TestIngesterCopyFileMethod:
             filename = "does_not_exist.txt"
             session = boto3.Session
             with pytest.raises(exceptions.FileNotFoundException):
-                ingester.copy_file(tar, filename, "bucket", "new_filename", "uri", session)
+                file_helpers.copy_file(tar, filename, "bucket", "new_filename", "uri", session)
 
 
-class TestIngesterStoreFileMethod:
+class TestFileHelpersStoreFileMethod:
     @pytest.mark.parametrize(
         "side_effect,expected_level,expected_message",
         [
@@ -95,7 +92,7 @@ class TestIngesterStoreFileMethod:
         caplog.set_level(logging.DEBUG, logger="ingester")
         session = boto3.Session
         session.upload_fileobj = MagicMock(side_effect=side_effect)
-        ingester.store_file(
+        file_helpers.store_file(
             file=None,
             destination_bucket="bucket",
             destination_folder=S3PrefixString("folder/"),
@@ -106,14 +103,14 @@ class TestIngesterStoreFileMethod:
         session.upload_fileobj.assert_called_with(None, ANY, "folder/filename.ext")
 
 
-class TestIngesterExtractXMLFileMethod:
+class TestFileHelpersExtractXMLFileMethod:
     def test_extract_xml_file_success_tdr(self):
         with tarfile.open(
             TDR_TARBALL_PATH,
             mode="r",
         ) as tar:
             filename = "TDR-2022-DNWR.xml"
-            result = ingester.extract_xml_file(tar, filename)
+            result = file_helpers.extract_xml_file(tar, filename)
             xml = ET.XML(result.read())
             assert xml.tag == "{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}akomaNtoso"
 
@@ -123,7 +120,7 @@ class TestIngesterExtractXMLFileMethod:
             mode="r",
         ) as tar:
             filename = "unknown.xml"
-            result = ingester.extract_xml_file(tar, filename)
+            result = file_helpers.extract_xml_file(tar, filename)
             assert result is None
 
     def test_extract_xml_file_name_empty(self):
@@ -132,17 +129,17 @@ class TestIngesterExtractXMLFileMethod:
             mode="r",
         ) as tar:
             filename = ""
-            result = ingester.extract_xml_file(tar, filename)
+            result = file_helpers.extract_xml_file(tar, filename)
             assert result is None
 
 
-class TestIngesterCreateParserLogMethod:
+class TestFileHelpersCreateParserLogMethod:
     def test_create_xml_contents_success(self):
         with tarfile.open(
             TDR_TARBALL_PATH,
             mode="r",
         ) as tar:
-            result = ingester.create_parser_log_xml(tar)
+            result = file_helpers.create_parser_log_xml(tar)
             assert result == b"<error>This is the parser error log.</error>"
 
     @patch.object(tarfile, "open")
@@ -152,18 +149,18 @@ class TestIngesterCreateParserLogMethod:
             mode="r",
         ) as tar:
             tar.extractfile = MagicMock(side_effect=KeyError)
-            result = ingester.create_parser_log_xml(tar)
+            result = file_helpers.create_parser_log_xml(tar)
             assert result == b"<error>parser.log not found</error>"
 
 
-class TestIngesterGetBestXMLMethod:
+class TestFileHelpersGetBestXMLMethod:
     def test_get_best_xml_with_valid_xml_file(self):
         filename = "TDR-2022-DNWR.xml"
         with tarfile.open(
             TDR_TARBALL_PATH,
             mode="r",
         ) as tar:
-            result = ingester.get_best_xml(tar, filename, "a_consignment_reference")
+            result = file_helpers.get_best_xml(tar, filename, "a_consignment_reference")
             assert result.__class__ == Element
             assert result.tag == "{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}akomaNtoso"
 
@@ -173,7 +170,7 @@ class TestIngesterGetBestXMLMethod:
             TARBALL_INVALID_XML_PATH,
             mode="r",
         ) as tar:
-            result = ingester.get_best_xml(tar, filename, "a_consignment_reference")
+            result = file_helpers.get_best_xml(tar, filename, "a_consignment_reference")
             assert result.__class__ == Element
             assert result.tag == "error"
 
@@ -183,7 +180,7 @@ class TestIngesterGetBestXMLMethod:
             TDR_TARBALL_PATH,
             mode="r",
         ) as tar:
-            result = ingester.get_best_xml(
+            result = file_helpers.get_best_xml(
                 tar,
                 filename,
                 "a_consignment_reference",
@@ -197,7 +194,7 @@ class TestIngesterGetBestXMLMethod:
             TDR_TARBALL_PATH,
             mode="r",
         ) as tar:
-            result = ingester.get_best_xml(
+            result = file_helpers.get_best_xml(
                 tar,
                 filename,
                 "a_consignment_reference",
@@ -211,7 +208,7 @@ class TestIngesterGetBestXMLMethod:
             TDR_TARBALL_PATH,
             mode="r",
         ) as tar:
-            result = ingester.get_best_xml(
+            result = file_helpers.get_best_xml(
                 tar,
                 filename,
                 "a_consignment_reference",
@@ -220,27 +217,17 @@ class TestIngesterGetBestXMLMethod:
             assert result.tag == "error"
 
 
-class TestIngesterExtractDocxFilenameMethod:
+class TestFileHelpersExtractDocxFilenameMethod:
     def test_extract_source_filename_success(self):
         metadata = {"parameters": {"TRE": {"payload": {"filename": "judgment.docx"}}}}
-        assert ingester.extract_source_filename(metadata, "anything") == "judgment.docx"
+        assert file_helpers.extract_source_filename(metadata, "anything") == "judgment.docx"
 
     def test_extract_source_filename_no_docx_provided(self):
         """Reparsed documents do not have a docx file and have the metadata set to None"""
         metadata = {"parameters": {"TRE": {"payload": {"filename": None}}}}
-        assert ingester.extract_source_filename(metadata, "anything") is None
+        assert file_helpers.extract_source_filename(metadata, "anything") is None
 
     def test_extract_source_filename_failure(self):
         metadata = {"parameters": {"TRE": {"payload": {}}}}
         with pytest.raises(exceptions.DocxFilenameNotFoundException):
-            ingester.extract_source_filename(metadata, "anything")
-
-
-class TestPerformIngest:
-    def test_perform_ingest_raises_reportable_error_if_unpublishable(self):
-        """If the document is not publishable, ensure processing continues with the next document and rollbar is informed."""
-        ingest = MagicMock()
-        ingest.will_publish.return_value = True
-        ingest.document.publish.side_effect = CannotPublishUnpublishableDocument("Publishing failed")
-        with pytest.raises(IngestionError, match="^Publishing failed$"):
-            ingester.perform_ingest(ingest)
+            file_helpers.extract_source_filename(metadata, "anything")

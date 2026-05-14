@@ -9,6 +9,7 @@ from urllib.parse import unquote_plus
 
 import boto3
 import rollbar
+from aws_lambda_powertools.utilities.typing import LambdaContext
 from caselawclient.Client import (
     DEFAULT_USER_AGENT,
     MarklogicApiClient,
@@ -18,7 +19,7 @@ from dotenv import load_dotenv
 from mypy_boto3_s3.client import S3Client
 
 from .exceptions import InvalidMessageException
-from .ingester import Ingest, perform_ingest
+from .ingester import Ingest, LambdaContextTypedDict, perform_ingest
 
 logger = logging.getLogger("ingester")
 logger.setLevel(logging.DEBUG)
@@ -181,10 +182,12 @@ def extract_lambda_versions(versions: list[dict[str, str]]) -> list[tuple[str, s
 
 @with_lambda_profiler()
 @rollbar.lambda_function
-def handler(event, context):
+def handler(event, context: LambdaContext):
     logger.info("Received event")
 
     batch_item_failures = []
+
+    lambda_context: LambdaContextTypedDict = {"aws_request_id": context.aws_request_id}
 
     for message_id, message in all_messages(event):
         logger.info("Received messageId: %s with message: %s", message_id or "_", message.message)
@@ -201,6 +204,7 @@ def handler(event, context):
                     destination_tar_filename=local_tar_filename,
                     api_client=api_client,
                     s3_client=s3_client,
+                    lambda_context=lambda_context,
                 )
 
                 perform_ingest(ingest)

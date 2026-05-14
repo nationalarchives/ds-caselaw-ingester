@@ -60,10 +60,15 @@ class SubmitterInformationDict(TypedDict):
     email: str
 
 
+class LambdaContextTypedDict(TypedDict):
+    aws_request_id: str
+
+
 class VersionPayloadDict(TypedDict, total=False):
     tre_raw_metadata: DocumentProcessingMetadata
     tdr_reference: str
     submitter: SubmitterInformationDict
+    aws_lambda_context: LambdaContextTypedDict
 
 
 def extract_metadata(tar: tarfile.TarFile, consignment_reference: str) -> DocumentProcessingMetadata:
@@ -160,11 +165,12 @@ def get_best_xml(tar: tarfile.TarFile, xml_file_name: str, consignment_reference
     return ET.fromstring(contents)
 
 
-def _build_version_annotation_payload_from_metadata(metadata: DocumentProcessingMetadata) -> VersionPayloadDict:
-    """Turns metadata from TRE into a structured annotation payload."""
-    payload: VersionPayloadDict = {
-        "tre_raw_metadata": metadata,
-    }
+def build_version_annotation_payload(
+    metadata: DocumentProcessingMetadata,
+    lambda_context: LambdaContextTypedDict,
+) -> VersionPayloadDict:
+    """Turns metadata from TRE and the Lambda context into a structured annotation payload."""
+    payload: VersionPayloadDict = {"tre_raw_metadata": metadata, "aws_lambda_context": lambda_context}
 
     if "TDR" in metadata["parameters"]:
         payload["tdr_reference"] = metadata["parameters"]["TDR"]["Internal-Sender-Identifier"]
@@ -260,6 +266,7 @@ class Ingest:
     :param destination_bucket: The S3 bucket to put the resultant document objects into.
     :param api_client: The API Client instance to use for this ingestion.
     :param s3_client: The S3 client instance to use for this ingestion.
+    :param lambda_context: A dict containing useful information passed from the AWS Lambda context object.
     """
 
     def __init__(
@@ -270,6 +277,7 @@ class Ingest:
         destination_tar_filename: str,
         api_client: MarklogicApiClient,
         s3_client: S3Client,
+        lambda_context: LambdaContextTypedDict,
     ) -> None:
         self.message = message
         self.destination_bucket = destination_bucket
@@ -278,6 +286,9 @@ class Ingest:
         self.s3_client = s3_client
         self.consignment_reference: str = self.message.get_consignment_reference()
         self.document: Document | None = None
+
+        self.aws_lambda_context = lambda_context
+
         logger.info("Ingester Start: Consignment reference %s", self.consignment_reference)
 
         self.local_tarfile_reader = tarfile_reader
@@ -314,7 +325,7 @@ class Ingest:
             automated=self.metadata_object.force_publish,
             message=message,
             payload=dict(
-                _build_version_annotation_payload_from_metadata(self.metadata),
+                build_version_annotation_payload(self.metadata, self.aws_lambda_context),
             ),  # We cast this to a dict here because VersionAnnotation doesn't yet have a TypedDict as its payload argument.
         )
 
@@ -331,7 +342,7 @@ class Ingest:
             automated=self.metadata_object.force_publish,
             message=message,
             payload=dict(
-                _build_version_annotation_payload_from_metadata(self.metadata),
+                build_version_annotation_payload(self.metadata, self.aws_lambda_context),
             ),  # We cast this to a dict here because VersionAnnotation doesn't yet have a TypedDict as its payload argument.
         )
         self.api_client.insert_document_xml(

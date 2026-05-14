@@ -3,6 +3,7 @@ import json
 import tarfile
 from unittest.mock import Mock, PropertyMock, patch
 
+from aws_lambda_powertools.utilities.typing import LambdaContext
 from caselawclient.types import DocumentURIString
 from pytest import fixture
 
@@ -86,12 +87,24 @@ sqs_s3_event = {
 
 
 @fixture
+def lambda_context():
+    return {"aws_request_id": "test-request-id"}
+
+
+@fixture
+def handler_context():
+    mock_context = Mock(spec=LambdaContext)
+    mock_context.aws_request_id = "test-request-id"
+    return mock_context
+
+
+@fixture
 @patch(
     "src.ds_caselaw_ingester.ingester.Ingest.database_location",
     new_callable=PropertyMock,
     return_value=(DocumentURIString("v2-a1b2-c3d4"), False),
 )
-def v2_ingest(fake_location):
+def v2_ingest(fake_location, lambda_context):
     create_fake_tdr_file()
     with tarfile.open("/tmp/TDR-2022-DNWR.tar.gz", mode="r") as tarfile_reader:
         return ingester.Ingest(
@@ -101,6 +114,7 @@ def v2_ingest(fake_location):
             destination_tar_filename="/tmp/TDR-2022-DNWR.tar.gz",
             api_client=setup_api_client(),
             s3_client=Mock(),
+            lambda_context=lambda_context,
         )
 
 
@@ -110,7 +124,7 @@ def v2_ingest(fake_location):
     new_callable=PropertyMock,
     return_value=(DocumentURIString("s3-a1b2-c3d4"), True),
 )
-def s3_ingest(fake_determine_uri):
+def s3_ingest(fake_determine_uri, lambda_context):
     create_fake_bulk_file()
     with tarfile.open("/tmp/BULK-0.tar.gz", mode="r") as tarfile_reader:
         return ingester.Ingest(
@@ -120,6 +134,7 @@ def s3_ingest(fake_determine_uri):
             destination_tar_filename="/tmp/BULK-0.tar.gz",
             api_client=setup_api_client(),
             s3_client=Mock(),
+            lambda_context=lambda_context,
         )
 
 
@@ -129,7 +144,7 @@ def s3_ingest(fake_determine_uri):
     new_callable=PropertyMock,
     return_value=(DocumentURIString("s3-a1b2-c3d4"), True),
 )
-def fcl_ingest(fake_determine_uri):
+def fcl_ingest(fake_determine_uri, lambda_context):
     "Fake a FCL reparse message (badly)"
     new_message = copy.deepcopy(v2_message)
     new_message["parameters"]["originator"] = "FCL"
@@ -141,4 +156,5 @@ def fcl_ingest(fake_determine_uri):
             destination_tar_filename="/tmp/TDR-2022-DNWR.tar.gz",
             api_client=setup_api_client(),
             s3_client=Mock(),
+            lambda_context=lambda_context,
         )

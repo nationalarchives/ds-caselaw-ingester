@@ -47,6 +47,7 @@ class TestSQSHandler:
         mock_s3_client,
         apiclient,
         caplog: pytest.LogCaptureFixture,
+        handler_context,
     ):
         """Test that a V2 message arriving via SQS is processed correctly."""
         mock_s3_client.download_file = create_fake_tdr_file
@@ -54,7 +55,7 @@ class TestSQSHandler:
         doc.neutral_citation = None
         mock_doc.return_value = doc
 
-        result = lambda_function.handler(event=sqs_v2_event, context=None)
+        result = lambda_function.handler(event=sqs_v2_event, context=handler_context)
 
         assert_log_shows_successful_ingest(caplog)
         notify_update.assert_called()
@@ -92,6 +93,7 @@ class TestSQSHandler:
         mock_s3_client,
         apiclient,
         caplog: pytest.LogCaptureFixture,
+        handler_context,
     ):
         """Test that an S3 message arriving via SQS is processed correctly."""
         mock_s3_client.download_file = create_fake_bulk_file
@@ -100,7 +102,7 @@ class TestSQSHandler:
         doc.neutral_citation = "[2012] UKUT 82 (IAC)"
         mock_doc.return_value = doc
 
-        result = lambda_function.handler(event=sqs_s3_event, context=None)
+        result = lambda_function.handler(event=sqs_s3_event, context=handler_context)
 
         assert_log_has_message_starting(caplog, "Ingester Start: Consignment reference BULK-0")
         assert_log_shows_successful_ingest(caplog)
@@ -122,9 +124,10 @@ class TestSQSHandler:
         mock_ingest,
         mock_perform_ingest,
         mock_s3_client,
+        handler_context,
     ):
         """Failed SQS messages are reported as batchItemFailures so only they are retried."""
-        result = lambda_function.handler(event=sqs_v2_event, context=None)
+        result = lambda_function.handler(event=sqs_v2_event, context=handler_context)
 
         mock_rollbar_call.assert_called_with(level="error")
         assert result == {"batchItemFailures": [{"itemIdentifier": "msg-001"}]}
@@ -147,6 +150,7 @@ class TestSQSHandler:
         mock_ingest,
         mock_perform_ingest,
         mock_s3_client,
+        handler_context,
     ):
         """When one message in a batch fails, only that message is reported as failed."""
         two_message_sqs_event = {
@@ -170,7 +174,7 @@ class TestSQSHandler:
             ],
         }
 
-        result = lambda_function.handler(event=two_message_sqs_event, context=None)
+        result = lambda_function.handler(event=two_message_sqs_event, context=handler_context)
 
         assert result == {"batchItemFailures": [{"itemIdentifier": "msg-fail"}]}
 
@@ -189,11 +193,12 @@ class TestSQSHandler:
         mock_ingest,
         mock_perform_ingest,
         mock_s3_client,
+        handler_context,
     ):
         """Direct SNS events still work (backward compatibility)."""
         message = v2_message_raw
         event = {"Records": [{"Sns": {"Message": message}}]}
-        result = lambda_function.handler(event=event, context=None)
+        result = lambda_function.handler(event=event, context=handler_context)
 
         mock_rollbar_call.assert_called_with(level="error")
         # SNS records have no messageId, so no batch failures reported

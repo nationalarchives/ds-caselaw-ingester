@@ -52,6 +52,7 @@ class TestHandler:
         mock_s3_client,
         apiclient,
         caplog: pytest.LogCaptureFixture,
+        handler_context,
     ):
         mock_s3_client.download_file = create_fake_tdr_file
         doc = apiclient.get_document_by_uri.return_value
@@ -60,7 +61,7 @@ class TestHandler:
 
         message = v2_message_raw
         event = {"Records": [{"Sns": {"Message": message}}, {"Sns": {"Message": message}}]}
-        lambda_function.handler(event=event, context=None)
+        lambda_function.handler(event=event, context=handler_context)
 
         assert_log_shows_successful_ingest(caplog)
         assert_log_does_not_have_message_starting(caplog, "publishing")
@@ -111,6 +112,7 @@ class TestHandler:
         mock_s3_client,
         apiclient,
         caplog: pytest.LogCaptureFixture,
+        handler_context,
     ):
         """Test that, with appropriate stubs, an S3 message passes through the parsing process"""
         mock_s3_client.download_file = create_fake_bulk_file
@@ -121,7 +123,7 @@ class TestHandler:
 
         message = s3_message_raw
         event = {"Records": [{"Sns": {"Message": message}}, {"Sns": {"Message": message}}]}
-        lambda_function.handler(event=event, context=None)
+        lambda_function.handler(event=event, context=handler_context)
 
         assert_log_shows_successful_ingest(caplog)
 
@@ -168,6 +170,7 @@ class TestHandler:
         mock_s3_client,
         apiclient,
         caplog: pytest.LogCaptureFixture,
+        handler_context,
     ):
         mock_s3_client.download_file = create_fake_error_file
         mock_doc.return_value = apiclient.get_document_by_uri.return_value
@@ -175,7 +178,7 @@ class TestHandler:
         message = error_message_raw
 
         event = {"Records": [{"Sns": {"Message": message}}, {"Sns": {"Message": message}}]}
-        lambda_function.handler(event=event, context=None)
+        lambda_function.handler(event=event, context=handler_context)
 
         assert_log_has_message(caplog, "tar.gz saved locally as /tmp/TDR-2025-CN7V.tar.gz")
         assert_log_has_message(
@@ -228,12 +231,13 @@ class TestHandler:
         mock_perform_ingest,
         mock_s3_client,
         caplog,
+        handler_context,
     ):
         message = s3_message_raw
         event = {
             "Records": [{"Sns": {"Message": message}}, {"Sns": {"Message": message}}, {"Sns": {"Message": message}}],
         }
-        lambda_function.handler(event=event, context=None)
+        lambda_function.handler(event=event, context=handler_context)
 
         # rollbar is called each time it fails
         mock_rollbar_call.assert_has_calls([call(level="error"), call(level="error"), call(level="error")])
@@ -245,3 +249,23 @@ class TestHandler:
 
         # the first invocation does not block the second
         assert "ds_caselaw_ingester.exceptions.DocxFilenameNotFoundException: test2" in caplog.text
+
+    @patch("src.ds_caselaw_ingester.lambda_function.perform_ingest")
+    @patch("src.ds_caselaw_ingester.lambda_function.Ingest")
+    @patch("src.ds_caselaw_ingester.lambda_function.s3_client")
+    @patch("src.ds_caselaw_ingester.lambda_function.api_client", autospec=True)
+    def test_handler_passes_lambda_context_to_ingest(
+        self,
+        mock_api_client,
+        mock_s3_client,
+        mock_ingest,
+        mock_perform_ingest,
+        handler_context,
+    ):
+        message = v2_message_raw
+        event = {"Records": [{"Sns": {"Message": message}}]}
+        mock_s3_client.download_file = create_fake_tdr_file
+
+        lambda_function.handler(event=event, context=handler_context)
+
+        assert mock_ingest.call_args.kwargs["lambda_context"] == {"aws_request_id": "test-request-id"}

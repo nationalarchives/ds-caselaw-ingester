@@ -118,6 +118,38 @@ class TestLambda:
         with pytest.raises(MarklogicCommunicationError):
             v2_ingest.insert_document_xml()
 
+    def test_build_version_annotation_payload_includes_tre_raw_metadata(self, lambda_context):
+        payload = ingester.build_version_annotation_payload(
+            {"parameters": "test-value"},
+            lambda_context,
+        )
+
+        assert payload["tre_raw_metadata"] == {"parameters": "test-value"}
+
+    def test_build_version_annotation_payload_includes_lambda_context(self, lambda_context):
+        payload = ingester.build_version_annotation_payload(
+            {"parameters": "test-value"},
+            lambda_context,
+        )
+
+        assert payload["aws_lambda_context"] == lambda_context
+
+    def test_build_version_annotation_payload_extracts_tdr_reference_and_submitter_when_present(self, lambda_context):
+        metadata = {
+            "parameters": {
+                "TDR": {
+                    "Internal-Sender-Identifier": "TDR-2021-ABC123",
+                    "Contact-Name": "John Doe",
+                    "Contact-Email": "john@example.com",
+                },
+            },
+        }
+
+        payload = ingester.build_version_annotation_payload(metadata, lambda_context)
+
+        assert payload["tdr_reference"] == "TDR-2021-ABC123"
+        assert payload["submitter"] == {"name": "John Doe", "email": "john@example.com"}
+
     @patch("src.ds_caselaw_ingester.ingester.copy_file")
     @patch("src.ds_caselaw_ingester.ingester.extract_source_filename", return_value="file.pdf")
     def test_extension_is_retained_pdf(self, pdf_filename, copy_file, v2_ingest):

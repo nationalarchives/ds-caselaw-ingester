@@ -23,7 +23,11 @@ from caselawclient.models.parser_logs import ParserLog
 from caselawclient.models.press_summaries import PressSummary
 from caselawclient.models.utilities.aws import S3PrefixString
 from caselawclient.types import DocumentIdentifierSlug, DocumentIdentifierValue
-from ds_caselaw_utils.types.metadata_schema_autogen import DocumentProcessingMetadata, ParserProcessMetadata
+from ds_caselaw_utils.types.metadata_schema_autogen import (
+    AUTO_PUBLISH_DOCUMENT_DEFAULT,
+    DocumentProcessingMetadata,
+    ParserProcessMetadata,
+)
 from mypy_boto3_s3.client import S3Client
 from notifications_python_client.notifications import NotificationsAPIClient
 
@@ -144,7 +148,7 @@ class Metadata:
         """
         Does the metadata say to automatically publish this document?
         """
-        return self.parameters.get("INGESTER_OPTIONS", {}).get("auto_publish", False)
+        return self.parameters.get("INGESTER_OPTIONS", {}).get("auto_publish", AUTO_PUBLISH_DOCUMENT_DEFAULT)
 
 
 class Ingest:

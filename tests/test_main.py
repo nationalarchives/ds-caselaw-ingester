@@ -206,8 +206,8 @@ class TestPublicationLogic:
     def test_s3_ingest_publish(self, s3_ingest):
         assert s3_ingest.will_publish() is True
 
-    def test_s3_ingest_publish_no_force_publish(self, s3_ingest):
-        with patch("src.ds_caselaw_ingester.ingester.Metadata.force_publish", new_callable=PropertyMock) as mock:
+    def test_s3_ingest_publish_no_auto_publish(self, s3_ingest):
+        with patch("src.ds_caselaw_ingester.ingester.Metadata.auto_publish", new_callable=PropertyMock) as mock:
             mock.return_value = False
             assert s3_ingest.will_publish() is False
 

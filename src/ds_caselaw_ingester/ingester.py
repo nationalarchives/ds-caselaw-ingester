@@ -140,7 +140,7 @@ class Metadata:
             return None
 
     @property
-    def force_publish(self) -> bool:
+    def auto_publish(self) -> bool:
         """
         Does the metadata say to automatically publish this document?
         """
@@ -213,7 +213,7 @@ class Ingest:
 
         annotation = VersionAnnotation(
             VersionType.SUBMISSION,
-            automated=self.metadata_object.force_publish,
+            automated=self.metadata_object.auto_publish,
             message=message,
             payload=dict(
                 build_version_annotation_payload(self.metadata, self.aws_lambda_context),
@@ -230,7 +230,7 @@ class Ingest:
             message = "New document uploaded by Find Case Law"
         annotation = VersionAnnotation(
             VersionType.SUBMISSION,
-            automated=self.metadata_object.force_publish,
+            automated=self.metadata_object.auto_publish,
             message=message,
             payload=dict(
                 build_version_annotation_payload(self.metadata, self.aws_lambda_context),
@@ -412,7 +412,7 @@ class Ingest:
 
         # Bulk
         if originator == "FCL S3":
-            return self.metadata_object.force_publish is True
+            return self.metadata_object.auto_publish is True
 
         # reparse
         if originator == "FCL":
@@ -428,7 +428,7 @@ class Ingest:
             return None
 
         if originator == "FCL S3":
-            return None if self.metadata_object.force_publish else self.send_bulk_judgment_notification()
+            return None if self.metadata_object.auto_publish else self.send_bulk_judgment_notification()
 
         if originator == "TDR":
             return (

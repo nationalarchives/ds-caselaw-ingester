@@ -3,6 +3,7 @@ import json
 import tarfile
 from unittest.mock import Mock, PropertyMock, patch
 
+from aws_lambda_powertools.utilities.typing import LambdaContext
 from caselawclient.types import DocumentURIString
 from pytest import fixture
 
@@ -92,7 +93,9 @@ def lambda_context():
 
 @fixture
 def handler_context():
-    return Mock(aws_request_id="test-request-id")
+    mock_context = Mock(spec=LambdaContext)
+    mock_context.aws_request_id = "test-request-id"
+    return mock_context
 
 
 @fixture

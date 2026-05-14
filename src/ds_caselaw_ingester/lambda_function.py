@@ -9,6 +9,7 @@ from urllib.parse import unquote_plus
 
 import boto3
 import rollbar
+from aws_lambda_powertools.utilities.typing import LambdaContext
 from caselawclient.Client import (
     DEFAULT_USER_AGENT,
     MarklogicApiClient,
@@ -181,7 +182,7 @@ def extract_lambda_versions(versions: list[dict[str, str]]) -> list[tuple[str, s
 
 @with_lambda_profiler()
 @rollbar.lambda_function
-def handler(event, context):
+def handler(event, context: LambdaContext):
     logger.info("Received event")
 
     batch_item_failures = []

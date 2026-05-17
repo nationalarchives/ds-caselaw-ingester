@@ -25,6 +25,7 @@ from caselawclient.models.utilities.aws import S3PrefixString
 from caselawclient.types import DocumentIdentifierSlug, DocumentIdentifierValue
 from ds_caselaw_utils.types.metadata_schema_autogen import (
     AUTO_PUBLISH_DOCUMENT_DEFAULT,
+    RAISE_ERROR_ON_EXISTING_DOCUMENT_DEFAULT,
     DocumentProcessingMetadata,
     ParserProcessMetadata,
 )
@@ -149,6 +150,16 @@ class Metadata:
         Does the metadata say to automatically publish this document?
         """
         return self.parameters.get("INGESTER_OPTIONS", {}).get("auto_publish", AUTO_PUBLISH_DOCUMENT_DEFAULT)
+
+    @property
+    def error_on_existing_document(self) -> bool:
+        """
+        Does the metadata say to raise an error if an existing document with colliding identifiers is found?
+        """
+        return self.parameters.get("INGESTER_OPTIONS", {}).get(
+            "error_on_existing_document",
+            RAISE_ERROR_ON_EXISTING_DOCUMENT_DEFAULT,
+        )
 
 
 class Ingest:
@@ -446,6 +457,11 @@ class Ingest:
     def insert_or_update_xml(self) -> None:
         """Puts the XML into MarkLogic, either by updating an existing document (if `self.exists_in_database`) or by creating a new one."""
         if self.exists_in_database:
+            if self.metadata_object.error_on_existing_document:
+                raise DocumentInsertionError(
+                    f"Document already exists in the database at {self.uri}. Consignment Ref: {self.consignment_reference}",
+                )
+
             try:
                 self.update_document_xml()
             except Exception as err:

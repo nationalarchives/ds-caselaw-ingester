@@ -11,7 +11,7 @@ from caselawclient.models.parser_logs import ParserLog
 from caselawclient.models.press_summaries import PressSummary
 
 from src.ds_caselaw_ingester import ingester
-from src.ds_caselaw_ingester.exceptions import IngestionError
+from src.ds_caselaw_ingester.exceptions import DocumentInsertionError, IngestionError
 
 
 class TestPerformIngest:
@@ -86,3 +86,39 @@ class TestInsertUpdateOperations:
         v2_ingest.api_client.insert_document_xml = MagicMock(side_effect=MarklogicCommunicationError("error"))
         with pytest.raises(MarklogicCommunicationError):
             v2_ingest.insert_document_xml()
+
+    def test_insert_or_update_xml_raises_error_with_uri_and_consignment_when_existing_disallowed(self, v2_ingest):
+        v2_ingest.exists_in_database = True
+        v2_ingest.uri = "ewca/civ/2026/42"
+        v2_ingest.consignment_reference = "TDR-2026-ABCD"
+        v2_ingest.metadata = {
+            "parameters": {
+                "INGESTER_OPTIONS": {
+                    "error_on_existing_document": True,
+                },
+            },
+        }
+
+        with pytest.raises(DocumentInsertionError) as err:
+            v2_ingest.insert_or_update_xml()
+
+        assert (
+            str(err.value)
+            == "Document already exists in the database at ewca/civ/2026/42. Consignment Ref: TDR-2026-ABCD"
+        )
+
+    def test_insert_or_update_xml_updates_existing_when_existing_allowed(self, v2_ingest):
+        v2_ingest.exists_in_database = True
+        v2_ingest.metadata = {
+            "parameters": {
+                "INGESTER_OPTIONS": {
+                    "error_on_existing_document": False,
+                },
+            },
+        }
+        v2_ingest.update_document_xml = MagicMock()
+        v2_ingest.api_client.get_document_by_uri = MagicMock(return_value=MagicMock())
+
+        v2_ingest.insert_or_update_xml()
+
+        v2_ingest.update_document_xml.assert_called_once()

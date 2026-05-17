@@ -4,9 +4,11 @@ import logging
 import os
 import tarfile
 import warnings
+from typing import Any
 
 import boto3
 import rollbar
+from aws_lambda_powertools.utilities.data_classes import SNSEvent, SQSEvent
 from aws_lambda_powertools.utilities.typing import LambdaContext
 from caselawclient.Client import (
     DEFAULT_USER_AGENT,
@@ -95,14 +97,19 @@ def extract_lambda_versions(versions: list[dict[str, str]]) -> list[tuple[str, s
 
 @with_lambda_profiler()
 @rollbar.lambda_function
-def handler(event, context: LambdaContext):
+def handler(event: dict[str, Any], context: LambdaContext):
     logger.info("Received event")
 
     batch_item_failures = []
 
     lambda_context: LambdaContextTypedDict = {"aws_request_id": context.aws_request_id}
 
-    for message_id, message in all_messages(event):
+    records = event.get("Records", [])
+    typed_event: SQSEvent | SNSEvent = (
+        SQSEvent(event) if records and records[0].get("eventSource") == "aws:sqs" else SNSEvent(event)
+    )
+
+    for message_id, message in all_messages(typed_event):
         logger.info("Received messageId: %s with message: %s", message_id or "_", message.message)
 
         try:

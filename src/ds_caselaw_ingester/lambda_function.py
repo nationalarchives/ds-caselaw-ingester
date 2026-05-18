@@ -3,6 +3,7 @@
 import logging
 import os
 import tarfile
+import warnings
 
 import boto3
 import rollbar
@@ -23,22 +24,49 @@ logger.setLevel(logging.DEBUG)
 load_dotenv()
 
 rollbar.init(os.getenv("ROLLBAR_TOKEN"), environment=os.getenv("ROLLBAR_ENV"))
-
-MARKLOGIC_HOST: str = os.environ["MARKLOGIC_HOST"]
-MARKLOGIC_USER: str = os.environ["MARKLOGIC_USER"]
-MARKLOGIC_PASSWORD: str = os.environ["MARKLOGIC_PASSWORD"]
-MARKLOGIC_USE_HTTPS: bool = bool(os.getenv("MARKLOGIC_USE_HTTPS", default=False))
-
 PRIVATE_ASSET_BUCKET: str = os.environ["PRIVATE_ASSET_BUCKET"]
 
-api_client = MarklogicApiClient(
-    host=MARKLOGIC_HOST,
-    username=MARKLOGIC_USER,
-    password=MARKLOGIC_PASSWORD,
-    use_https=MARKLOGIC_USE_HTTPS,
-    user_agent=f"ds-caselaw-ingester/unknown {DEFAULT_USER_AGENT}",
-)
-logger.info("Initialised MarkLogic API client")
+
+def parse_bool_string(value: str | None, default=False) -> bool:
+    TRUE_VALUES = ["y", "yes", "true", "1", "on"]
+    FALSE_VALUES = ["n", "no", "false", "0", "off"]
+
+    if value is None:
+        return default
+    if value == "":
+        return default
+
+    value = value.strip().lower()
+    if value in TRUE_VALUES:
+        return True
+    if value in FALSE_VALUES:
+        return False
+    warnings.warn(f"Unable to parse {value} as boolean, defaulting to {default}", stacklevel=2)
+    return default
+
+
+def create_api_client():
+    MARKLOGIC_HOST: str = os.environ["MARKLOGIC_HOST"]
+    MARKLOGIC_USER: str = os.environ["MARKLOGIC_USER"]
+    MARKLOGIC_PASSWORD: str = os.environ["MARKLOGIC_PASSWORD"]
+    MARKLOGIC_USE_HTTPS: bool = parse_bool_string(os.getenv("MARKLOGIC_USE_HTTPS"), default=True)
+
+    api_client = MarklogicApiClient(
+        host=MARKLOGIC_HOST,
+        username=MARKLOGIC_USER,
+        password=MARKLOGIC_PASSWORD,
+        use_https=MARKLOGIC_USE_HTTPS,
+        user_agent=f"ds-caselaw-ingester/unknown {DEFAULT_USER_AGENT}",
+    )
+    logger.info("Initialised MarkLogic API client")
+
+    if not MARKLOGIC_USE_HTTPS:
+        warnings.warn("MarkLogic connection not using HTTPS. Traffic will be unencrypted.", stacklevel=2)
+
+    return api_client
+
+
+api_client = create_api_client()
 
 if os.getenv("AWS_ACCESS_KEY_ID") and os.getenv("AWS_SECRET_KEY") and os.getenv("AWS_ENDPOINT_URL"):
     session = boto3.session.Session(

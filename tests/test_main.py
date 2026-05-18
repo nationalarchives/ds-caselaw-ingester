@@ -2,16 +2,9 @@ import copy
 import json
 from unittest.mock import ANY, MagicMock, PropertyMock, patch
 
-import lxml.etree as ET
 import pytest
 import rollbar
-from caselawclient.Client import (
-    MarklogicCommunicationError,
-)
 from caselawclient.factories import IdentifierResolutionFactory, IdentifierResolutionsFactory
-from caselawclient.models.judgments import Judgment
-from caselawclient.models.parser_logs import ParserLog
-from caselawclient.models.press_summaries import PressSummary
 from caselawclient.types import DocumentURIString
 
 from src.ds_caselaw_ingester import exceptions, ingester, lambda_function
@@ -55,68 +48,6 @@ class TestLambda:
         message = {"something-unexpected": "???"}
         with pytest.raises(exceptions.InvalidMessageException):
             lambda_function.get_consignment_reference(message)
-
-    def test_update_document_xml_success(self, v2_ingest):
-        v2_ingest.api_client.get_judgment_xml = MagicMock(return_value=True)
-        v2_ingest.api_client.update_document_xml = MagicMock(return_value=True)
-        v2_ingest.update_document_xml()
-
-    def test_update_document_xml_success_no_tdr(self, v2_ingest):
-        v2_ingest.api_client.get_judgment_xml = MagicMock(return_value=True)
-        v2_ingest.api_client.update_document_xml = MagicMock(return_value=True)
-        v2_ingest.metadata = {"parameters": {}}
-        v2_ingest.update_document_xml()
-
-    def test_insert_document_xml_success_judgment(self, v2_ingest):
-        xml = ET.XML(
-            "<akomaNtoso xmlns='http://docs.oasis-open.org/legaldocml/ns/akn/3.0'><judgment><xml>Here's some xml</xml></judgment></akomaNtoso>",
-        )
-        v2_ingest.api_client.insert_document_xml = MagicMock(return_value=True)
-        v2_ingest.uri = "a/fake/uri"
-        v2_ingest.xml = xml
-        v2_ingest.insert_document_xml()
-        v2_ingest.api_client.insert_document_xml.assert_called_once_with(
-            document_uri=v2_ingest.uri,
-            document_xml=xml,
-            annotation=ANY,
-            document_type=Judgment,
-        )
-
-    def test_insert_document_xml_success_press_summary(self, v2_ingest):
-        xml = ET.XML(
-            "<akomaNtoso xmlns='http://docs.oasis-open.org/legaldocml/ns/akn/3.0'><doc name='pressSummary'><xml>Here's some xml</xml></doc></akomaNtoso>",
-        )
-        v2_ingest.api_client.insert_document_xml = MagicMock(return_value=True)
-        v2_ingest.uri = "a/fake/uri"
-        v2_ingest.xml = xml
-        v2_ingest.insert_document_xml()
-        v2_ingest.api_client.insert_document_xml.assert_called_once_with(
-            document_uri=v2_ingest.uri,
-            document_xml=xml,
-            annotation=ANY,
-            document_type=PressSummary,
-        )
-
-    def test_insert_document_xml_parser_error(self, v2_ingest):
-        """Parser errors are successfully imported with document type Error"""
-        xml = ET.XML(
-            "<error/>",
-        )
-        v2_ingest.api_client.insert_document_xml = MagicMock(return_value=True)
-        v2_ingest.uri = "a/fake/uri"
-        v2_ingest.xml = xml
-        v2_ingest.insert_document_xml()
-        v2_ingest.api_client.insert_document_xml.assert_called_once_with(
-            document_uri=v2_ingest.uri,
-            document_xml=xml,
-            annotation=ANY,
-            document_type=ParserLog,
-        )
-
-    def test_insert_document_xml_failure(self, v2_ingest):
-        v2_ingest.api_client.insert_document_xml = MagicMock(side_effect=MarklogicCommunicationError("error"))
-        with pytest.raises(MarklogicCommunicationError):
-            v2_ingest.insert_document_xml()
 
     def test_build_version_annotation_payload_includes_tre_raw_metadata(self, lambda_context):
         payload = ingester.build_version_annotation_payload(

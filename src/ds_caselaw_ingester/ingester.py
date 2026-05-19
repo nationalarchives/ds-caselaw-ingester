@@ -23,7 +23,12 @@ from caselawclient.models.parser_logs import ParserLog
 from caselawclient.models.press_summaries import PressSummary
 from caselawclient.models.utilities.aws import S3PrefixString
 from caselawclient.types import DocumentIdentifierSlug, DocumentIdentifierValue
-from ds_caselaw_utils.types.metadata_schema_autogen import DocumentProcessingMetadata, ParserProcessMetadata
+from ds_caselaw_utils.types.metadata_schema_autogen import (
+    AUTO_PUBLISH_DOCUMENT_DEFAULT,
+    RAISE_ERROR_ON_EXISTING_DOCUMENT_DEFAULT,
+    DocumentProcessingMetadata,
+    ParserProcessMetadata,
+)
 from mypy_boto3_s3.client import S3Client
 from notifications_python_client.notifications import NotificationsAPIClient
 
@@ -140,11 +145,21 @@ class Metadata:
             return None
 
     @property
-    def force_publish(self) -> bool:
+    def auto_publish(self) -> bool:
         """
         Does the metadata say to automatically publish this document?
         """
-        return self.parameters.get("INGESTER_OPTIONS", {}).get("auto_publish", False)
+        return self.parameters.get("INGESTER_OPTIONS", {}).get("auto_publish", AUTO_PUBLISH_DOCUMENT_DEFAULT)
+
+    @property
+    def error_on_existing_document(self) -> bool:
+        """
+        Does the metadata say to raise an error if an existing document with colliding identifiers is found?
+        """
+        return self.parameters.get("INGESTER_OPTIONS", {}).get(
+            "error_on_existing_document",
+            RAISE_ERROR_ON_EXISTING_DOCUMENT_DEFAULT,
+        )
 
 
 class Ingest:
@@ -213,7 +228,7 @@ class Ingest:
 
         annotation = VersionAnnotation(
             VersionType.SUBMISSION,
-            automated=self.metadata_object.force_publish,
+            automated=self.metadata_object.auto_publish,
             message=message,
             payload=dict(
                 build_version_annotation_payload(self.metadata, self.aws_lambda_context),
@@ -230,7 +245,7 @@ class Ingest:
             message = "New document uploaded by Find Case Law"
         annotation = VersionAnnotation(
             VersionType.SUBMISSION,
-            automated=self.metadata_object.force_publish,
+            automated=self.metadata_object.auto_publish,
             message=message,
             payload=dict(
                 build_version_annotation_payload(self.metadata, self.aws_lambda_context),
@@ -412,7 +427,7 @@ class Ingest:
 
         # Bulk
         if originator == "FCL S3":
-            return self.metadata_object.force_publish is True
+            return self.metadata_object.auto_publish is True
 
         # reparse
         if originator == "FCL":
@@ -428,7 +443,7 @@ class Ingest:
             return None
 
         if originator == "FCL S3":
-            return None if self.metadata_object.force_publish else self.send_bulk_judgment_notification()
+            return None if self.metadata_object.auto_publish else self.send_bulk_judgment_notification()
 
         if originator == "TDR":
             return (
@@ -442,6 +457,11 @@ class Ingest:
     def insert_or_update_xml(self) -> None:
         """Puts the XML into MarkLogic, either by updating an existing document (if `self.exists_in_database`) or by creating a new one."""
         if self.exists_in_database:
+            if self.metadata_object.error_on_existing_document:
+                raise DocumentInsertionError(
+                    f"Document already exists in the database at {self.uri}. Consignment Ref: {self.consignment_reference}",
+                )
+
             try:
                 self.update_document_xml()
             except Exception as err:

@@ -198,7 +198,7 @@ class TestEmailLogic:
         new.assert_not_called()
         bulk.assert_not_called()
 
-    @patch("src.ds_caselaw_ingester.ingester.Metadata.force_publish", new_callable=PropertyMock)
+    @patch("src.ds_caselaw_ingester.ingester.Metadata.auto_publish", new_callable=PropertyMock)
     def test_s3_ingest_no_email_if_publish(self, mock_property, bulk, new, updated, s3_ingest):
         mock_property.return_value = True
         s3_ingest.send_email()
@@ -207,7 +207,7 @@ class TestEmailLogic:
         new.assert_not_called()
         bulk.assert_not_called()
 
-    @patch("src.ds_caselaw_ingester.ingester.Metadata.force_publish", new_callable=PropertyMock)
+    @patch("src.ds_caselaw_ingester.ingester.Metadata.auto_publish", new_callable=PropertyMock)
     def test_s3_ingest_email_if_not_publish(self, mock_property, bulk, new, updated, s3_ingest):
         mock_property.return_value = False
         s3_ingest.send_email()

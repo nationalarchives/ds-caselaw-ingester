@@ -56,6 +56,9 @@ sequenceDiagram
         perform_ingest ->>+ Ingest: insert_or_update_xml()
         note right of Ingest: insert_or_update does the work of getting the XML into MarkLogic
         alt If existing document in MarkLogic
+            break error_on_existing_document is True
+                Ingest ->> Ingest: Raise DocumentInsertionError exception
+            end
             Ingest ->>+ Ingest: update_document_xml()
                 Ingest ->> Ingest: Build annotation object
                 Ingest <<->> MarkLogic: Get existing document from MarkLogic

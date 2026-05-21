@@ -112,6 +112,7 @@ Resources:
           MARKLOGIC_HOST: !Ref MarklogicHost
           MARKLOGIC_PASSWORD: !Ref MarklogicPassword
           MARKLOGIC_USER: !Ref MarklogicUser
+          MARKLOGIC_USE_HTTPS: !Ref MarklogicUseHTTPS
           MAX_RETRIES: !Ref MaxRetries
           NOTIFY_API_KEY: !Ref NotifyApiKey
           NOTIFY_EDITORIAL_ADDRESS: !Ref NotifyEditorialAddress

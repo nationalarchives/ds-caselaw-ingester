@@ -201,11 +201,13 @@ class Ingest:
 
         self.metadata = extract_metadata(self.local_tarfile_reader, self.consignment_reference)
         self.extracted_ncn = self.metadata["parameters"]["PARSER"].get("cite")
-        self.message.update_consignment_reference(self.metadata["parameters"]["TRE"]["reference"])
+        tre_reference = self.metadata["parameters"]["TRE"]["reference"]
+
+        self.message.update_consignment_reference(tre_reference)
         self.xml_file_name = self.metadata["parameters"]["TRE"]["payload"]["xml"]
         self.xml = get_best_xml(self.local_tarfile_reader, self.xml_file_name, self.consignment_reference)
         self.uri, self.exists_in_database = self.database_location
-        logger.info("Ingesting document %s", self.uri)
+        logger.info(f"Ingesting document {self.uri} with NCN {self.extracted_ncn} and TRE reference {tre_reference}")
 
     def __repr__(self):
         return f"<Ingest: {self.consignment_reference}, {self.extracted_ncn}>"
@@ -459,7 +461,7 @@ class Ingest:
         if self.exists_in_database:
             if self.metadata_object.error_on_existing_document:
                 raise DocumentInsertionError(
-                    f"Document already exists in the database at {self.uri}. Consignment Ref: {self.consignment_reference}",
+                    f"A match for this document already exists in the database at {self.uri}. Consignment Ref: {self.consignment_reference}",
                 )
 
             try:
@@ -515,6 +517,8 @@ class Ingest:
 
         # Is a URI present in the parser metadata?
         if trimmed_uri := self.metadata_object.trimmed_uri:  # noqa: SIM102
+            logger.info(f"Using parser URI {trimmed_uri} to determine document URI.")
+
             # Is there a document in MarkLogic at that URL?
             if slug_resolutions := self.api_client.resolve_from_identifier_slug(DocumentIdentifierSlug(trimmed_uri)):
                 if len(slug_resolutions) > 1:
@@ -522,11 +526,13 @@ class Ingest:
                     raise MultipleResolutionsFoundError(msg)
                 # Set URI of the document being ingested to the URI of the one it is replacing in MarkLogic
                 return (slug_resolutions[0].document_uri.as_document_uri(), True)
+            logger.warning(f"Not using parser-provided URI {trimmed_uri} as we didn't find a document with that URI")
 
         # Is there an existing document in MarkLogic with that NCN in the relevant identifier scheme?
-        if self.find_existing_document_by_ncn:
+        if ncn_uri := self.find_existing_document_by_ncn:
+            logger.info(f"Used parser NCN {self.extracted_ncn} to determine document URI to be {ncn_uri}.")
             # set document URI to URI of existing document
-            return (self.find_existing_document_by_ncn, True)
+            return (ncn_uri, True)
 
         # Generate new UUID-based URI
         doc_uuid = DocumentURIString("d-" + str(uuid4()))

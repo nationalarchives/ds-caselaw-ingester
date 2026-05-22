@@ -104,7 +104,7 @@ class TestInsertUpdateOperations:
 
         assert (
             str(err.value)
-            == "Document already exists in the database at ewca/civ/2026/42. Consignment Ref: TDR-2026-ABCD"
+            == "A match for this document already exists in the database at ewca/civ/2026/42. Consignment Ref: TDR-2026-ABCD"
         )
 
     def test_insert_or_update_xml_updates_existing_when_existing_allowed(self, v2_ingest):

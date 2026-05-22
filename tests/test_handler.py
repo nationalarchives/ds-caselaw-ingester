@@ -186,7 +186,7 @@ class TestHandler:
             "No XML file found in tarfile. consignment reference: TDR-2025-CN7V. Falling back to parser.log contents.",
             logging.WARNING,
         )
-        assert_log_has_message(caplog, "Ingesting document uuid")
+        assert_log_has_message(caplog, "Ingesting document uuid with NCN None and TRE reference TRE-TDR-2025-CN7V")
         assert_log_has_message(caplog, "Inserted judgment xml for uuid")
         assert_log_has_message(caplog, "extracted source filename is 'failures_TDR-2025-CN7V.docx'")
         assert_log_has_message(caplog, "Upload Successful uuid/TDR-2025-CN7V.tar.gz")

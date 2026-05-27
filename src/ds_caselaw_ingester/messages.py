@@ -4,6 +4,7 @@ import os
 from abc import ABC, abstractmethod
 from urllib.parse import unquote_plus
 
+from aws_lambda_powertools.utilities.data_classes import SNSEvent, SQSEvent
 from mypy_boto3_s3.client import S3Client
 
 from .exceptions import InvalidMessageException
@@ -104,20 +105,23 @@ class S3Message(V2Message):
         return local_tar_filename
 
 
-def all_messages(event: dict) -> list[tuple[str | None, Message]]:
+def all_messages(event: SQSEvent | SNSEvent) -> list[tuple[str | None, Message]]:
     """Parse all records in an SQS or SNS event into (message_id, Message) pairs.
 
     message_id is the SQS messageId (used for batch failure reporting), or None for
     direct SNS invocations.
     """
-    decoder = json.decoder.JSONDecoder()
-    results = []
-    for record in event.get("Records", []):
-        message_id = record.get("messageId")  # Present only for SQS records
-        if record.get("eventSource") == "aws:sqs":
-            sns_notification = decoder.decode(record["body"])
-            raw = decoder.decode(sns_notification["Message"])
-        else:
-            raw = decoder.decode(record["Sns"]["Message"])
-        results.append((message_id, Message.from_message(raw)))
+    results: list[tuple[str | None, Message]] = []
+
+    if isinstance(event, SQSEvent):
+        for sqs_record in event.records:
+            sns_notification = json.loads(sqs_record.body)
+            inner_json = json.loads(sns_notification["Message"])
+            results.append((sqs_record.message_id, Message.from_message(inner_json)))
+
+    elif isinstance(event, SNSEvent):
+        for sns_record in event.records:
+            inner_json = json.loads(sns_record.sns.message)
+            results.append((None, Message.from_message(inner_json)))
+
     return results

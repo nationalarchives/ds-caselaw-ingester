@@ -36,7 +36,7 @@ repos:
           - types-python-dateutil==2.9.0.20260518
           - types-pytz==2026.2.0.20260518
           - types-lxml==2026.2.16
-          - boto3-stubs[s3,sns]==1.43.17
+          - boto3-stubs[s3,sns]==1.43.18
           - ds-caselaw-marklogic-api-client==46.1.1
           - ds-caselaw-utils==4.5.0
           - aws-lambda-powertools==3.29.0

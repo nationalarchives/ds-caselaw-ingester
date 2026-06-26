@@ -7,7 +7,7 @@ boto3==1.43.36
 rollbar==1.3.0
 notifications-python-client==12.1.0
 codeguru_profiler_agent==1.2.6
-aws-lambda-powertools==3.29.0
+aws-lambda-powertools==3.30.0
 
 mypy-boto3-s3==1.43.31
 mypy-boto3-sns==1.43.23

@@ -70,7 +70,7 @@ repos:
       - id: terraform_tflint
 
   - repo: https://github.com/aws-cloudformation/cfn-lint
-    rev: v1.53.3
+    rev: v1.54.0
     hooks:
       - id: cfn-lint
         files: template.yml

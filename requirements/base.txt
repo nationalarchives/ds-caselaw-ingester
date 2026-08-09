@@ -9,6 +9,6 @@ notifications-python-client==12.1.0
 codeguru_profiler_agent==1.2.6
 aws-lambda-powertools==3.31.1
 
-mypy-boto3-s3==1.43.50
+mypy-boto3-s3==1.43.66
 mypy-boto3-sns==1.43.23
 python-dotenv==1.2.2

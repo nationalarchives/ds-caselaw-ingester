@@ -481,6 +481,8 @@ class Ingest:
         # This is the only place we should be setting self.document, once the XML is in the database
         # get_document_by_uri will raise an exception if the expected document doesn't exist
         self.document = self.api_client.get_document_by_uri(DocumentURIString(self.uri))
+        # insert/update_document_xml bypass Document.save(), so materialise claims here.
+        self.document.materialise_metadata_claims()
 
     @cached_property
     def find_existing_document_by_ncn(self) -> DocumentURIString | None:

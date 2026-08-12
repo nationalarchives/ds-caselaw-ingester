@@ -117,8 +117,21 @@ class TestInsertUpdateOperations:
             },
         }
         v2_ingest.update_document_xml = MagicMock()
-        v2_ingest.api_client.get_document_by_uri = MagicMock(return_value=MagicMock())
+        document = MagicMock()
+        v2_ingest.api_client.get_document_by_uri = MagicMock(return_value=document)
 
         v2_ingest.insert_or_update_xml()
 
         v2_ingest.update_document_xml.assert_called_once()
+        document.materialise_metadata_claims.assert_called_once_with()
+
+    def test_insert_or_update_xml_materialises_claims_on_insert(self, v2_ingest):
+        v2_ingest.exists_in_database = False
+        v2_ingest.insert_document_xml = MagicMock()
+        document = MagicMock()
+        v2_ingest.api_client.get_document_by_uri = MagicMock(return_value=document)
+
+        v2_ingest.insert_or_update_xml()
+
+        v2_ingest.insert_document_xml.assert_called_once()
+        document.materialise_metadata_claims.assert_called_once_with()

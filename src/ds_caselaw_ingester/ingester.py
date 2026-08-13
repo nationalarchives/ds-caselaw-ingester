@@ -524,7 +524,7 @@ class Ingest:
         whether a document already exists at that location"""
 
         # Is a URI present in the parser metadata?
-        if trimmed_uri := self.metadata_object.trimmed_uri:  # noqa: SIM102
+        if trimmed_uri := self.metadata_object.trimmed_uri:
             logger.info(f"Using parser URI {trimmed_uri} to determine document URI.")
 
             # Is there a document in MarkLogic at that URL?

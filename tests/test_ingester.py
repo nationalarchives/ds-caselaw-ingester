@@ -117,8 +117,54 @@ class TestInsertUpdateOperations:
             },
         }
         v2_ingest.update_document_xml = MagicMock()
-        v2_ingest.api_client.get_document_by_uri = MagicMock(return_value=MagicMock())
+        document = MagicMock()
+        v2_ingest.api_client.get_document_by_uri = MagicMock(return_value=document)
 
         v2_ingest.insert_or_update_xml()
 
         v2_ingest.update_document_xml.assert_called_once()
+
+    def test_insert_or_update_xml_materialises_claims_on_update(self, v2_ingest):
+        v2_ingest.exists_in_database = True
+        v2_ingest.metadata = {
+            "parameters": {
+                "INGESTER_OPTIONS": {
+                    "error_on_existing_document": False,
+                },
+            },
+        }
+        v2_ingest.update_document_xml = MagicMock()
+        document = MagicMock()
+        v2_ingest.api_client.get_document_by_uri = MagicMock(return_value=document)
+
+        v2_ingest.insert_or_update_xml()
+
+        document.materialise_metadata_claims.assert_called_once()
+
+    def test_insert_or_update_xml_materialises_claims_on_insert(self, v2_ingest):
+        v2_ingest.exists_in_database = False
+        v2_ingest.insert_document_xml = MagicMock()
+        document = MagicMock()
+        v2_ingest.api_client.get_document_by_uri = MagicMock(return_value=document)
+
+        v2_ingest.insert_or_update_xml()
+
+        v2_ingest.insert_document_xml.assert_called_once()
+        document.materialise_metadata_claims.assert_called_once()
+
+    def test_insert_or_update_xml_wraps_materialisation_failures(self, v2_ingest):
+        v2_ingest.exists_in_database = False
+        v2_ingest.uri = "ewca/civ/2026/42"
+        v2_ingest.consignment_reference = "TDR-2026-ABCD"
+        v2_ingest.insert_document_xml = MagicMock()
+        document = MagicMock()
+        document.materialise_metadata_claims.side_effect = RuntimeError("boom")
+        v2_ingest.api_client.get_document_by_uri = MagicMock(return_value=document)
+
+        with pytest.raises(DocumentInsertionError) as err:
+            v2_ingest.insert_or_update_xml()
+
+        assert (
+            str(err.value)
+            == "Materialising metadata claims for judgment ewca/civ/2026/42 failed. Consignment Ref: TDR-2026-ABCD"
+        )

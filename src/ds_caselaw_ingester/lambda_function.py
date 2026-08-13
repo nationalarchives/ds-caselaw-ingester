@@ -128,7 +128,7 @@ def handler(event: dict[str, Any], context: LambdaContext):
                 )
 
                 perform_ingest(ingest)
-        except Exception:  # noqa: BLE001 — catch-all required for SQS partial batch failure reporting
+        except Exception:
             rollbar.report_exc_info(level="error")
             logger.exception("Error processing message")
             if message_id:

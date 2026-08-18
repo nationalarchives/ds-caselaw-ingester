@@ -11,4 +11,4 @@ aws-lambda-powertools==3.34.0
 
 mypy-boto3-s3==1.43.66
 mypy-boto3-sns==1.43.23
-python-dotenv==1.2.2
+python-dotenv==1.2.3

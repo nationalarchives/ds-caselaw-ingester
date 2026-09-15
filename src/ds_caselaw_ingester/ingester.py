@@ -11,10 +11,11 @@ from uuid import uuid4
 
 import lxml.etree as ET
 from caselawclient.Client import MarklogicApiClient
-from caselawclient.client_helpers import get_document_type_class
+from caselawclient.client_helpers import document_from_xml, get_document_type_class
 from caselawclient.models.documents import Document, DocumentURIString
+from caselawclient.models.documents.body import DocumentBody
 from caselawclient.models.documents.exceptions import CannotPublishUnpublishableDocument
-from caselawclient.models.documents.versions import VersionAnnotation, VersionType
+from caselawclient.models.documents.versions import VersionType
 from caselawclient.models.identifiers import Identifier
 from caselawclient.models.identifiers.neutral_citation import NeutralCitationNumber
 from caselawclient.models.identifiers.press_summary_ncn import PressSummaryRelatedNCNIdentifier
@@ -222,43 +223,33 @@ class Ingest:
         """The type of the ingested document as a string, for humans"""
         return self.ingested_document_type.document_noun
 
-    def update_document_xml(self) -> None:
+    def _submission_save_message(self) -> str:
+        if self.exists_in_database:
+            if self.metadata_object.is_tdr:
+                return "Updated document submitted by TDR user"
+            return "Updated document uploaded by Find Case Law"
         if self.metadata_object.is_tdr:
-            message = "Updated document submitted by TDR user"
-        else:
-            message = "Updated document uploaded by Find Case Law"
+            return "New document submitted by TDR user"
+        return "New document uploaded by Find Case Law"
 
-        annotation = VersionAnnotation(
-            VersionType.SUBMISSION,
+    def save_document_to_marklogic(self) -> Document:
+        """Insert or update ingested XML in MarkLogic via Document.save()."""
+        body = DocumentBody(ET.tostring(self.xml))
+        uri = DocumentURIString(self.uri)
+        if self.exists_in_database:
+            document = self.api_client.get_document_by_uri(uri)
+            document.body = body
+        else:
+            document = document_from_xml(body, self.api_client, uri=uri)
+        document.save(
+            message=self._submission_save_message(),
+            version_type=VersionType.SUBMISSION,
             automated=self.metadata_object.auto_publish,
-            message=message,
             payload=dict(
                 build_version_annotation_payload(self.metadata, self.aws_lambda_context),
             ),  # We cast this to a dict here because VersionAnnotation doesn't yet have a TypedDict as its payload argument.
         )
-
-        self.api_client.get_judgment_xml(self.uri, show_unpublished=True)
-        self.api_client.update_document_xml(self.uri, self.xml, annotation)
-
-    def insert_document_xml(self) -> None:
-        if self.metadata_object.is_tdr:
-            message = "New document submitted by TDR user"
-        else:
-            message = "New document uploaded by Find Case Law"
-        annotation = VersionAnnotation(
-            VersionType.SUBMISSION,
-            automated=self.metadata_object.auto_publish,
-            message=message,
-            payload=dict(
-                build_version_annotation_payload(self.metadata, self.aws_lambda_context),
-            ),  # We cast this to a dict here because VersionAnnotation doesn't yet have a TypedDict as its payload argument.
-        )
-        self.api_client.insert_document_xml(
-            document_uri=self.uri,
-            document_xml=self.xml,
-            annotation=annotation,
-            document_type=self.ingested_document_type,
-        )
+        return document
 
     def set_document_identifiers(self) -> None:
         if self.document is None:
@@ -458,36 +449,18 @@ class Ingest:
 
     def insert_or_update_xml(self) -> None:
         """Puts the XML into MarkLogic, either by updating an existing document (if `self.exists_in_database`) or by creating a new one."""
-        if self.exists_in_database:
-            if self.metadata_object.error_on_existing_document:
-                raise DocumentInsertionError(
-                    f"A match for this document already exists in the database at {self.uri}. Consignment Ref: {self.consignment_reference}",
-                )
+        if self.exists_in_database and self.metadata_object.error_on_existing_document:
+            raise DocumentInsertionError(
+                f"A match for this document already exists in the database at {self.uri}. Consignment Ref: {self.consignment_reference}",
+            )
 
-            try:
-                self.update_document_xml()
-            except Exception as err:
-                raise DocumentInsertionError(
-                    f"Updating {self.ingested_document_type_string} {self.uri} failed. Consignment Ref: {self.consignment_reference}",
-                ) from err
-        else:
-            try:
-                self.insert_document_xml()
-            except Exception as err:
-                raise DocumentInsertionError(
-                    f"Inserting {self.ingested_document_type_string} {self.uri} failed. Consignment Ref: {self.consignment_reference}",
-                ) from err
-
-        # This is the only place we should be setting self.document, once the XML is in the database
-        # get_document_by_uri will raise an exception if the expected document doesn't exist
-        self.document = self.api_client.get_document_by_uri(DocumentURIString(self.uri))
-        # insert/update_document_xml bypass Document.save(), so materialise claims here.
+        action = "Updating" if self.exists_in_database else "Inserting"
         try:
-            self.document.materialise_metadata_claims()
+            # This is the only place we should be setting self.document, once the XML is in the database
+            self.document = self.save_document_to_marklogic()
         except Exception as err:
             raise DocumentInsertionError(
-                f"Materialising metadata claims for {self.ingested_document_type_string} {self.uri} failed. "
-                f"Consignment Ref: {self.consignment_reference}",
+                f"{action} {self.ingested_document_type_string} {self.uri} failed. Consignment Ref: {self.consignment_reference}",
             ) from err
 
     @cached_property

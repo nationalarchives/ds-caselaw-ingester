@@ -23,9 +23,7 @@ class TestSQSHandler:
     @patch("src.ds_caselaw_ingester.lambda_function.s3_client")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
-    @patch("src.ds_caselaw_ingester.ingester.VersionAnnotation")
     @patch("src.ds_caselaw_ingester.ingester.modify_filename")
-    @patch("src.ds_caselaw_ingester.ingester.Document")
     @patch(
         "src.ds_caselaw_ingester.ingester.Ingest.find_existing_document_by_ncn",
         return_value=IdentifierResolutionsFactory.build(),
@@ -39,9 +37,7 @@ class TestSQSHandler:
         self,
         mock_database_location,
         mock_existing_uri,
-        mock_doc,
         modify_filename,
-        annotation,
         notify_new,
         notify_update,
         mock_s3_client,
@@ -53,7 +49,6 @@ class TestSQSHandler:
         mock_s3_client.download_file = create_fake_tdr_file
         doc = apiclient.get_document_by_uri.return_value
         doc.neutral_citation = None
-        mock_doc.return_value = doc
 
         result = lambda_function.handler(event=sqs_v2_event, context=handler_context)
 
@@ -67,10 +62,8 @@ class TestSQSHandler:
     @patch("src.ds_caselaw_ingester.lambda_function.s3_client")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
-    @patch("src.ds_caselaw_ingester.ingester.VersionAnnotation")
     @patch("src.ds_caselaw_ingester.ingester.modify_filename")
     @patch("src.ds_caselaw_ingester.ingester.uuid4")
-    @patch("src.ds_caselaw_ingester.ingester.Document")
     @patch(
         "src.ds_caselaw_ingester.ingester.Ingest.find_existing_document_by_ncn",
         return_value=IdentifierResolutionsFactory.build(),
@@ -84,10 +77,8 @@ class TestSQSHandler:
         self,
         mock_determine,
         mock_existing,
-        mock_doc,
         mock_uuid4,
         modify_filename,
-        annotation,
         notify_new,
         notify_updated,
         mock_s3_client,
@@ -100,7 +91,6 @@ class TestSQSHandler:
         mock_uuid4.return_value = "a1b2-c3d4"
         doc = apiclient.get_document_by_uri.return_value
         doc.neutral_citation = "[2012] UKUT 82 (IAC)"
-        mock_doc.return_value = doc
 
         result = lambda_function.handler(event=sqs_s3_event, context=handler_context)
 

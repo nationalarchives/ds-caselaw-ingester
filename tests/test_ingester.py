@@ -1,4 +1,4 @@
-from unittest.mock import ANY, MagicMock
+from unittest.mock import ANY, MagicMock, patch
 
 import lxml.etree as ET
 import pytest
@@ -6,6 +6,7 @@ from caselawclient.Client import (
     MarklogicCommunicationError,
 )
 from caselawclient.models.documents.exceptions import CannotPublishUnpublishableDocument
+from caselawclient.models.documents.versions import VersionType
 from caselawclient.models.judgments import Judgment
 from caselawclient.models.parser_logs import ParserLog
 from caselawclient.models.press_summaries import PressSummary
@@ -24,68 +25,97 @@ class TestPerformIngest:
             ingester.perform_ingest(ingest)
 
 
-class TestInsertUpdateOperations:
-    def test_update_document_xml_success(self, v2_ingest):
-        v2_ingest.api_client.get_judgment_xml = MagicMock(return_value=True)
-        v2_ingest.api_client.update_document_xml = MagicMock(return_value=True)
-        v2_ingest.update_document_xml()
+class TestSaveDocumentToMarklogic:
+    def test_save_document_to_marklogic_update_path(self, v2_ingest):
+        document = MagicMock()
+        v2_ingest.exists_in_database = True
+        v2_ingest.api_client.get_document_by_uri = MagicMock(return_value=document)
 
-    def test_update_document_xml_success_no_tdr(self, v2_ingest):
-        v2_ingest.api_client.get_judgment_xml = MagicMock(return_value=True)
-        v2_ingest.api_client.update_document_xml = MagicMock(return_value=True)
+        result = v2_ingest.save_document_to_marklogic()
+
+        assert result is document
+        document.save.assert_called_once_with(
+            message="Updated document submitted by TDR user",
+            version_type=VersionType.SUBMISSION,
+            automated=False,
+            payload=ANY,
+        )
+
+    def test_save_document_to_marklogic_update_path_no_tdr(self, v2_ingest):
+        document = MagicMock()
+        v2_ingest.exists_in_database = True
         v2_ingest.metadata = {"parameters": {}}
-        v2_ingest.update_document_xml()
+        v2_ingest.api_client.get_document_by_uri = MagicMock(return_value=document)
 
-    def test_insert_document_xml_success_judgment(self, v2_ingest):
+        v2_ingest.save_document_to_marklogic()
+
+        document.save.assert_called_once_with(
+            message="Updated document uploaded by Find Case Law",
+            version_type=VersionType.SUBMISSION,
+            automated=False,
+            payload=ANY,
+        )
+
+    @patch("src.ds_caselaw_ingester.ingester.document_from_xml")
+    def test_save_document_to_marklogic_insert_judgment(self, document_from_xml, v2_ingest):
         xml = ET.XML(
             "<akomaNtoso xmlns='http://docs.oasis-open.org/legaldocml/ns/akn/3.0'><judgment><xml>Here's some xml</xml></judgment></akomaNtoso>",
         )
-        v2_ingest.api_client.insert_document_xml = MagicMock(return_value=True)
+        document = MagicMock(spec=Judgment)
+        document_from_xml.return_value = document
+        v2_ingest.exists_in_database = False
         v2_ingest.uri = "a/fake/uri"
         v2_ingest.xml = xml
-        v2_ingest.insert_document_xml()
-        v2_ingest.api_client.insert_document_xml.assert_called_once_with(
-            document_uri=v2_ingest.uri,
-            document_xml=xml,
-            annotation=ANY,
-            document_type=Judgment,
+
+        v2_ingest.save_document_to_marklogic()
+
+        document_from_xml.assert_called_once()
+        document.save.assert_called_once_with(
+            message="New document submitted by TDR user",
+            version_type=VersionType.SUBMISSION,
+            automated=False,
+            payload=ANY,
         )
 
-    def test_insert_document_xml_success_press_summary(self, v2_ingest):
+    @patch("src.ds_caselaw_ingester.ingester.document_from_xml")
+    def test_save_document_to_marklogic_insert_press_summary(self, document_from_xml, v2_ingest):
         xml = ET.XML(
             "<akomaNtoso xmlns='http://docs.oasis-open.org/legaldocml/ns/akn/3.0'><doc name='pressSummary'><xml>Here's some xml</xml></doc></akomaNtoso>",
         )
-        v2_ingest.api_client.insert_document_xml = MagicMock(return_value=True)
+        document = MagicMock(spec=PressSummary)
+        document_from_xml.return_value = document
+        v2_ingest.exists_in_database = False
         v2_ingest.uri = "a/fake/uri"
         v2_ingest.xml = xml
-        v2_ingest.insert_document_xml()
-        v2_ingest.api_client.insert_document_xml.assert_called_once_with(
-            document_uri=v2_ingest.uri,
-            document_xml=xml,
-            annotation=ANY,
-            document_type=PressSummary,
-        )
 
-    def test_insert_document_xml_parser_error(self, v2_ingest):
-        """Parser errors are successfully imported with document type Error"""
-        xml = ET.XML(
-            "<error/>",
-        )
-        v2_ingest.api_client.insert_document_xml = MagicMock(return_value=True)
+        v2_ingest.save_document_to_marklogic()
+
+        document_from_xml.assert_called_once()
+        document.save.assert_called_once()
+
+    @patch("src.ds_caselaw_ingester.ingester.document_from_xml")
+    def test_save_document_to_marklogic_insert_parser_log(self, document_from_xml, v2_ingest):
+        xml = ET.XML("<error/>")
+        document = MagicMock(spec=ParserLog)
+        document_from_xml.return_value = document
+        v2_ingest.exists_in_database = False
         v2_ingest.uri = "a/fake/uri"
         v2_ingest.xml = xml
-        v2_ingest.insert_document_xml()
-        v2_ingest.api_client.insert_document_xml.assert_called_once_with(
-            document_uri=v2_ingest.uri,
-            document_xml=xml,
-            annotation=ANY,
-            document_type=ParserLog,
-        )
 
-    def test_insert_document_xml_failure(self, v2_ingest):
-        v2_ingest.api_client.insert_document_xml = MagicMock(side_effect=MarklogicCommunicationError("error"))
+        v2_ingest.save_document_to_marklogic()
+
+        document_from_xml.assert_called_once()
+        document.save.assert_called_once()
+
+    @patch("src.ds_caselaw_ingester.ingester.document_from_xml")
+    def test_save_document_to_marklogic_insert_failure(self, document_from_xml, v2_ingest):
+        document = MagicMock()
+        document.save.side_effect = MarklogicCommunicationError("error")
+        document_from_xml.return_value = document
+        v2_ingest.exists_in_database = False
+
         with pytest.raises(MarklogicCommunicationError):
-            v2_ingest.insert_document_xml()
+            v2_ingest.save_document_to_marklogic()
 
     def test_insert_or_update_xml_raises_error_with_uri_and_consignment_when_existing_disallowed(self, v2_ingest):
         v2_ingest.exists_in_database = True
@@ -116,55 +146,21 @@ class TestInsertUpdateOperations:
                 },
             },
         }
-        v2_ingest.update_document_xml = MagicMock()
         document = MagicMock()
-        v2_ingest.api_client.get_document_by_uri = MagicMock(return_value=document)
+        v2_ingest.save_document_to_marklogic = MagicMock(return_value=document)
 
         v2_ingest.insert_or_update_xml()
 
-        v2_ingest.update_document_xml.assert_called_once()
+        v2_ingest.save_document_to_marklogic.assert_called_once()
+        assert v2_ingest.document is document
 
-    def test_insert_or_update_xml_materialises_claims_on_update(self, v2_ingest):
-        v2_ingest.exists_in_database = True
-        v2_ingest.metadata = {
-            "parameters": {
-                "INGESTER_OPTIONS": {
-                    "error_on_existing_document": False,
-                },
-            },
-        }
-        v2_ingest.update_document_xml = MagicMock()
-        document = MagicMock()
-        v2_ingest.api_client.get_document_by_uri = MagicMock(return_value=document)
-
-        v2_ingest.insert_or_update_xml()
-
-        document.materialise_metadata_claims.assert_called_once()
-
-    def test_insert_or_update_xml_materialises_claims_on_insert(self, v2_ingest):
-        v2_ingest.exists_in_database = False
-        v2_ingest.insert_document_xml = MagicMock()
-        document = MagicMock()
-        v2_ingest.api_client.get_document_by_uri = MagicMock(return_value=document)
-
-        v2_ingest.insert_or_update_xml()
-
-        v2_ingest.insert_document_xml.assert_called_once()
-        document.materialise_metadata_claims.assert_called_once()
-
-    def test_insert_or_update_xml_wraps_materialisation_failures(self, v2_ingest):
+    def test_insert_or_update_xml_wraps_save_failures(self, v2_ingest):
         v2_ingest.exists_in_database = False
         v2_ingest.uri = "ewca/civ/2026/42"
         v2_ingest.consignment_reference = "TDR-2026-ABCD"
-        v2_ingest.insert_document_xml = MagicMock()
-        document = MagicMock()
-        document.materialise_metadata_claims.side_effect = RuntimeError("boom")
-        v2_ingest.api_client.get_document_by_uri = MagicMock(return_value=document)
+        v2_ingest.save_document_to_marklogic = MagicMock(side_effect=RuntimeError("boom"))
 
         with pytest.raises(DocumentInsertionError) as err:
             v2_ingest.insert_or_update_xml()
 
-        assert (
-            str(err.value)
-            == "Materialising metadata claims for judgment ewca/civ/2026/42 failed. Consignment Ref: TDR-2026-ABCD"
-        )
+        assert str(err.value) == "Inserting judgment ewca/civ/2026/42 failed. Consignment Ref: TDR-2026-ABCD"

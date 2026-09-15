@@ -4,6 +4,7 @@ from unittest.mock import ANY, PropertyMock, call, patch
 import pytest
 import rollbar
 from caselawclient.factories import IdentifierResolutionsFactory
+from caselawclient.models.documents.versions import VersionType
 from caselawclient.models.identifiers.neutral_citation import NeutralCitationNumber
 from caselawclient.types import DocumentURIString
 
@@ -28,9 +29,7 @@ class TestHandler:
     @patch("src.ds_caselaw_ingester.lambda_function.s3_client")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
-    @patch("src.ds_caselaw_ingester.ingester.VersionAnnotation")
     @patch("src.ds_caselaw_ingester.ingester.modify_filename")
-    @patch("src.ds_caselaw_ingester.ingester.Document")
     @patch(
         "src.ds_caselaw_ingester.ingester.Ingest.find_existing_document_by_ncn",
         return_value=IdentifierResolutionsFactory.build(),
@@ -44,9 +43,7 @@ class TestHandler:
         self,
         mock_database_location,
         mock_existing_uri,
-        mock_doc,
         modify_filename,
-        annotation,
         notify_new,
         notify_update,
         mock_s3_client,
@@ -57,7 +54,6 @@ class TestHandler:
         mock_s3_client.download_file = create_fake_tdr_file
         doc = apiclient.get_document_by_uri.return_value
         doc.neutral_citation = None
-        mock_doc.return_value = doc
 
         message = v2_message_raw
         event = {"Records": [{"Sns": {"Message": message}}, {"Sns": {"Message": message}}]}
@@ -72,13 +68,13 @@ class TestHandler:
         modify_filename.assert_not_called()
         doc.publish.assert_not_called()
 
-        annotation.assert_called_with(
-            ANY,
-            automated=False,
+        doc.save.assert_called_with(
             message="Updated document submitted by TDR user",
+            version_type=VersionType.SUBMISSION,
+            automated=False,
             payload=ANY,
         )
-        assert annotation.call_count == 2
+        assert doc.save.call_count == 2
         doc.identifiers.add.assert_not_called()
         doc.identifiers.save.assert_not_called()
 
@@ -86,10 +82,8 @@ class TestHandler:
     @patch("src.ds_caselaw_ingester.lambda_function.s3_client")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
-    @patch("src.ds_caselaw_ingester.ingester.VersionAnnotation")
     @patch("src.ds_caselaw_ingester.ingester.modify_filename")
     @patch("src.ds_caselaw_ingester.ingester.uuid4")
-    @patch("src.ds_caselaw_ingester.ingester.Document")
     @patch(
         "src.ds_caselaw_ingester.ingester.Ingest.find_existing_document_by_ncn",
         return_value=IdentifierResolutionsFactory.build(),
@@ -103,10 +97,8 @@ class TestHandler:
         self,
         mock_determine,
         mock_existing,
-        mock_doc,
         mock_uuid4,
         modify_filename,
-        annotation,
         notify_new,
         notify_updated,
         mock_s3_client,
@@ -119,7 +111,6 @@ class TestHandler:
         mock_uuid4.return_value = "a1b2-c3d4"
         doc = apiclient.get_document_by_uri.return_value
         doc.neutral_citation = "[2012] UKUT 82 (IAC)"
-        mock_doc.return_value = doc
 
         message = s3_message_raw
         event = {"Records": [{"Sns": {"Message": message}}, {"Sns": {"Message": message}}]}
@@ -136,13 +127,13 @@ class TestHandler:
         notify_updated.assert_not_called()
         modify_filename.assert_not_called()
 
-        annotation.assert_called_with(
-            ANY,
-            automated=True,
+        doc.save.assert_called_with(
             message="Updated document uploaded by Find Case Law",
+            version_type=VersionType.SUBMISSION,
+            automated=True,
             payload=ANY,
         )
-        assert annotation.call_count == 2
+        assert doc.save.call_count == 2
         assert doc.identifiers.add.call_args_list[0].args[0].value == "[2012] UKUT 82 (IAC)"
         assert type(doc.identifiers.add.call_args_list[0].args[0]) is NeutralCitationNumber
         doc.save_identifiers.assert_called()
@@ -151,9 +142,8 @@ class TestHandler:
     @patch("src.ds_caselaw_ingester.lambda_function.s3_client")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_updated_judgment_notification")
     @patch("src.ds_caselaw_ingester.lambda_function.Ingest.send_new_judgment_notification")
-    @patch("src.ds_caselaw_ingester.ingester.VersionAnnotation")
     @patch("src.ds_caselaw_ingester.ingester.modify_filename")
-    @patch("src.ds_caselaw_ingester.ingester.Document")
+    @patch("src.ds_caselaw_ingester.ingester.document_from_xml")
     @patch(
         "src.ds_caselaw_ingester.lambda_function.Ingest.database_location",
         new_callable=PropertyMock,
@@ -162,9 +152,8 @@ class TestHandler:
     def test_handler_messages_v2_parser_error(
         self,
         mock_determine_uri,
-        mock_doc,
+        document_from_xml,
         modify_filename,
-        annotation,
         notify_new,
         notify_update,
         mock_s3_client,
@@ -173,7 +162,8 @@ class TestHandler:
         handler_context,
     ):
         mock_s3_client.download_file = create_fake_error_file
-        mock_doc.return_value = apiclient.get_document_by_uri.return_value
+        doc = apiclient.get_document_by_uri.return_value
+        document_from_xml.return_value = doc
 
         message = error_message_raw
 
@@ -199,17 +189,17 @@ class TestHandler:
         assert notify_new.call_count == 2
         notify_update.assert_not_called()
         modify_filename.assert_not_called()
-        mock_doc.publish.assert_not_called()
+        doc.publish.assert_not_called()
 
-        annotation.assert_called_with(
-            ANY,
-            automated=False,
+        doc.save.assert_called_with(
             message="New document uploaded by Find Case Law",
+            version_type=VersionType.SUBMISSION,
+            automated=False,
             payload=ANY,
         )
-        assert annotation.call_count == 2
-        mock_doc.identifiers.add.assert_not_called()
-        mock_doc.identifiers.save.assert_not_called()
+        assert doc.save.call_count == 2
+        doc.identifiers.add.assert_not_called()
+        doc.identifiers.save.assert_not_called()
 
     @patch("src.ds_caselaw_ingester.lambda_function.s3_client")
     @patch(

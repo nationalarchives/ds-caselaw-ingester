@@ -54,39 +54,21 @@ sequenceDiagram
         note right of perform_ingest: This is where we actually start to insert or update things.<br>perform_ingest() orchestrates the operations.
 
         perform_ingest ->>+ Ingest: insert_or_update_xml()
-        note right of Ingest: insert_or_update does the work of getting the XML into MarkLogic
+        note right of Ingest: Builds a Document from XML and persists via Document.save()
         alt If existing document in MarkLogic
             break error_on_existing_document is True
                 Ingest ->> Ingest: Raise DocumentInsertionError exception
             end
-            Ingest ->>+ Ingest: update_document_xml()
-                Ingest ->> Ingest: Build annotation object
-                Ingest <<->> MarkLogic: Get existing document from MarkLogic
-                break Get operation fails
-                    Ingest ->> Ingest: Return False
-                end
-                Ingest ->> MarkLogic: Update document body in MarkLogic
-            deactivate Ingest
-            break Update operation returns False
-                Ingest ->> Ingest: Raise DocumentInsertionError exception
-            end
-        else No existing document in MarkLogic
-            Ingest ->>+ Ingest: insert_document_xml()
-                Ingest ->> Ingest: Build annotation object
-                Ingest ->> MarkLogic: Insert new document body in MarkLogic
-            deactivate Ingest
-            break Insert operation fails
-                Ingest ->> Ingest: Raise DocumentInsertionError exception
-            end
         end
-
-        Ingest ->>+ Ingest: api_client.get_document_by_uri()
-            Ingest <<->> MarkLogic: Get existing document from MarkLogic
-
+        Ingest ->>+ Ingest: save_document_to_marklogic()
             create participant document
-            Ingest ->> document: Create new Document object
+            Ingest ->> document: Load or construct Document from ingested XML
+            Ingest ->> document: save() with submission annotation
+            document ->> MarkLogic: Upsert document XML, identifiers, and structured metadata
         deactivate Ingest
-
+        break Save fails
+            Ingest ->> Ingest: Raise DocumentInsertionError exception
+        end
         deactivate Ingest
 
         perform_ingest ->>+ Ingest: set_document_identifiers()

@@ -35,7 +35,7 @@ jobs:
 
   plan:
     needs: set-env
-    uses: ./.github/workflows/terraform.yml
+    uses: $/.github/workflows/terraform.yml
     with:
       environment: ${{ needs.set-env.outputs.environment }}
       deployment: false

@@ -1,8 +1,12 @@
 import logging
 import os
 import shutil
+from typing import TypeVar
+from unittest.mock import MagicMock, create_autospec
 
 import pytest
+
+TDocument = TypeVar("TDocument")
 
 TDR_TARBALL_PATH = os.path.join(
     os.path.dirname(__file__),
@@ -15,6 +19,14 @@ ERROR_TARBALL_PATH = os.path.join(
 )
 
 BULK_TARBALL_PATH = os.path.join(os.path.dirname(__file__), "../aws_examples/s3/te-editorial-out-int/test3.tar.gz")
+
+
+def autospec_document(document_class: type[TDocument]) -> MagicMock:
+    """Mock a document using the real class interface from the pinned API client."""
+    document = create_autospec(document_class, instance=True)
+    # Set on Document.__init__, not visible to create_autospec.
+    document.identifiers = MagicMock()
+    return document
 
 
 def create_fake_tdr_file(*args, **kwargs):

@@ -6,6 +6,8 @@ import rollbar
 from caselawclient.factories import IdentifierResolutionsFactory
 from caselawclient.models.documents.versions import VersionType
 from caselawclient.models.identifiers.neutral_citation import NeutralCitationNumber
+from caselawclient.models.judgments import Judgment
+from caselawclient.models.parser_logs import ParserLog
 from caselawclient.types import DocumentURIString
 
 from src.ds_caselaw_ingester import exceptions, lambda_function
@@ -16,6 +18,7 @@ from .helpers import (
     assert_log_has_message,
     assert_log_has_message_starting,
     assert_log_shows_successful_ingest,
+    autospec_document,
     create_fake_bulk_file,
     create_fake_error_file,
     create_fake_tdr_file,
@@ -52,7 +55,8 @@ class TestHandler:
         handler_context,
     ):
         mock_s3_client.download_file = create_fake_tdr_file
-        doc = apiclient.get_document_by_uri.return_value
+        doc = autospec_document(Judgment)
+        apiclient.get_document_by_uri.return_value = doc
         doc.neutral_citation = None
 
         message = v2_message_raw
@@ -109,7 +113,8 @@ class TestHandler:
         """Test that, with appropriate stubs, an S3 message passes through the parsing process"""
         mock_s3_client.download_file = create_fake_bulk_file
         mock_uuid4.return_value = "a1b2-c3d4"
-        doc = apiclient.get_document_by_uri.return_value
+        doc = autospec_document(Judgment)
+        apiclient.get_document_by_uri.return_value = doc
         doc.neutral_citation = "[2012] UKUT 82 (IAC)"
 
         message = s3_message_raw
@@ -162,7 +167,8 @@ class TestHandler:
         handler_context,
     ):
         mock_s3_client.download_file = create_fake_error_file
-        doc = apiclient.get_document_by_uri.return_value
+        doc = autospec_document(ParserLog)
+        apiclient.get_document_by_uri.return_value = doc
         document_from_xml.return_value = doc
 
         message = error_message_raw

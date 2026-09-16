@@ -14,6 +14,8 @@ from caselawclient.models.press_summaries import PressSummary
 from src.ds_caselaw_ingester import ingester
 from src.ds_caselaw_ingester.exceptions import DocumentInsertionError, IngestionError
 
+from .helpers import autospec_document
+
 
 class TestPerformIngest:
     def test_perform_ingest_raises_reportable_error_if_unpublishable(self):
@@ -27,7 +29,7 @@ class TestPerformIngest:
 
 class TestSaveDocumentToMarklogic:
     def test_save_document_to_marklogic_update_path(self, v2_ingest):
-        document = MagicMock()
+        document = autospec_document(Judgment)
         v2_ingest.exists_in_database = True
         v2_ingest.api_client.get_document_by_uri = MagicMock(return_value=document)
 
@@ -42,7 +44,7 @@ class TestSaveDocumentToMarklogic:
         )
 
     def test_save_document_to_marklogic_update_path_no_tdr(self, v2_ingest):
-        document = MagicMock()
+        document = autospec_document(Judgment)
         v2_ingest.exists_in_database = True
         v2_ingest.metadata = {"parameters": {}}
         v2_ingest.api_client.get_document_by_uri = MagicMock(return_value=document)
@@ -61,7 +63,7 @@ class TestSaveDocumentToMarklogic:
         xml = ET.XML(
             "<akomaNtoso xmlns='http://docs.oasis-open.org/legaldocml/ns/akn/3.0'><judgment><xml>Here's some xml</xml></judgment></akomaNtoso>",
         )
-        document = MagicMock(spec=Judgment)
+        document = autospec_document(Judgment)
         document_from_xml.return_value = document
         v2_ingest.exists_in_database = False
         v2_ingest.uri = "a/fake/uri"
@@ -82,7 +84,7 @@ class TestSaveDocumentToMarklogic:
         xml = ET.XML(
             "<akomaNtoso xmlns='http://docs.oasis-open.org/legaldocml/ns/akn/3.0'><doc name='pressSummary'><xml>Here's some xml</xml></doc></akomaNtoso>",
         )
-        document = MagicMock(spec=PressSummary)
+        document = autospec_document(PressSummary)
         document_from_xml.return_value = document
         v2_ingest.exists_in_database = False
         v2_ingest.uri = "a/fake/uri"
@@ -96,7 +98,7 @@ class TestSaveDocumentToMarklogic:
     @patch("src.ds_caselaw_ingester.ingester.document_from_xml")
     def test_save_document_to_marklogic_insert_parser_log(self, document_from_xml, v2_ingest):
         xml = ET.XML("<error/>")
-        document = MagicMock(spec=ParserLog)
+        document = autospec_document(ParserLog)
         document_from_xml.return_value = document
         v2_ingest.exists_in_database = False
         v2_ingest.uri = "a/fake/uri"
@@ -109,7 +111,7 @@ class TestSaveDocumentToMarklogic:
 
     @patch("src.ds_caselaw_ingester.ingester.document_from_xml")
     def test_save_document_to_marklogic_insert_failure(self, document_from_xml, v2_ingest):
-        document = MagicMock()
+        document = autospec_document(Judgment)
         document.save.side_effect = MarklogicCommunicationError("error")
         document_from_xml.return_value = document
         v2_ingest.exists_in_database = False
@@ -146,12 +148,23 @@ class TestSaveDocumentToMarklogic:
                 },
             },
         }
-        document = MagicMock()
-        v2_ingest.save_document_to_marklogic = MagicMock(return_value=document)
+        document = autospec_document(Judgment)
+        v2_ingest.api_client.get_document_by_uri = MagicMock(return_value=document)
 
         v2_ingest.insert_or_update_xml()
 
-        v2_ingest.save_document_to_marklogic.assert_called_once()
+        document.save.assert_called_once()
+        assert v2_ingest.document is document
+
+    @patch("src.ds_caselaw_ingester.ingester.document_from_xml")
+    def test_insert_or_update_xml_inserts_via_document_save(self, document_from_xml, v2_ingest):
+        document = autospec_document(Judgment)
+        document_from_xml.return_value = document
+        v2_ingest.exists_in_database = False
+
+        v2_ingest.insert_or_update_xml()
+
+        document.save.assert_called_once()
         assert v2_ingest.document is document
 
     def test_insert_or_update_xml_wraps_save_failures(self, v2_ingest):

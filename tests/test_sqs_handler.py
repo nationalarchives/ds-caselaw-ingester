@@ -3,6 +3,7 @@ from unittest.mock import PropertyMock, patch
 
 import pytest
 from caselawclient.factories import IdentifierResolutionsFactory
+from caselawclient.models.judgments import Judgment
 from caselawclient.types import DocumentURIString
 
 from src.ds_caselaw_ingester import exceptions, lambda_function
@@ -11,6 +12,7 @@ from .conftest import sqs_s3_event, sqs_v2_event, v2_message_raw
 from .helpers import (
     assert_log_has_message_starting,
     assert_log_shows_successful_ingest,
+    autospec_document,
     create_fake_bulk_file,
     create_fake_tdr_file,
 )
@@ -47,7 +49,8 @@ class TestSQSHandler:
     ):
         """Test that a V2 message arriving via SQS is processed correctly."""
         mock_s3_client.download_file = create_fake_tdr_file
-        doc = apiclient.get_document_by_uri.return_value
+        doc = autospec_document(Judgment)
+        apiclient.get_document_by_uri.return_value = doc
         doc.neutral_citation = None
 
         result = lambda_function.handler(event=sqs_v2_event, context=handler_context)
@@ -89,7 +92,8 @@ class TestSQSHandler:
         """Test that an S3 message arriving via SQS is processed correctly."""
         mock_s3_client.download_file = create_fake_bulk_file
         mock_uuid4.return_value = "a1b2-c3d4"
-        doc = apiclient.get_document_by_uri.return_value
+        doc = autospec_document(Judgment)
+        apiclient.get_document_by_uri.return_value = doc
         doc.neutral_citation = "[2012] UKUT 82 (IAC)"
 
         result = lambda_function.handler(event=sqs_s3_event, context=handler_context)

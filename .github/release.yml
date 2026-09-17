@@ -1,17 +1,11 @@
-# .github/release.yml
-
 changelog:
   categories:
     - title: What's new
       labels:
         - "*"
       exclude:
-        authors:
-          - "renovate[bot]"
-          - "renovate"
+        labels:
+          - "dependencies"
     - title: Renovate
       labels:
-        - "*"
-      authors:
-        - "renovate[bot]"
-        - "renovate"
+        - "dependencies"

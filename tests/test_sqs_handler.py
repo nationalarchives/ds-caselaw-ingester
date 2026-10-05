@@ -50,10 +50,12 @@ class TestSQSHandler:
         """Test that a V2 message arriving via SQS is processed correctly."""
         mock_s3_client.download_file = create_fake_tdr_file
         doc = autospec_document(Judgment)
-        apiclient.get_document_by_uri.return_value = doc
+        incoming_doc = autospec_document(Judgment)
+        incoming_doc.merge_into.return_value = doc
         doc.neutral_citation = None
 
-        result = lambda_function.handler(event=sqs_v2_event, context=handler_context)
+        with patch("src.ds_caselaw_ingester.ingester.document_from_xml", return_value=incoming_doc):
+            result = lambda_function.handler(event=sqs_v2_event, context=handler_context)
 
         assert_log_shows_successful_ingest(caplog)
         notify_update.assert_called()
@@ -93,10 +95,12 @@ class TestSQSHandler:
         mock_s3_client.download_file = create_fake_bulk_file
         mock_uuid4.return_value = "a1b2-c3d4"
         doc = autospec_document(Judgment)
-        apiclient.get_document_by_uri.return_value = doc
+        incoming_doc = autospec_document(Judgment)
+        incoming_doc.merge_into.return_value = doc
         doc.neutral_citation = "[2012] UKUT 82 (IAC)"
 
-        result = lambda_function.handler(event=sqs_s3_event, context=handler_context)
+        with patch("src.ds_caselaw_ingester.ingester.document_from_xml", return_value=incoming_doc):
+            result = lambda_function.handler(event=sqs_s3_event, context=handler_context)
 
         assert_log_has_message_starting(caplog, "Ingester Start: Consignment reference BULK-0")
         assert_log_shows_successful_ingest(caplog)

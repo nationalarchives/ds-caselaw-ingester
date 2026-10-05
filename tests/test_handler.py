@@ -56,12 +56,14 @@ class TestHandler:
     ):
         mock_s3_client.download_file = create_fake_tdr_file
         doc = autospec_document(Judgment)
-        apiclient.get_document_by_uri.return_value = doc
+        incoming_doc = autospec_document(Judgment)
+        incoming_doc.merge_into.return_value = doc
         doc.neutral_citation = None
 
         message = v2_message_raw
         event = {"Records": [{"Sns": {"Message": message}}, {"Sns": {"Message": message}}]}
-        lambda_function.handler(event=event, context=handler_context)
+        with patch("src.ds_caselaw_ingester.ingester.document_from_xml", return_value=incoming_doc):
+            lambda_function.handler(event=event, context=handler_context)
 
         assert_log_shows_successful_ingest(caplog)
         assert_log_does_not_have_message_starting(caplog, "publishing")
@@ -72,13 +74,15 @@ class TestHandler:
         modify_filename.assert_not_called()
         doc.publish.assert_not_called()
 
-        doc.save.assert_called_with(
+        incoming_doc.merge_into.assert_called_with(
+            "cat",
             message="Updated document submitted by TDR user",
             version_type=VersionType.SUBMISSION,
             automated=False,
             payload=ANY,
         )
-        assert doc.save.call_count == 2
+        assert incoming_doc.merge_into.call_count == 2
+        incoming_doc.save.assert_not_called()
         doc.identifiers.add.assert_not_called()
         doc.identifiers.save.assert_not_called()
 
@@ -114,12 +118,14 @@ class TestHandler:
         mock_s3_client.download_file = create_fake_bulk_file
         mock_uuid4.return_value = "a1b2-c3d4"
         doc = autospec_document(Judgment)
-        apiclient.get_document_by_uri.return_value = doc
+        incoming_doc = autospec_document(Judgment)
+        incoming_doc.merge_into.return_value = doc
         doc.neutral_citation = "[2012] UKUT 82 (IAC)"
 
         message = s3_message_raw
         event = {"Records": [{"Sns": {"Message": message}}, {"Sns": {"Message": message}}]}
-        lambda_function.handler(event=event, context=handler_context)
+        with patch("src.ds_caselaw_ingester.ingester.document_from_xml", return_value=incoming_doc):
+            lambda_function.handler(event=event, context=handler_context)
 
         assert_log_shows_successful_ingest(caplog)
 
@@ -132,13 +138,14 @@ class TestHandler:
         notify_updated.assert_not_called()
         modify_filename.assert_not_called()
 
-        doc.save.assert_called_with(
+        incoming_doc.merge_into.assert_called_with(
+            "cat",
             message="Updated document uploaded by Find Case Law",
             version_type=VersionType.SUBMISSION,
             automated=True,
             payload=ANY,
         )
-        assert doc.save.call_count == 2
+        assert incoming_doc.merge_into.call_count == 2
         assert doc.identifiers.add.call_args_list[0].args[0].value == "[2012] UKUT 82 (IAC)"
         assert type(doc.identifiers.add.call_args_list[0].args[0]) is NeutralCitationNumber
         doc.save_identifiers.assert_called()

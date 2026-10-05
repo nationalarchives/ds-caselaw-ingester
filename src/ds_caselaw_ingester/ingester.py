@@ -23,7 +23,7 @@ from caselawclient.models.judgments import Judgment
 from caselawclient.models.parser_logs import ParserLog
 from caselawclient.models.press_summaries import PressSummary
 from caselawclient.models.utilities.aws import S3PrefixString
-from caselawclient.types import DocumentIdentifierSlug, DocumentIdentifierValue
+from caselawclient.types import DocumentIdentifierSlug, DocumentIdentifierValue, mint_document_uri
 from ds_caselaw_utils.types.metadata_schema_autogen import (
     AUTO_PUBLISH_DOCUMENT_DEFAULT,
     RAISE_ERROR_ON_EXISTING_DOCUMENT_DEFAULT,
@@ -233,21 +233,30 @@ class Ingest:
         return "New document uploaded by Find Case Law"
 
     def save_document_to_marklogic(self) -> Document:
-        """Insert or update ingested XML in MarkLogic via Document.save()."""
+        """Insert ingested XML in MarkLogic via Document.save(), or merge it into the existing document at `self.uri` via Document.merge_into()."""
         body = DocumentBody(ET.tostring(self.xml))
-        uri = DocumentURIString(self.uri)
+        message = self._submission_save_message()
+        automated = self.metadata_object.auto_publish
+        payload = dict(
+            build_version_annotation_payload(self.metadata, self.aws_lambda_context),
+        )  # We cast this to a dict here because VersionAnnotation doesn't yet have a TypedDict as its payload argument.
+
         if self.exists_in_database:
-            document = self.api_client.get_document_by_uri(uri)
-            document.body = body
-        else:
-            document = document_from_xml(body, self.api_client, uri=uri)
+            incoming_document = document_from_xml(body, self.api_client, uri=mint_document_uri())
+            return incoming_document.merge_into(
+                DocumentURIString(self.uri),
+                message=message,
+                version_type=VersionType.SUBMISSION,
+                automated=automated,
+                payload=payload,
+            )
+
+        document = document_from_xml(body, self.api_client, uri=DocumentURIString(self.uri))
         document.save(
-            message=self._submission_save_message(),
+            message=message,
             version_type=VersionType.SUBMISSION,
-            automated=self.metadata_object.auto_publish,
-            payload=dict(
-                build_version_annotation_payload(self.metadata, self.aws_lambda_context),
-            ),  # We cast this to a dict here because VersionAnnotation doesn't yet have a TypedDict as its payload argument.
+            automated=automated,
+            payload=payload,
         )
         return document
 

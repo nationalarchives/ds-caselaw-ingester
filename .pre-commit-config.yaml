@@ -34,7 +34,7 @@ repos:
         additional_dependencies:
           - types-requests==2.33.0.20260906
           - types-python-dateutil==2.9.0.20260807
-          - types-pytz==2026.4.0.20260926
+          - types-pytz==2026.5.0.20261006
           - types-lxml==2026.2.16
           - boto3-stubs[s3,sns]==1.43.108
           - ds-caselaw-marklogic-api-client==50.0.1

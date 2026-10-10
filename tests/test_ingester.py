@@ -5,7 +5,10 @@ import pytest
 from caselawclient.Client import (
     MarklogicCommunicationError,
 )
-from caselawclient.models.documents.exceptions import CannotPublishUnpublishableDocument
+from caselawclient.models.documents.exceptions import (
+    CannotPublishUnpublishableDocument,
+    DocumentMergeNotPossibleError,
+)
 from caselawclient.models.documents.versions import VersionType
 from caselawclient.models.judgments import Judgment
 from caselawclient.models.parser_logs import ParserLog
@@ -28,35 +31,70 @@ class TestPerformIngest:
 
 
 class TestSaveDocumentToMarklogic:
-    def test_save_document_to_marklogic_update_path(self, v2_ingest):
-        document = autospec_document(Judgment)
+    @patch("src.ds_caselaw_ingester.ingester.document_from_xml")
+    def test_save_document_to_marklogic_update_path(self, document_from_xml, v2_ingest):
+        incoming_document = autospec_document(Judgment)
+        merged_document = autospec_document(Judgment)
+        incoming_document.merge_into.return_value = merged_document
+        document_from_xml.return_value = incoming_document
         v2_ingest.exists_in_database = True
-        v2_ingest.api_client.get_document_by_uri = MagicMock(return_value=document)
+        v2_ingest.uri = "ewca/civ/2026/42"
 
         result = v2_ingest.save_document_to_marklogic()
 
-        assert result is document
-        document.save.assert_called_once_with(
+        assert result is merged_document
+        incoming_document.save.assert_not_called()
+        incoming_document.merge_into.assert_called_once_with(
+            "ewca/civ/2026/42",
             message="Updated document submitted by TDR user",
             version_type=VersionType.SUBMISSION,
             automated=False,
             payload=ANY,
         )
 
-    def test_save_document_to_marklogic_update_path_no_tdr(self, v2_ingest):
-        document = autospec_document(Judgment)
+    @patch("src.ds_caselaw_ingester.ingester.document_from_xml")
+    def test_save_document_to_marklogic_update_path_uses_a_new_uri_for_incoming_document(
+        self,
+        document_from_xml,
+        v2_ingest,
+    ):
+        document_from_xml.return_value = autospec_document(Judgment)
         v2_ingest.exists_in_database = True
-        v2_ingest.metadata = {"parameters": {}}
-        v2_ingest.api_client.get_document_by_uri = MagicMock(return_value=document)
+        v2_ingest.uri = "ewca/civ/2026/42"
 
         v2_ingest.save_document_to_marklogic()
 
-        document.save.assert_called_once_with(
+        incoming_uri = document_from_xml.call_args.kwargs["uri"]
+        assert incoming_uri != "ewca/civ/2026/42"
+        assert incoming_uri.startswith("d-")
+
+    @patch("src.ds_caselaw_ingester.ingester.document_from_xml")
+    def test_save_document_to_marklogic_update_path_no_tdr(self, document_from_xml, v2_ingest):
+        incoming_document = autospec_document(Judgment)
+        document_from_xml.return_value = incoming_document
+        v2_ingest.exists_in_database = True
+        v2_ingest.metadata = {"parameters": {}}
+
+        v2_ingest.save_document_to_marklogic()
+
+        incoming_document.merge_into.assert_called_once_with(
+            v2_ingest.uri,
             message="Updated document uploaded by Find Case Law",
             version_type=VersionType.SUBMISSION,
             automated=False,
             payload=ANY,
         )
+
+    @patch("src.ds_caselaw_ingester.ingester.document_from_xml")
+    def test_save_document_to_marklogic_update_path_merge_not_possible(self, document_from_xml, v2_ingest):
+        incoming_document = autospec_document(Judgment)
+        incoming_document.merge_into.side_effect = DocumentMergeNotPossibleError(["Types do not match"])
+        document_from_xml.return_value = incoming_document
+        v2_ingest.exists_in_database = True
+        v2_ingest.uri = "ewca/civ/2026/42"
+
+        with pytest.raises(DocumentInsertionError):
+            v2_ingest.insert_or_update_xml()
 
     @patch("src.ds_caselaw_ingester.ingester.document_from_xml")
     def test_save_document_to_marklogic_insert_judgment(self, document_from_xml, v2_ingest):
@@ -148,13 +186,15 @@ class TestSaveDocumentToMarklogic:
                 },
             },
         }
-        document = autospec_document(Judgment)
-        v2_ingest.api_client.get_document_by_uri = MagicMock(return_value=document)
+        incoming_document = autospec_document(Judgment)
+        merged_document = autospec_document(Judgment)
+        incoming_document.merge_into.return_value = merged_document
 
-        v2_ingest.insert_or_update_xml()
+        with patch("src.ds_caselaw_ingester.ingester.document_from_xml", return_value=incoming_document):
+            v2_ingest.insert_or_update_xml()
 
-        document.save.assert_called_once()
-        assert v2_ingest.document is document
+        incoming_document.merge_into.assert_called_once()
+        assert v2_ingest.document is merged_document
 
     @patch("src.ds_caselaw_ingester.ingester.document_from_xml")
     def test_insert_or_update_xml_inserts_via_document_save(self, document_from_xml, v2_ingest):

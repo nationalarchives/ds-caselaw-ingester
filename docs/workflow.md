@@ -54,7 +54,7 @@ sequenceDiagram
         note right of perform_ingest: This is where we actually start to insert or update things.<br>perform_ingest() orchestrates the operations.
 
         perform_ingest ->>+ Ingest: insert_or_update_xml()
-        note right of Ingest: Builds a Document from XML and persists via Document.save()
+        note right of Ingest: Builds a Document from XML and persists it via Document.save(), or merges it into the existing document via Document.merge_into()
         alt If existing document in MarkLogic
             break error_on_existing_document is True
                 Ingest ->> Ingest: Raise DocumentInsertionError exception
@@ -62,9 +62,14 @@ sequenceDiagram
         end
         Ingest ->>+ Ingest: save_document_to_marklogic()
             create participant document
-            Ingest ->> document: Load or construct Document from ingested XML
-            Ingest ->> document: save() with submission annotation
-            document ->> MarkLogic: Upsert document XML, identifiers, and structured metadata
+            Ingest ->> document: Construct Document from ingested XML
+            alt No existing document
+                Ingest ->> document: save() with submission annotation
+            else Existing document in MarkLogic
+                Ingest ->> document: merge_into(existing URI) with submission annotation
+                note right of document: The existing document becomes a new version, keeping its history, identifiers and metadata
+            end
+            document ->> MarkLogic: Save document XML, identifiers, and structured metadata
         deactivate Ingest
         break Save fails
             Ingest ->> Ingest: Raise DocumentInsertionError exception

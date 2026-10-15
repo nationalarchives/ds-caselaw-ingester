@@ -539,27 +539,29 @@ def perform_ingest(ingest: Ingest) -> None:
         raise DocumentInsertionError("Document not present in MarkLogic after attempting insert or update.")
 
     logger.info("%s judgment xml for %s", ingest.upload_state.title(), ingest.uri)
-    ingest.set_document_identifiers()
+
+    with ingest.document.editing_session():
+        ingest.set_document_identifiers()
+
+        if "TDR" in ingest.metadata["parameters"]:
+            ingest.store_tdr_metadata(ingest.metadata["parameters"]["TDR"])
+
+        if "PARSER" in ingest.metadata["parameters"]:
+            ingest.store_parser_metadata(ingest.metadata["parameters"]["PARSER"])
+
+        # save files to S3
+        ingest.save_files_to_s3()
+
+        if ingest.will_publish():
+            try:
+                logger.info("publishing %s at %s", ingest.consignment_reference, ingest.uri)
+                ingest.document.publish()
+            except CannotPublishUnpublishableDocument as err:
+                raise CannotPublishException(*err.args) from err
+        else:
+            logger.info("unpublishing %s", ingest.uri)
+            ingest.document.unpublish()
 
     ingest.send_email()
-
-    if "TDR" in ingest.metadata["parameters"]:
-        ingest.store_tdr_metadata(ingest.metadata["parameters"]["TDR"])
-
-    if "PARSER" in ingest.metadata["parameters"]:
-        ingest.store_parser_metadata(ingest.metadata["parameters"]["PARSER"])
-
-    # save files to S3
-    ingest.save_files_to_s3()
-
-    if ingest.will_publish():
-        try:
-            logger.info("publishing %s at %s", ingest.consignment_reference, ingest.uri)
-            ingest.document.publish()
-        except CannotPublishUnpublishableDocument as err:
-            raise CannotPublishException(*err.args) from err
-    else:
-        logger.info("unpublishing %s", ingest.uri)
-        ingest.document.unpublish()
 
     logger.info("Ingestion complete")

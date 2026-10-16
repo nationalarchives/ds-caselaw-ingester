@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from unittest.mock import ANY, MagicMock, patch
 
 import lxml.etree as ET
@@ -21,13 +22,41 @@ from .helpers import autospec_document
 
 
 class TestPerformIngest:
+    def test_checks_out_once_before_mutating(self):
+        """The document mock stands in for a held edit lock. Ingest still has to take that lock first."""
+        order = []
+        ingest = MagicMock()
+        ingest.will_publish.return_value = False
+
+        @contextmanager
+        def editing_session():
+            order.append("editing_session")
+            yield
+            order.append("editing_session_end")
+
+        ingest.document.editing_session = editing_session
+        ingest.set_document_identifiers.side_effect = lambda: order.append("identifiers")
+        ingest.document.unpublish.side_effect = lambda: order.append("unpublish")
+        ingest.send_email.side_effect = lambda: order.append("email")
+
+        ingester.perform_ingest(ingest)
+
+        assert order == ["editing_session", "identifiers", "unpublish", "editing_session_end", "email"]
+
     def test_perform_ingest_raises_reportable_error_if_unpublishable(self):
         """If the document is not publishable, make sure an IngestionError is raised."""
         ingest = MagicMock()
         ingest.will_publish.return_value = True
+
+        @contextmanager
+        def editing_session():
+            yield
+
+        ingest.document.editing_session = editing_session
         ingest.document.publish.side_effect = CannotPublishUnpublishableDocument("Publishing failed")
         with pytest.raises(IngestionError, match="^Publishing failed$"):
             ingester.perform_ingest(ingest)
+        ingest.send_email.assert_not_called()
 
 
 class TestSaveDocumentToMarklogic:

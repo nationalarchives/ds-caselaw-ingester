@@ -31,6 +31,10 @@ class FileNotFoundException(IngestionError):
     pass
 
 
+class InvalidMetadataException(IngestionError):
+    pass
+
+
 class DocxFilenameNotFoundException(IngestionError):
     pass
 

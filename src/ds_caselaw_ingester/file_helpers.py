@@ -16,6 +16,7 @@ from .exceptions import (
     DocxFilenameNotFoundException,
     FileNotFoundException,
 )
+from .parser_metadata import validate_document_processing_metadata
 
 logger = logging.getLogger("ingester")
 logger.setLevel(logging.DEBUG)
@@ -30,7 +31,8 @@ def extract_metadata(tar: tarfile.TarFile, consignment_reference: str) -> Docume
 
     if te_metadata_file is None:
         raise FileNotFoundException(f"Metadata file not found. Consignment Ref: {consignment_reference}")
-    return decoder.decode(te_metadata_file.read().decode("utf-8"))
+    decoded = decoder.decode(te_metadata_file.read().decode("utf-8"))
+    return validate_document_processing_metadata(decoded, consignment_reference=consignment_reference)
 
 
 def copy_file(

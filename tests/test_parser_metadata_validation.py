@@ -2,6 +2,7 @@ import io
 import json
 import os
 import tarfile
+from unittest.mock import patch
 
 import pytest
 
@@ -101,9 +102,18 @@ class TestValidateDocumentProcessingMetadata:
 
 
 class TestExtractMetadataValidation:
-    def test_extract_metadata_validates_example_tarball(self):
-        with tarfile.open(TDR_TARBALL_PATH, mode="r") as tar:
+    def test_extract_metadata_succeeds_when_tarball_contains_valid_metadata(self):
+        with (
+            tarfile.open(TDR_TARBALL_PATH, mode="r") as tar,
+            patch(
+                "src.ds_caselaw_ingester.file_helpers.validate_document_processing_metadata",
+                wraps=validate_document_processing_metadata,
+            ) as validate,
+        ):
             result = file_helpers.extract_metadata(tar, "TDR-2022-DNWR")
+
+        validate.assert_called_once()
+        assert validate.call_args.kwargs["consignment_reference"] == "TDR-2022-DNWR"
         assert result["parameters"]["PARSER"]["documentType"] == "judgment"
 
     def test_extract_metadata_rejects_invalid_metadata_in_tar(self, tmp_path):

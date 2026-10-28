@@ -13,6 +13,10 @@ TDR_TARBALL_PATH = os.path.join(
     "../aws_examples/s3/te-editorial-out-int/TDR-2022-DNWR.tar.gz",
 )
 
+# Parser failure fixture: no usable XML (falls back to parser.log). PARSER.documentType is
+# `decision` because the schema requires one of decision/judgment/pressSummary and this
+# consignment is not a classified judgment or press summary. A dedicated `unknown` value
+# would need a ds-caselaw-utils schema change.
 ERROR_TARBALL_PATH = os.path.join(
     os.path.dirname(__file__),
     "../aws_examples/s3/te-editorial-out-int/TDR-2025-CN7V.tar.gz",

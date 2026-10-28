@@ -40,6 +40,7 @@ repos:
           - ds-caselaw-marklogic-api-client==51.0.0
           - ds-caselaw-utils==5.1.2
           - aws-lambda-powertools==3.37.0
+          - jsonschema[format-nongpl]==4.26.0
 
   - repo: https://github.com/rbubley/mirrors-prettier
     rev: v3.9.10

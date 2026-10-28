@@ -43,6 +43,18 @@ class TestValidateDocumentProcessingMetadata:
         with pytest.raises(InvalidMetadataException, match="Consignment Ref: TEST-4"):
             validate_document_processing_metadata(data, consignment_reference="TEST-4")
 
+    def test_accepts_valid_metadata_field_timestamp(self):
+        data = minimal_valid_metadata()
+        data["parameters"]["PARSER"]["metadata_fields"] = [
+            {
+                "name": "title",
+                "value": "Example",
+                "source": "document",
+                "timestamp": "2025-12-17T18:00:00+00:00",
+            },
+        ]
+        validate_document_processing_metadata(data, consignment_reference="TEST-5")
+
     def test_rejects_invalid_metadata_field_source(self):
         data = minimal_valid_metadata()
         data["parameters"]["PARSER"]["metadata_fields"] = [
@@ -53,8 +65,8 @@ class TestValidateDocumentProcessingMetadata:
                 "timestamp": "2025-12-17T18:00:00+00:00",
             },
         ]
-        with pytest.raises(InvalidMetadataException, match="Consignment Ref: TEST-5"):
-            validate_document_processing_metadata(data, consignment_reference="TEST-5")
+        with pytest.raises(InvalidMetadataException, match="Consignment Ref: TEST-5b"):
+            validate_document_processing_metadata(data, consignment_reference="TEST-5b")
 
     def test_rejects_malformed_parser_run_id_uuid(self):
         data = minimal_valid_metadata()

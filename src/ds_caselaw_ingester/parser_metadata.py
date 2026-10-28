@@ -38,7 +38,7 @@ def _metadata_format_checker() -> FormatChecker:
     checker.checkers.update(Draft202012Validator.FORMAT_CHECKER.checkers)
 
     @checker.checks("datetime")
-    def check_parser_metadata_datetime(instance: object) -> None:
+    def check_parser_metadata_datetime(instance: object) -> bool:
         if not isinstance(instance, str):
             raise FormatError(f"{instance!r} is not a string")
         normalized = f"{instance[:-1]}+00:00" if instance.endswith("Z") else instance
@@ -46,6 +46,7 @@ def _metadata_format_checker() -> FormatChecker:
             datetime.fromisoformat(normalized)
         except ValueError as err:
             raise FormatError(f"{instance!r} is not a valid ISO 8601 datetime") from err
+        return True
 
     return checker
 
